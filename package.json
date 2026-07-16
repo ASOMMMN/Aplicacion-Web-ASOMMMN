@@ -1,0 +1,21 @@
+{
+  "name": "asommmn",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "node scripts/hacker-dev.js",
+    "dev:api": "npm --workspace=apps/api run start:dev",
+    "dev:web": "npm --workspace=apps/web run dev",
+    "build:api": "npm --workspace=apps/api run build",
+    "build:web": "npm --workspace=apps/web run build"
+  },
+  "devDependencies": {
+    "@types/multer": "^2.1.0",
+    "blessed": "^0.1.81",
+    "figlet": "^1.11.0"
+  }
+}

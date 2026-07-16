@@ -1,0 +1,926 @@
+/* ============================================================
+   ENMV — Escuela Náutica Mercante de Veracruz
+   Paleta institucional y overrides de Bootstrap
+   ============================================================ */
+
+/* ---------- Tokens de marca ---------- */
+:root {
+  /* Colores */
+  --enmv-azul:        #0A2240;
+  --enmv-azul-hover:  #11315C;
+  --enmv-dorado:      #C9A24B;
+  --enmv-dorado-dark: #a8832e;
+  --enmv-verde:       #1D9E75;
+  --enmv-verde-dark:  #0F6E56;
+  --enmv-rojo:        #C0392B;
+  --enmv-rojo-dark:   #96281D;
+  --enmv-fondo:       #F5F7FA;
+  --enmv-blanco:      #FFFFFF;
+  --enmv-text-muted:  #495057;
+
+  /* Radios y sombras */
+  --enmv-radius-card: 12px;
+  --enmv-shadow-card: 0 2px 12px rgba(10,34,64,.10);
+  --enmv-shadow-nav:  0 2px 8px rgba(10,34,64,.18);
+
+  /* Bootstrap overrides vía custom props */
+  --bs-primary:          var(--enmv-azul);
+  --bs-primary-rgb:      10,34,64;
+  --bs-font-sans-serif:  var(--font-public-sans), 'Segoe UI', system-ui, sans-serif;
+  --bs-body-line-height: 1.6;
+  --bs-body-bg:          var(--enmv-fondo);
+  --bs-body-color:       #1a2638;
+  --bs-border-radius:    var(--enmv-radius-card);
+}
+
+html, body {
+  height: 100%;
+}
+
+/* ---------- Tipografía ----------
+   Public Sans en todo el sistema. Playfair Display queda reservada
+   ÚNICAMENTE para el nombre de la escuela (navbar + login), vía la
+   clase .font-serif aplicada explícitamente ahí — en ningún otro lado. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-public-sans), 'Segoe UI', system-ui, sans-serif;
+  color: var(--enmv-azul);
+}
+.font-serif {
+  font-family: 'Playfair Display', 'Merriweather', Georgia, serif;
+}
+p {
+  line-height: 1.65;
+}
+.text-muted,
+.text-secondary {
+  color: var(--enmv-text-muted) !important;
+}
+
+/* ---------- Galón dorado bajo títulos de sección ---------- */
+.section-title {
+  font-family: var(--font-public-sans), 'Segoe UI', system-ui, sans-serif;
+  color: var(--enmv-azul);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  line-height: 1.3;
+}
+h1.section-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+}
+.section-title::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 3px;
+  background: var(--enmv-dorado);
+  margin-top: 0.35rem;
+}
+
+/* ---------- Barra de navegación ENMV ---------- */
+.navbar-enmv {
+  background-color: var(--enmv-azul) !important;
+  border-bottom: 3px solid var(--enmv-dorado) !important;
+  box-shadow: var(--enmv-shadow-nav);
+}
+.navbar-enmv .navbar-brand {
+  color: #fff !important;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.navbar-enmv .navbar-brand .lema {
+  display: block;
+  font-family: var(--font-public-sans), sans-serif;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--enmv-dorado);
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+.navbar-enmv .nav-link {
+  color: rgba(255,255,255,.85) !important;
+  font-size: .875rem;
+  transition: color .2s;
+}
+.navbar-enmv .nav-link:hover,
+.navbar-enmv .nav-link.active {
+  color: var(--enmv-dorado) !important;
+}
+.navbar-enmv .navbar-toggler {
+  border-color: rgba(255,255,255,.4);
+}
+.navbar-enmv .navbar-toggler-icon {
+  filter: brightness(0) invert(1);
+}
+
+/* Campana de notificaciones en navbar */
+.btn-campana-enmv {
+  position: relative;
+  color: rgba(255,255,255,.85) !important;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: .25rem .5rem;
+  text-decoration: none !important;
+}
+.btn-campana-enmv:hover,
+.btn-campana-enmv:focus {
+  color: var(--enmv-dorado) !important;
+}
+.badge-campana-enmv {
+  position: absolute;
+  top: -.2rem;
+  right: -.1rem;
+  font-size: .6rem;
+  padding: .25em .4em;
+}
+.panel-notificaciones-enmv {
+  min-width: 320px;
+  max-width: 380px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0;
+  border-top: 3px solid var(--enmv-dorado);
+}
+.panel-notificaciones-enmv .dropdown-item {
+  white-space: normal;
+  padding: .6rem .9rem;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.panel-notificaciones-enmv .notificacion-no-leida {
+  background-color: rgba(201,162,75,.12);
+}
+
+/* Botón "Cerrar sesión" en navbar */
+.btn-logout-enmv {
+  color: var(--enmv-azul) !important;
+  background: var(--enmv-dorado) !important;
+  border-color: var(--enmv-dorado) !important;
+  font-size: .8rem;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: background .2s, opacity .2s;
+}
+.btn-logout-enmv:hover {
+  opacity: .88;
+}
+
+/* ---------- Tarjetas ---------- */
+.card-enmv {
+  border: none !important;
+  border-radius: var(--enmv-radius-card) !important;
+  box-shadow: var(--enmv-shadow-card) !important;
+  background: var(--enmv-blanco);
+}
+.card-enmv-top-azul  { border-top: 3px solid var(--enmv-azul)   !important; }
+.card-enmv-top-dorado{ border-top: 3px solid var(--enmv-dorado) !important; }
+.card-enmv-top-verde { border-top: 3px solid var(--enmv-verde)  !important; }
+.card-enmv-top-rojo  { border-top: 3px solid var(--enmv-rojo)   !important; }
+
+/* Affordance sin depender de hover: todo elemento clickeable debe
+   distinguirse en reposo (borde, fondo o sombra), no solo al pasar el mouse. */
+.btn-outline-primary,
+.btn-outline-secondary,
+.btn-outline-danger,
+.btn-outline-success {
+  border-width: 1.5px;
+  box-shadow: 0 1px 2px rgba(10, 34, 64, .08);
+}
+a:not(.btn):not(.nav-link):not(.navbar-brand) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------- Botones globales ---------- */
+.btn-primary,
+.btn.btn-primary {
+  background-color: var(--enmv-azul) !important;
+  border-color: var(--enmv-azul) !important;
+  color: #fff !important;
+  transition: background .2s;
+}
+.btn-primary:hover,
+.btn.btn-primary:hover {
+  background-color: var(--enmv-azul-hover) !important;
+  border-color: var(--enmv-azul-hover) !important;
+}
+.btn-dorado {
+  background-color: var(--enmv-dorado) !important;
+  border-color: var(--enmv-dorado) !important;
+  color: var(--enmv-azul) !important;
+  font-weight: 600;
+  transition: background .2s, opacity .2s;
+}
+.btn-dorado:hover {
+  opacity: .88;
+}
+.btn-outline-primary {
+  color: var(--enmv-azul) !important;
+  border-color: var(--enmv-azul) !important;
+}
+.btn-outline-primary:hover {
+  background-color: var(--enmv-azul) !important;
+  color: #fff !important;
+}
+
+/* ---------- Badges de estado ---------- */
+.badge-estado-proceso   { background: var(--enmv-dorado) !important; color: var(--enmv-azul) !important; }
+.badge-estado-aprobado  { background: var(--enmv-verde)  !important; color: #fff !important; }
+.badge-estado-rechazado { background: #C0392B !important; color: #fff !important; }
+.badge-pill-enmv {
+  border-radius: 999px;
+  padding: .3em .75em;
+  font-size: .775rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+/* Bootstrap badge overrides */
+.badge.bg-warning { background-color: var(--enmv-dorado) !important; color: var(--enmv-azul) !important; }
+.badge.bg-success { background-color: var(--enmv-verde)  !important; }
+.badge.bg-primary { background-color: var(--enmv-azul)   !important; }
+
+/* ---------- Footer ---------- */
+.footer-enmv {
+  background-color: var(--enmv-azul);
+  color: rgba(255,255,255,.8);
+  padding: 1.5rem 0;
+  font-size: .8rem;
+  border-top: 3px solid var(--enmv-dorado);
+}
+.footer-enmv .lema-footer {
+  color: var(--enmv-dorado);
+  font-style: italic;
+  letter-spacing: .08em;
+}
+
+/* ---------- Página de autenticación (login/registro) ---------- */
+.auth-page {
+  min-height: 100vh;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+.auth-card {
+  background: rgba(255, 255, 255, 0.50);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--enmv-radius-card);
+  box-shadow: 0 8px 40px rgba(10,34,64,.35);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 440px;
+}
+/* Halo blanco en etiquetas de formulario — texto oscuro sobre fondo variable */
+.auth-card .nombre-escuela,
+.auth-card .form-label,
+.auth-card label {
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.75);
+}
+/* text-muted — gris oscuro legible */
+.auth-card .text-muted,
+.auth-card p[style*="enmv-text-muted"] {
+  color: #4B5563 !important;
+}
+/* Helper text pequeño */
+.auth-card small {
+  color: #4B5563;
+}
+/* Links de acción — ámbar oscuro #92400E con halo blanco */
+.auth-card a[style*="enmv-dorado"],
+.auth-card a[style*="enmv-azul"] {
+  color: #92400E !important;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+/* Inputs sólidos y diferenciados de la card */
+.auth-card .form-control {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+.auth-card .escudo-login {
+  width: 130px;
+  height: 130px;
+  object-fit: contain;
+}
+.auth-card .nombre-escuela {
+  font-family: 'Playfair Display', serif;
+  color: var(--enmv-azul);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+}
+.auth-card .lema-auth {
+  color: #92400E;
+  font-size: .75rem;
+  font-style: italic;
+  letter-spacing: .08em;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+.auth-divider {
+  width: 60px;
+  height: 2px;
+  background: var(--enmv-dorado);
+  margin: .75rem auto 1.25rem;
+  border-radius: 1px;
+}
+
+/* ---------- Spinners / loading ---------- */
+.spinner-border {
+  color: var(--enmv-azul) !important;
+}
+
+/* ---------- Form controls ---------- */
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--enmv-dorado);
+  box-shadow: 0 0 0 .2rem rgba(201,162,75,.2);
+}
+
+/* ---------- Chatbot widget ---------- */
+@keyframes chatbotDot {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1);   }
+}
+.chatbot-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--enmv-text-muted);
+  animation: chatbotDot 1.4s infinite;
+}
+.chatbot-dot:nth-child(2) { animation-delay: 0.2s; }
+.chatbot-dot:nth-child(3) { animation-delay: 0.4s; }
+.chatbot-input:focus {
+  border-color: var(--enmv-dorado) !important;
+  box-shadow: 0 0 0 .15rem rgba(201,162,75,.2);
+}
+
+/* ============================================================
+   Portal EVALUADOR — pulido náutico
+   Todo va bajo .nautical-panel para NO afectar postulante/admin,
+   que también usan .card-enmv / .section-title.
+   ============================================================ */
+
+/* Textura de fondo tipo carta náutica: cuadrícula muy tenue (~3.5%) */
+.nautical-panel {
+  background-color: var(--enmv-fondo);
+  background-image:
+    linear-gradient(rgba(10, 34, 64, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10, 34, 64, 0.035) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+/* Tarjetas: más aire, sombra más difusa, micro-interacción al hover */
+.nautical-panel .card-enmv {
+  margin-bottom: 2rem !important;
+  box-shadow: 0 4px 22px rgba(10, 34, 64, .07) !important;
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.nautical-panel .card-enmv:hover {
+  box-shadow: 0 10px 30px rgba(10, 34, 64, .15) !important;
+  transform: translateY(-3px);
+}
+
+/* Item de checklist del expediente: clickeable, distinguible con o sin hover */
+.nautical-panel .requisito-checklist-item {
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+}
+.nautical-panel .requisito-checklist-item:hover,
+.nautical-panel .requisito-checklist-item:focus-visible {
+  background-color: rgba(10, 34, 64, .06) !important;
+  transform: translateY(-1px);
+}
+.nautical-panel .requisito-checklist-item .requisito-chevron {
+  color: var(--enmv-dorado);
+  opacity: .75;
+}
+
+/* Glifo de ancla discreto junto a los títulos de tarjeta */
+.nautical-panel .anchor-glyph {
+  display: inline-block;
+  font-size: .65em;
+  color: var(--enmv-dorado);
+  margin-left: .45em;
+  opacity: .85;
+  vertical-align: middle;
+}
+
+/* Ícono temático junto al título de cada sección */
+.nautical-panel .nautical-icon {
+  color: var(--enmv-dorado);
+  margin-right: .5rem;
+  vertical-align: -3px;
+}
+
+/* Estados vacíos con un ícono sutil en gris claro */
+.nautical-panel .empty-state {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: var(--enmv-text-muted);
+}
+.nautical-panel .empty-state svg,
+.nautical-panel .empty-state i {
+  color: #c7ccd4;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+/* Línea "horizonte": separador sutil azul-a-transparente entre bloques grandes */
+.nautical-panel .horizonte-divider {
+  height: 6px;
+  border: none;
+  border-radius: 3px;
+  margin: 2rem 0;
+  background:
+    repeating-linear-gradient(45deg, rgba(201, 162, 75, .6) 0 3px, transparent 3px 6px),
+    repeating-linear-gradient(-45deg, rgba(10, 34, 64, .45) 0 3px, transparent 3px 6px);
+  background-blend-mode: multiply;
+  opacity: .5;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent);
+}
+
+/* ============================================================
+   Portal EVALUADOR — pulido de detalle (tipografía, botones,
+   formularios, tablas, badges, tarjetas, scrollbars, espaciado)
+   .enmv-modal se aplica a los <Modal> de react-bootstrap: se
+   renderizan en un portal fuera de .nautical-panel (van a
+   document.body), así que necesitan su propia clase de scope
+   para recibir el mismo pulido sin salirnos de "solo evaluador".
+   ============================================================ */
+
+/* ---------- 8. Variables de espaciado, propias del portal evaluador ---------- */
+.nautical-panel,
+.enmv-modal {
+  --enmv-space-xs: .5rem;
+  --enmv-space-sm: 1rem;
+  --enmv-space-md: 1.5rem;
+  --enmv-space-lg: 2rem;
+  --enmv-space-xl: 3rem;
+}
+
+/* ---------- 1. Tipografía: hereda la escala global (Public Sans); solo line-height aquí ---------- */
+.nautical-panel td,
+.nautical-panel .card-enmv .card-body,
+.enmv-modal .modal-body {
+  line-height: 1.65;
+}
+
+/* ---------- 9. Transición global para cualquier estado interactivo ---------- */
+.nautical-panel a,
+.nautical-panel button,
+.nautical-panel input,
+.nautical-panel select,
+.nautical-panel textarea,
+.nautical-panel .card-enmv,
+.enmv-modal a,
+.enmv-modal button,
+.enmv-modal input,
+.enmv-modal select,
+.enmv-modal textarea {
+  transition: background-color .2s ease, background-image .2s ease,
+    border-color .2s ease, color .2s ease, box-shadow .2s ease,
+    transform .2s ease, opacity .2s ease;
+}
+
+/* ---------- 2. Botones ---------- */
+.nautical-panel .btn,
+.enmv-modal .btn {
+  border-radius: 8px;
+}
+.nautical-panel .btn:hover:not(:disabled):not(.disabled),
+.enmv-modal .btn:hover:not(:disabled):not(.disabled) {
+  transform: scale(1.02);
+  box-shadow: 0 4px 14px rgba(10, 34, 64, .16);
+}
+.nautical-panel .btn:active:not(:disabled):not(.disabled),
+.enmv-modal .btn:active:not(:disabled):not(.disabled) {
+  transform: scale(.98);
+  box-shadow: 0 1px 4px rgba(10, 34, 64, .18);
+}
+.nautical-panel .btn:disabled,
+.nautical-panel .btn.disabled,
+.enmv-modal .btn:disabled,
+.enmv-modal .btn.disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Primario (azul marino) y dorado con gradiente sutil */
+.nautical-panel .btn-primary,
+.nautical-panel .btn.btn-primary,
+.enmv-modal .btn-primary,
+.enmv-modal .btn.btn-primary {
+  background-image: linear-gradient(180deg, var(--enmv-azul-hover), var(--enmv-azul)) !important;
+  border-color: var(--enmv-azul) !important;
+}
+.nautical-panel .btn-primary:hover,
+.nautical-panel .btn.btn-primary:hover,
+.enmv-modal .btn-primary:hover,
+.enmv-modal .btn.btn-primary:hover {
+  background-image: linear-gradient(180deg, var(--enmv-azul), #071a30) !important;
+}
+.nautical-panel .btn-dorado,
+.enmv-modal .btn-dorado {
+  background-image: linear-gradient(180deg, #dcbd72, var(--enmv-dorado)) !important;
+  border-color: var(--enmv-dorado) !important;
+}
+.nautical-panel .btn-dorado:hover,
+.enmv-modal .btn-dorado:hover {
+  background-image: linear-gradient(180deg, var(--enmv-dorado), var(--enmv-dorado-dark)) !important;
+  opacity: 1;
+}
+.nautical-panel .btn-outline-primary,
+.enmv-modal .btn-outline-primary {
+  background-color: transparent;
+}
+
+/* Destructivos (eliminar, rechazar) — rojo con hover más oscuro */
+.nautical-panel .btn-outline-danger,
+.enmv-modal .btn-outline-danger {
+  color: var(--enmv-rojo) !important;
+  border-color: var(--enmv-rojo) !important;
+}
+.nautical-panel .btn-outline-danger:hover,
+.enmv-modal .btn-outline-danger:hover {
+  background-color: var(--enmv-rojo-dark) !important;
+  border-color: var(--enmv-rojo-dark) !important;
+  color: #fff !important;
+}
+.nautical-panel .btn-danger,
+.enmv-modal .btn-danger {
+  background-color: var(--enmv-rojo) !important;
+  border-color: var(--enmv-rojo) !important;
+}
+.nautical-panel .btn-danger:hover,
+.enmv-modal .btn-danger:hover {
+  background-color: var(--enmv-rojo-dark) !important;
+  border-color: var(--enmv-rojo-dark) !important;
+}
+
+/* ---------- 3. Formularios ---------- */
+.nautical-panel .form-control,
+.nautical-panel .form-select,
+.enmv-modal .form-control,
+.enmv-modal .form-select {
+  border: 1px solid #d7dce3;
+}
+.nautical-panel .form-control:focus,
+.nautical-panel .form-select:focus,
+.enmv-modal .form-control:focus,
+.enmv-modal .form-select:focus {
+  border-color: var(--enmv-azul);
+  box-shadow: 0 0 0 .2rem rgba(10, 34, 64, .1), 0 0 10px rgba(201, 162, 75, .25);
+}
+.nautical-panel .form-control::placeholder,
+.enmv-modal .form-control::placeholder {
+  color: #9aa3af;
+  opacity: 1;
+}
+.nautical-panel textarea.form-control,
+.enmv-modal textarea.form-control {
+  resize: vertical;
+  padding: .75rem .9rem;
+  min-height: 96px;
+}
+
+/* ---------- 4. Tablas ---------- */
+.nautical-panel .table,
+.enmv-modal .table {
+  --bs-table-border-color: rgba(10, 34, 64, .08);
+}
+.nautical-panel .table thead th,
+.enmv-modal .table thead th {
+  background-color: rgba(10, 34, 64, .035);
+  color: var(--enmv-azul);
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border-bottom: 2px solid rgba(10, 34, 64, .1);
+  padding-top: .75rem;
+  padding-bottom: .75rem;
+}
+.nautical-panel .table > tbody > tr,
+.enmv-modal .table > tbody > tr {
+  transition: background-color .15s ease;
+}
+.nautical-panel .table-hover > tbody > tr:hover > *,
+.enmv-modal .table-hover > tbody > tr:hover > * {
+  background-color: rgba(201, 162, 75, .07);
+}
+.nautical-panel .table > tbody > tr:nth-of-type(even):not([style]) > *,
+.enmv-modal .table > tbody > tr:nth-of-type(even) > * {
+  background-color: rgba(10, 34, 64, .015);
+}
+
+/* ---------- 5. Badges / píldoras ---------- */
+.nautical-panel .badge-pill-enmv,
+.enmv-modal .badge-pill-enmv,
+.nautical-panel .badge.badge-pill-enmv,
+.enmv-modal .badge.badge-pill-enmv {
+  box-shadow: 0 1px 3px rgba(10, 34, 64, .18);
+  display: inline-flex;
+  align-items: center;
+  gap: .3em;
+}
+.nautical-panel .badge,
+.enmv-modal .badge {
+  box-shadow: 0 1px 3px rgba(10, 34, 64, .12);
+}
+
+/* ---------- 6. Tarjetas: borde superior en degradado + separador interno ---------- */
+.nautical-panel .card-enmv-top-azul,
+.nautical-panel .card-enmv-top-dorado,
+.nautical-panel .card-enmv-top-verde,
+.nautical-panel .card-enmv-top-rojo {
+  border-top: none !important;
+  position: relative;
+  overflow: hidden;
+}
+.nautical-panel .card-enmv-top-azul::before,
+.nautical-panel .card-enmv-top-dorado::before,
+.nautical-panel .card-enmv-top-verde::before,
+.nautical-panel .card-enmv-top-rojo::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+.nautical-panel .card-enmv-top-azul::before {
+  background: linear-gradient(90deg, var(--enmv-azul-hover), var(--enmv-azul));
+}
+.nautical-panel .card-enmv-top-dorado::before {
+  background: linear-gradient(90deg, var(--enmv-dorado-dark), var(--enmv-dorado));
+}
+.nautical-panel .card-enmv-top-verde::before {
+  background: linear-gradient(90deg, var(--enmv-verde-dark), var(--enmv-verde));
+}
+.nautical-panel .card-enmv-top-rojo::before {
+  background: linear-gradient(90deg, var(--enmv-rojo-dark), var(--enmv-rojo));
+}
+.nautical-panel .card-enmv .card-body {
+  padding: var(--enmv-space-md);
+}
+.nautical-panel .card-enmv .section-title {
+  padding-bottom: var(--enmv-space-xs);
+  margin-bottom: var(--enmv-space-sm);
+  border-bottom: 1px solid rgba(10, 34, 64, .08);
+}
+.enmv-modal .modal-content {
+  border-radius: var(--enmv-radius-card);
+  border: none;
+  box-shadow: 0 12px 36px rgba(10, 34, 64, .25);
+  overflow: hidden;
+}
+.enmv-modal .modal-header {
+  border-bottom: 1px solid rgba(10, 34, 64, .08);
+}
+.enmv-modal .modal-footer {
+  border-top: 1px solid rgba(10, 34, 64, .08);
+}
+
+/* ---------- 7. Scrollbars personalizados ---------- */
+.nautical-panel,
+.enmv-modal {
+  scrollbar-width: thin;
+  scrollbar-color: var(--enmv-azul) rgba(10, 34, 64, .05);
+}
+.nautical-panel *,
+.enmv-modal * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--enmv-azul) rgba(10, 34, 64, .05);
+}
+.nautical-panel ::-webkit-scrollbar,
+.enmv-modal ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.nautical-panel ::-webkit-scrollbar-track,
+.enmv-modal ::-webkit-scrollbar-track {
+  background: rgba(10, 34, 64, .05);
+}
+.nautical-panel ::-webkit-scrollbar-thumb,
+.enmv-modal ::-webkit-scrollbar-thumb {
+  background-color: var(--enmv-azul);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.nautical-panel ::-webkit-scrollbar-thumb:hover,
+.enmv-modal ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--enmv-dorado);
+  background-clip: padding-box;
+}
+
+/* ============================================================
+   Portal EVALUADOR — "sala de mando marina"
+   Elementos decorativos con más personalidad, siempre sutiles.
+   ============================================================ */
+
+/* ---------- Marca de agua: rosa de los vientos, muy tenue, fija en la esquina ---------- */
+.nautical-panel::after {
+  content: '';
+  position: fixed;
+  right: -70px;
+  bottom: -70px;
+  width: 440px;
+  height: 440px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='100' r='96' fill='none' stroke='%230A2240' stroke-width='1'/%3E%3Cpolygon points='100,10 110,77 164,36 123,90 190,100 123,110 164,164 110,123 100,190 90,123 36,164 77,110 10,100 77,90 36,36 90,77' fill='%230A2240'/%3E%3Ccircle cx='100' cy='100' r='6' fill='%23C9A24B'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: .045;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ---------- Avatar "ojo de buey" (porthole) ---------- */
+.nautical-panel .porthole-avatar {
+  --porthole-rivet: rgba(140, 148, 160, .6);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  padding: 3px;
+  box-shadow: 0 1px 4px rgba(10, 34, 64, .28);
+  background:
+    radial-gradient(circle 1.6px at 50% 6%,  var(--porthole-rivet) 95%, transparent 100%),
+    radial-gradient(circle 1.6px at 88% 28%, var(--porthole-rivet) 95%, transparent 100%),
+    radial-gradient(circle 1.6px at 88% 72%, var(--porthole-rivet) 95%, transparent 100%),
+    radial-gradient(circle 1.6px at 50% 94%, var(--porthole-rivet) 95%, transparent 100%),
+    radial-gradient(circle 1.6px at 12% 72%, var(--porthole-rivet) 95%, transparent 100%),
+    radial-gradient(circle 1.6px at 12% 28%, var(--porthole-rivet) 95%, transparent 100%),
+    var(--enmv-azul);
+}
+.nautical-panel .porthole-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--enmv-dorado);
+  background: linear-gradient(155deg, #eef2f6, #dbe1e9);
+}
+.nautical-panel .porthole-face {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  color: var(--enmv-azul);
+  line-height: 1;
+  letter-spacing: .02em;
+}
+
+/* ---------- Badge de vacante tipo banderín ---------- */
+.nautical-panel .pennant-vacante {
+  display: inline-block;
+  background: var(--enmv-dorado);
+  color: var(--enmv-azul);
+  font-weight: 700;
+  font-size: .76rem;
+  line-height: 1.5;
+  padding: .28em 1.1em .28em .7em;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+  box-shadow: 0 1px 3px rgba(10, 34, 64, .18);
+}
+
+/* ---------- Remaches en esquinas de tarjetas (placa de acero naval) ---------- */
+.nautical-panel .card-riveted {
+  background-image:
+    radial-gradient(circle 3px at 14px 14px, rgba(120, 130, 145, .38), transparent 72%),
+    radial-gradient(circle 3px at calc(100% - 14px) 14px, rgba(120, 130, 145, .38), transparent 72%),
+    radial-gradient(circle 3px at 14px calc(100% - 14px), rgba(120, 130, 145, .38), transparent 72%),
+    radial-gradient(circle 3px at calc(100% - 14px) calc(100% - 14px), rgba(120, 130, 145, .38), transparent 72%);
+  background-repeat: no-repeat;
+}
+
+/* ---------- Spinner tipo timón, gira mientras carga ---------- */
+@keyframes spin-timon {
+  to { transform: rotate(360deg); }
+}
+.nautical-panel .spin-timon,
+.enmv-modal .spin-timon {
+  animation: spin-timon 1.4s linear infinite;
+  color: var(--enmv-azul);
+}
+
+/* ============================================================
+   Tipografía global — Public Sans en TODO el sistema
+   (postulante, evaluador, administrador por igual).
+   400 = texto normal, 600 = labels/botones/tablas/badges,
+   700 = títulos grandes (ver h1.section-title arriba).
+   ============================================================ */
+.form-label,
+.table thead th {
+  font-weight: 600;
+}
+.btn,
+.badge-pill-enmv {
+  font-weight: 600;
+}
+
+/* ============================================================
+   Bitácora de Embarque — sección OPCIONAL (postulante + evaluador)
+   ============================================================ */
+
+/* KPI: tiempo total de mar acumulado — azul marino con acento dorado */
+.nautical-panel .kpi-tiempo-mar {
+  background: linear-gradient(135deg, var(--enmv-azul) 0%, var(--enmv-azul-hover) 100%);
+  border-top: 3px solid var(--enmv-dorado) !important;
+  color: #fff;
+}
+.nautical-panel .kpi-tiempo-mar .kpi-label {
+  color: rgba(255, 255, 255, .75);
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 600;
+}
+.nautical-panel .kpi-tiempo-mar .kpi-valor {
+  color: var(--enmv-dorado);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+.nautical-panel .kpi-tiempo-mar .kpi-icono {
+  color: var(--enmv-dorado);
+  opacity: .9;
+}
+
+/* Ítem opcional del dashboard — visualmente distinto del checklist obligatorio */
+.nautical-panel .item-opcional-bitacora {
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
+  border: 1px dashed var(--enmv-dorado) !important;
+  background: rgba(201, 162, 75, .06);
+}
+.nautical-panel .item-opcional-bitacora:hover,
+.nautical-panel .item-opcional-bitacora:focus-visible {
+  background-color: rgba(201, 162, 75, .12) !important;
+  transform: translateY(-1px);
+}
+.nautical-panel .badge-opcional-enmv {
+  background: rgba(10, 34, 64, .08);
+  color: var(--enmv-azul);
+  border: 1px solid rgba(10, 34, 64, .18);
+}
+
+/* Línea de tiempo vertical de embarques */
+.nautical-panel .embarque-timeline {
+  position: relative;
+  padding-left: 2rem;
+}
+.nautical-panel .embarque-timeline::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--enmv-dorado), rgba(10,34,64,.15));
+}
+.nautical-panel .embarque-card {
+  position: relative;
+  border: 1px solid rgba(10, 34, 64, .12) !important;
+  margin-bottom: 1rem;
+}
+.nautical-panel .embarque-card::before {
+  content: '';
+  position: absolute;
+  left: -1.62rem;
+  top: 1.4rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--enmv-dorado);
+  border: 2px solid var(--enmv-blanco);
+  box-shadow: 0 0 0 2px rgba(10,34,64,.15);
+}
+.nautical-panel .badge-rango-embarque {
+  background: rgba(201, 162, 75, .16);
+  color: var(--enmv-dorado-dark);
+  border: 1px solid rgba(201, 162, 75, .45);
+}
+.nautical-panel .duracion-pill {
+  display: inline-block;
+  background: rgba(10, 34, 64, .06);
+  color: var(--enmv-azul);
+  border-radius: 999px;
+  padding: .25em .85em;
+  font-size: .78rem;
+  font-weight: 600;
+}

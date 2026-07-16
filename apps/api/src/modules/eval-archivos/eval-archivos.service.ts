@@ -1,0 +1,357 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+
+import {
+  EvalArchivo,
+  EvalArchivoDocument,
+} from './schemas/eval-archivo.schema';
+import { StorageService } from '../storage/storage.service';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import { AuthUser } from '../auth/strategies/jwt.strategy';
+
+const EVAL_CATEGORY = 'eval';
+
+function parsearParentId(
+  parentId: string | undefined | null,
+): Types.ObjectId | null {
+  if (!parentId) return null;
+  if (!Types.ObjectId.isValid(parentId))
+    throw new BadRequestException('parentId inválido.');
+  return new Types.ObjectId(parentId);
+}
+
+@Injectable()
+export class EvalArchivosService {
+  private readonly logger = new Logger(EvalArchivosService.name);
+
+  constructor(
+    @InjectModel(EvalArchivo.name)
+    private readonly archivoModel: Model<EvalArchivoDocument>,
+    private readonly storage: StorageService,
+    private readonly auditoria: AuditoriaService,
+  ) {}
+
+  async listar(postulanteId: string, parentId: string | null) {
+    const parentObjId = parsearParentId(parentId);
+    const items = await this.archivoModel
+      .find({
+        postulanteId: new Types.ObjectId(postulanteId),
+        parentId: parentObjId,
+      })
+      .sort({ tipo: -1, nombre: 1 })
+      .lean();
+
+    return items.map((i) => this.mapItem(i));
+  }
+
+  async buscar(postulanteId: string, q: string) {
+    if (!q || q.trim().length < 2) return [];
+    const items = await this.archivoModel
+      .find({
+        postulanteId: new Types.ObjectId(postulanteId),
+        nombre: { $regex: q.trim(), $options: 'i' },
+      })
+      .sort({ nombre: 1 })
+      .lean();
+
+    return items.map((i) => this.mapItem(i));
+  }
+
+  async crearCarpeta(
+    postulanteId: string,
+    nombre: string,
+    parentId: string | undefined,
+    actor: AuthUser,
+  ) {
+    nombre = nombre.trim().replace(/[/\\]/g, '_');
+    const parentObjId = parsearParentId(parentId);
+
+    const existe = await this.archivoModel.findOne({
+      postulanteId: new Types.ObjectId(postulanteId),
+      parentId: parentObjId,
+      nombre,
+    });
+    if (existe)
+      throw new BadRequestException(`Ya existe "${nombre}" en esta carpeta.`);
+
+    const doc = await this.archivoModel.create({
+      postulanteId: new Types.ObjectId(postulanteId),
+      parentId: parentObjId,
+      nombre,
+      tipo: 'carpeta',
+      storagePath: '',
+      tipoMime: '',
+      tamanio: 0,
+      creadoPor: new Types.ObjectId(actor.userId),
+    });
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'eval_carpeta_crear',
+      recurso: 'EvalArchivo',
+      recursoId: doc._id.toString(),
+      metadata: {
+        postulanteId,
+        parentId: parentObjId?.toString() ?? null,
+        nombre,
+      },
+    });
+
+    return this.mapItem(doc.toObject());
+  }
+
+  async subirArchivo(
+    postulanteId: string,
+    parentId: string | undefined,
+    file: Express.Multer.File,
+    actor: AuthUser,
+  ) {
+    const parentObjId = parsearParentId(parentId);
+    const nombre = file.originalname.replace(/[/\\]/g, '_');
+
+    const existe = await this.archivoModel.findOne({
+      postulanteId: new Types.ObjectId(postulanteId),
+      parentId: parentObjId,
+      nombre,
+    });
+    if (existe)
+      throw new BadRequestException(
+        `Ya existe un archivo llamado "${nombre}" aquí.`,
+      );
+
+    const ts = Date.now();
+    const key = `${postulanteId}/${ts}-${nombre}`;
+    const storagePath = `${EVAL_CATEGORY}/${key}`;
+
+    await this.storage.putObject(
+      EVAL_CATEGORY,
+      key,
+      file.buffer,
+      file.mimetype,
+    );
+
+    const doc = await this.archivoModel.create({
+      postulanteId: new Types.ObjectId(postulanteId),
+      parentId: parentObjId,
+      nombre,
+      tipo: 'archivo',
+      storagePath,
+      tipoMime: file.mimetype,
+      tamanio: file.size,
+      creadoPor: new Types.ObjectId(actor.userId),
+    });
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'eval_archivo_subir',
+      recurso: 'EvalArchivo',
+      recursoId: doc._id.toString(),
+      metadata: {
+        postulanteId,
+        parentId: parentObjId?.toString() ?? null,
+        nombre,
+        tamanio: file.size,
+      },
+    });
+
+    return this.mapItem(doc.toObject());
+  }
+
+  async eliminar(id: string, actor: AuthUser) {
+    const doc = await this.archivoModel.findById(id);
+    if (!doc) throw new NotFoundException('Archivo/carpeta no encontrado.');
+
+    const idsAEliminar: Types.ObjectId[] = [doc._id];
+
+    if (doc.tipo === 'carpeta') {
+      const cola: Types.ObjectId[] = [doc._id];
+      while (cola.length > 0) {
+        const actual = cola.shift() as Types.ObjectId;
+        const hijos = await this.archivoModel
+          .find({ postulanteId: doc.postulanteId, parentId: actual })
+          .select('_id tipo')
+          .lean();
+        for (const hijo of hijos) {
+          const hijoId = new Types.ObjectId(String(hijo._id));
+          idsAEliminar.push(hijoId);
+          if (hijo.tipo === 'carpeta') cola.push(hijoId);
+        }
+      }
+    }
+
+    const archivos = await this.archivoModel
+      .find({ _id: { $in: idsAEliminar }, tipo: 'archivo' })
+      .select('storagePath')
+      .lean();
+
+    for (const archivo of archivos) {
+      if (!archivo.storagePath) continue;
+      const [cat, ...rest] = archivo.storagePath.split('/');
+      await this.storage.removeObject(cat, rest.join('/'));
+    }
+
+    await this.archivoModel.deleteMany({ _id: { $in: idsAEliminar } });
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'eval_archivo_eliminar',
+      recurso: 'EvalArchivo',
+      recursoId: id,
+      metadata: {
+        nombre: doc.nombre,
+        tipo: doc.tipo,
+        eliminados: idsAEliminar.length,
+      },
+    });
+
+    return { message: 'Eliminado correctamente.' };
+  }
+
+  async mover(id: string, parentId: string | undefined, actor: AuthUser) {
+    const parentObjId = parsearParentId(parentId);
+    const doc = await this.archivoModel.findById(id);
+    if (!doc) throw new NotFoundException('Archivo/carpeta no encontrado.');
+
+    if (doc.tipo === 'carpeta' && parentObjId) {
+      await this.validarNoEsDescendiente(doc._id, parentObjId);
+    }
+
+    const conflicto = await this.archivoModel.findOne({
+      postulanteId: doc.postulanteId,
+      parentId: parentObjId,
+      nombre: doc.nombre,
+      _id: { $ne: doc._id },
+    });
+    if (conflicto)
+      throw new BadRequestException(
+        `Ya existe "${doc.nombre}" en la carpeta destino.`,
+      );
+
+    const desde = doc.parentId?.toString() ?? null;
+    await this.archivoModel.findByIdAndUpdate(id, { parentId: parentObjId });
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'eval_archivo_mover',
+      recurso: 'EvalArchivo',
+      recursoId: id,
+      metadata: {
+        nombre: doc.nombre,
+        desde,
+        hasta: parentObjId?.toString() ?? null,
+      },
+    });
+
+    return { _id: id, parentId: parentObjId?.toString() ?? null };
+  }
+
+  async renombrar(id: string, nombre: string, actor: AuthUser) {
+    nombre = nombre.trim().replace(/[/\\]/g, '_');
+    const doc = await this.archivoModel.findById(id);
+    if (!doc) throw new NotFoundException('Archivo/carpeta no encontrado.');
+
+    const conflicto = await this.archivoModel.findOne({
+      postulanteId: doc.postulanteId,
+      parentId: doc.parentId ?? null,
+      nombre,
+      _id: { $ne: doc._id },
+    });
+    if (conflicto)
+      throw new BadRequestException(`Ya existe "${nombre}" en esta carpeta.`);
+
+    const nombreAnterior = doc.nombre;
+    await this.archivoModel.findByIdAndUpdate(id, { nombre });
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'eval_archivo_renombrar',
+      recurso: 'EvalArchivo',
+      recursoId: id,
+      metadata: { de: nombreAnterior, a: nombre },
+    });
+
+    return { _id: id, nombre };
+  }
+
+  async descargar(
+    id: string,
+    postulanteId: string,
+  ): Promise<{ path: string; nombre: string }> {
+    const doc = await this.archivoModel.findOne({
+      _id: new Types.ObjectId(id),
+      postulanteId: new Types.ObjectId(postulanteId),
+    });
+    if (!doc) throw new NotFoundException('Archivo no encontrado.');
+    if (doc.tipo !== 'archivo' || !doc.storagePath) {
+      throw new BadRequestException('Solo los archivos se pueden descargar.');
+    }
+
+    const [cat, ...rest] = doc.storagePath.split('/');
+    return {
+      path: this.storage.resolveFilePath(cat, rest.join('/')),
+      nombre: doc.nombre,
+    };
+  }
+
+  private mapItem(i: {
+    _id: unknown;
+    nombre?: string;
+    tipo?: 'archivo' | 'carpeta';
+    parentId?: Types.ObjectId | null;
+    tipoMime?: string;
+    tamanio?: number;
+    creadoEn?: Date;
+    storagePath?: string;
+  }) {
+    return {
+      _id: String(i._id),
+      nombre: i.nombre,
+      tipo: i.tipo,
+      parentId: i.parentId ? String(i.parentId) : null,
+      tipoMime: i.tipoMime,
+      tamanio: i.tamanio,
+      creadoEn: i.creadoEn,
+      urlDescargar:
+        i.tipo === 'archivo' && i.storagePath
+          ? this.urlFromPath(i.storagePath)
+          : undefined,
+    };
+  }
+
+  private urlFromPath(storagePath: string): string {
+    const [cat, ...rest] = storagePath.split('/');
+    return this.storage.getDownloadUrl(cat, rest.join('/'));
+  }
+
+  private async validarNoEsDescendiente(
+    carpetaId: Types.ObjectId,
+    candidatoParentId: Types.ObjectId,
+  ): Promise<void> {
+    if (carpetaId.equals(candidatoParentId)) {
+      throw new BadRequestException(
+        'No se puede mover una carpeta dentro de sí misma.',
+      );
+    }
+    const parent = await this.archivoModel
+      .findById(candidatoParentId)
+      .select('parentId')
+      .lean();
+    if (parent?.parentId) {
+      await this.validarNoEsDescendiente(
+        carpetaId,
+        new Types.ObjectId(String(parent.parentId)),
+      );
+    }
+  }
+}
