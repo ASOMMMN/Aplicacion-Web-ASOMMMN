@@ -23,7 +23,10 @@ import {
 } from '../auth/schemas/refresh-token.schema';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { AuditoriaService } from '../auditoria/auditoria.service';
-import { generarContrasenaTemporal } from '../../common/utils/password.util';
+import {
+  generarContrasenaTemporal,
+  hashPassword,
+} from '../../common/utils/password.util';
 
 @Injectable()
 export class UsuariosService implements OnModuleInit {
@@ -52,7 +55,7 @@ export class UsuariosService implements OnModuleInit {
 
     await this.usuarioModel.create({
       email: adminEmail.toLowerCase(),
-      passwordHash: plainPassword,
+      passwordHash: await hashPassword(plainPassword),
       nombre: this.config.get<string>('ADMIN_NOMBRE') ?? 'Administrador',
       apellidos: this.config.get<string>('ADMIN_APELLIDOS') ?? 'Sistema',
       rol: 'administrador',
@@ -103,7 +106,7 @@ export class UsuariosService implements OnModuleInit {
 
     const user = await this.usuarioModel.create({
       email: dto.email.toLowerCase(),
-      passwordHash: dto.password,
+      passwordHash: await hashPassword(dto.password),
       nombre: dto.nombre,
       apellidos: dto.apellidos,
       rol: dto.rol,
@@ -155,7 +158,7 @@ export class UsuariosService implements OnModuleInit {
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
     const passwordTemporal = generarContrasenaTemporal(12);
-    user.passwordHash = passwordTemporal;
+    user.passwordHash = await hashPassword(passwordTemporal);
     user.debeCambiarContrasena = true;
     await user.save();
 

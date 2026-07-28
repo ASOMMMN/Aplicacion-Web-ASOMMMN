@@ -14,6 +14,7 @@ import {
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { escapeRegex } from '../../common/utils/regex.util';
 
 const EVAL_CATEGORY = 'eval';
 
@@ -55,7 +56,7 @@ export class EvalArchivosService {
     const items = await this.archivoModel
       .find({
         postulanteId: new Types.ObjectId(postulanteId),
-        nombre: { $regex: q.trim(), $options: 'i' },
+        nombre: { $regex: escapeRegex(q.trim()), $options: 'i' },
       })
       .sort({ nombre: 1 })
       .lean();
@@ -324,14 +325,18 @@ export class EvalArchivosService {
       creadoEn: i.creadoEn,
       urlDescargar:
         i.tipo === 'archivo' && i.storagePath
-          ? this.urlFromPath(i.storagePath)
+          ? this.urlFromPath(i.storagePath, i.nombre ?? 'archivo', i.tipoMime ?? 'application/octet-stream')
           : undefined,
     };
   }
 
-  private urlFromPath(storagePath: string): string {
+  private urlFromPath(
+    storagePath: string,
+    nombre: string,
+    tipoMime: string,
+  ): string {
     const [cat, ...rest] = storagePath.split('/');
-    return this.storage.getDownloadUrl(cat, rest.join('/'));
+    return this.storage.getSecureDownloadUrl(cat, rest.join('/'), nombre, tipoMime);
   }
 
   private async validarNoEsDescendiente(

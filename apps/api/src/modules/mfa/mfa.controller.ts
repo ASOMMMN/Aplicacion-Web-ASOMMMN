@@ -4,8 +4,10 @@ import {
   Body,
   UseGuards,
   BadRequestException,
+  UnauthorizedException,
   HttpCode,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { MFAService } from './mfa.service';
 import { GenerateMFARecoveryCodesDto, DisableMFADto } from './dto/mfa.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -22,6 +24,7 @@ export class MFAController {
    */
   @Post('regenerate-recovery-codes')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @HttpCode(200)
   async regenerateRecoveryCodes(
     @Body() dto: GenerateMFARecoveryCodesDto,
@@ -33,6 +36,13 @@ export class MFAController {
   }> {
     if (!dto.password) {
       throw new BadRequestException('Contraseña requerida.');
+    }
+    const passwordOk = await this.mfaService.verificarPasswordUsuario(
+      user.userId,
+      dto.password,
+    );
+    if (!passwordOk) {
+      throw new UnauthorizedException('Contraseña incorrecta.');
     }
 
     const recoveryCodes = await this.mfaService.generateAndSaveRecoveryCodes(
@@ -52,6 +62,7 @@ export class MFAController {
    */
   @Post('disable')
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @HttpCode(200)
   async disableMFA(
     @Body() dto: DisableMFADto,
@@ -62,6 +73,13 @@ export class MFAController {
   }> {
     if (!dto.password) {
       throw new BadRequestException('Contraseña requerida.');
+    }
+    const passwordOk = await this.mfaService.verificarPasswordUsuario(
+      user.userId,
+      dto.password,
+    );
+    if (!passwordOk) {
+      throw new UnauthorizedException('Contraseña incorrecta.');
     }
 
     await this.mfaService.disableMFA(user.userId);

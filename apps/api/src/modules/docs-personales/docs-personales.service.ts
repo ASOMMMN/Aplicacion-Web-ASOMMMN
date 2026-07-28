@@ -70,7 +70,12 @@ export class DocsPersonalesService {
       tamanio: doc.tamanio,
       tipoMime: doc.tipoMime,
       subidasEn: doc.subidasEn,
-      urlDescargar: this.storage.getDownloadUrl(category, key),
+      urlDescargar: this.storage.getSecureDownloadUrl(
+        category,
+        key,
+        doc.nombreOriginal,
+        doc.tipoMime,
+      ),
     };
   }
 

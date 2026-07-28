@@ -6,6 +6,7 @@ const PUBLIC_PREFIXES = [
   "/cambiar-contrasena",
   "/registro",
   "/recuperar-contrasena",
+  "/restablecer-contrasena",
   "/verificar-email",
 ];
 

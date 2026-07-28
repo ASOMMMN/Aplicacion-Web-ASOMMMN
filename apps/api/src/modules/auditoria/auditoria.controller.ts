@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  UseGuards,
-  ParseIntPipe,
-  DefaultValuePipe,
-} from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -17,6 +10,7 @@ import { AuditoriaService } from './auditoria.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ListarAuditoriaQueryDto } from './dto/listar-auditoria-query.dto';
 
 @ApiTags('auditoria')
 @ApiBearerAuth('access-token')
@@ -34,14 +28,7 @@ export class AuditoriaController {
   @ApiQuery({ name: 'accion', required: false })
   @ApiQuery({ name: 'desde', required: false, description: 'Fecha inicio YYYY-MM-DD' })
   @ApiQuery({ name: 'hasta', required: false, description: 'Fecha fin YYYY-MM-DD' })
-  listar(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
-    @Query('actorEmail') actorEmail?: string,
-    @Query('accion') accion?: string,
-    @Query('desde') desde?: string,
-    @Query('hasta') hasta?: string,
-  ) {
-    return this.auditoriaService.listar({ actorEmail, accion, desde, hasta, page, limit });
+  listar(@Query() query: ListarAuditoriaQueryDto) {
+    return this.auditoriaService.listar(query);
   }
 }

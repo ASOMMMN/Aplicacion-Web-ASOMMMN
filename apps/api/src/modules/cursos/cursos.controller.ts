@@ -30,7 +30,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { CursosService } from './cursos.service';
-import { CreateCursoDto } from './dto/create-curso.dto';
+import { CreateCursoDto, RenombrarCursoDto } from './dto/create-curso.dto';
 import {
   CursosListResponseDto,
   ExtraerIaResponseDto,
@@ -132,9 +132,13 @@ export class CursosController {
   async renombrarCurso(
     @CurrentUser() user: AuthUser,
     @Param('cursoId') cursoId: string,
-    @Body('nombreCurso') nombreCurso: string,
+    @Body() dto: RenombrarCursoDto,
   ): Promise<{ message: string }> {
-    return this.cursosService.renombrarCurso(user.userId, cursoId, nombreCurso);
+    return this.cursosService.renombrarCurso(
+      user.userId,
+      cursoId,
+      dto.nombreCurso,
+    );
   }
 
   @Get('exportar-resumen')

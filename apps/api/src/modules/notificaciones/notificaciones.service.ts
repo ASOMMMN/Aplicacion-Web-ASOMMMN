@@ -1,9 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
 import { LoggerService } from '../../common/logger';
-
-const FROM_DEFAULT = 'ASOMMMN <onboarding@resend.dev>';
 
 interface EmailOptions {
   to: string;
@@ -14,52 +12,55 @@ interface EmailOptions {
 @Injectable()
 export class NotificacionesService implements OnModuleInit {
   private readonly logger = new Logger(NotificacionesService.name);
-  private resend: Resend | null = null;
-  private from = FROM_DEFAULT;
+  private transporter: ReturnType<typeof nodemailer.createTransport> | null =
+    null;
+  private from = 'ASOMMMN';
 
   constructor(private readonly config: ConfigService) {}
 
-  async onModuleInit() {
-    const apiKey = this.config.get<string>('RESEND_API_KEY', '').trim();
+  onModuleInit() {
+    const gmailUser = this.config.get<string>('GMAIL_USER', '').trim();
+    const gmailAppPassword = this.config
+      .get<string>('GMAIL_APP_PASSWORD', '')
+      .trim();
 
-    if (!apiKey) {
-      this.resend = null;
+    if (!gmailUser || !gmailAppPassword) {
+      this.transporter = null;
       this.logger.error(
-        'RESEND_API_KEY no configurada. El envío de correos NO funcionará hasta que se configure esta variable en el .env.',
+        'GMAIL_USER / GMAIL_APP_PASSWORD no configuradas. El envío de correos NO funcionará hasta que se configuren estas variables en el .env.',
       );
       return;
     }
 
-    this.resend = new Resend(apiKey);
+    this.from = `ASOMMMN <${gmailUser}>`;
+    this.transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: { user: gmailUser, pass: gmailAppPassword },
+    });
 
     LoggerService.mail({
-      detalle: `Resend configurado · from=${this.from}`,
+      detalle: `Gmail SMTP configurado · from=${this.from}`,
     });
   }
 
   private async send(options: EmailOptions) {
-    if (!this.resend) {
+    if (!this.transporter) {
       this.logger.warn(
-        `[SIN RESEND] Para: ${options.to} | Asunto: ${options.subject}`,
+        `[SIN SMTP] Para: ${options.to} | Asunto: ${options.subject}`,
       );
       return;
     }
     try {
-      const { data, error } = await this.resend.emails.send({
+      const info = await this.transporter.sendMail({
         from: this.from,
         to: options.to,
         subject: options.subject,
         html: options.html,
       });
 
-      if (error) {
-        this.logger.error(
-          `Error de Resend enviando correo a ${options.to}: ${error.name} — ${error.message}`,
-        );
-        return;
-      }
-
-      this.logger.log(`Correo enviado a ${options.to} (id: ${data?.id})`);
+      this.logger.log(`Correo enviado a ${options.to} (id: ${info.messageId})`);
     } catch (err) {
       this.logger.error(
         `Error enviando correo a ${options.to}: ${(err as Error).message}`,
@@ -72,7 +73,7 @@ export class NotificacionesService implements OnModuleInit {
     nombre: string,
     verifyUrl: string,
   ) {
-    this.logger.log(`[VERIFICACIÓN] ${email} → ${verifyUrl}`);
+    this.logger.log(`[VERIFICACIÓN] enviando correo a ${email}`);
     await this.send({
       to: email,
       subject: 'Verifica tu correo — ASOMMMN',
@@ -86,22 +87,21 @@ export class NotificacionesService implements OnModuleInit {
     });
   }
 
-  async enviarPasswordTemporalEmail(
+  async enviarResetPasswordEmail(
     email: string,
     nombre: string,
-    passwordTemporal: string,
+    resetUrl: string,
   ) {
-    this.logger.log(`[CONTRASEÑA TEMPORAL] ${email}`);
+    this.logger.log(`[RESET CONTRASEÑA] enviando correo a ${email}`);
     await this.send({
       to: email,
-      subject: 'Contraseña temporal — ASOMMMN',
+      subject: 'Restablece tu contraseña — ASOMMMN',
       html: `
         <h2>Hola, ${nombre}</h2>
-        <p>Recibimos una solicitud para recuperar el acceso a tu cuenta.</p>
-        <p>Tu nueva contraseña temporal es:</p>
-        <p style="font-size:1.3em;font-weight:bold;letter-spacing:1px;background:#f4f4f4;padding:10px 16px;border-radius:5px;display:inline-block;">${passwordTemporal}</p>
-        <p>Por seguridad, es <strong>temporal</strong>: al iniciar sesión con ella se te pedirá que la cambies de inmediato.</p>
-        <p>Si no solicitaste esto, contacta al administrador del sistema.</p>
+        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
+        <p><a href="${resetUrl}" style="background:#0d6efd;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;">Restablecer contraseña</a></p>
+        <p>El enlace expira en <strong>1 hora</strong>.</p>
+        <p>Si no solicitaste esto, ignora este mensaje.</p>
       `,
     });
   }

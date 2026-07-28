@@ -20,6 +20,7 @@ import { Response } from 'express';
 
 import { EvalArchivosService } from './eval-archivos.service';
 import {
+  BuscarArchivosDto,
   CrearCarpetaDto,
   MoverArchivoDto,
   RenombrarArchivoDto,
@@ -47,9 +48,9 @@ export class EvalArchivosController {
   @Get('buscar')
   buscar(
     @Param('postulanteId') postulanteId: string,
-    @Query('q') q: string = '',
+    @Query() query: BuscarArchivosDto,
   ) {
-    return this.service.buscar(postulanteId, q);
+    return this.service.buscar(postulanteId, query.q ?? '');
   }
 
   @Post('carpeta')

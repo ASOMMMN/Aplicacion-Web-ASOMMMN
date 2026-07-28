@@ -49,6 +49,14 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  GMAIL_USER: string = '';
+
+  @IsOptional()
+  @IsString()
+  GMAIL_APP_PASSWORD: string = '';
+
+  @IsOptional()
+  @IsString()
   FRONTEND_URL: string = 'http://localhost:3000';
 
   @IsOptional()
@@ -70,6 +78,10 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   EMAIL_VERIFICATION_REQUIRED: string = 'false';
+
+  @IsOptional()
+  @IsString()
+  ENABLE_TEST_ENDPOINTS: string = 'false';
 
   @IsOptional()
   @IsString()

@@ -27,3 +27,10 @@ export class CreateCursoDto {
   @IsDateString()
   fechaVencimiento?: string;
 }
+
+export class RenombrarCursoDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(180)
+  nombreCurso: string;
+}

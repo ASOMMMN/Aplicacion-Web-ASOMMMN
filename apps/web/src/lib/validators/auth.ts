@@ -30,6 +30,18 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email('Correo inválido'),
 });
 
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().min(1, 'Token requerido'),
+    password: passwordSchema,
+    confirmar: z.string(),
+  })
+  .refine((d) => d.password === d.confirmar, {
+    message: 'Las contraseñas no coinciden',
+    path: ['confirmar'],
+  });
+
 export type LoginForm = z.infer<typeof loginSchema>;
 export type RegisterForm = z.infer<typeof registerSchema>;
 export type ForgotPasswordForm = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordForm = z.infer<typeof resetPasswordSchema>;

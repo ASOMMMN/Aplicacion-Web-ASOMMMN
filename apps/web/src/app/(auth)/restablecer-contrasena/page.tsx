@@ -1,31 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Form, Button, Alert, Spinner } from 'react-bootstrap';
 import Link from 'next/link';
 import api from '@/lib/api/client';
-import { forgotPasswordSchema, ForgotPasswordForm } from '@/lib/validators/auth';
+import { resetPasswordSchema, ResetPasswordForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 
-export default function RecuperarContrasenaPage() {
+function RestablecerContrasenaContent() {
+  const params = useSearchParams();
+  const router = useRouter();
+  const token = params.get('token') ?? '';
+
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [done, setDone] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<ForgotPasswordForm>({ resolver: zodResolver(forgotPasswordSchema) });
+  } = useForm<ResetPasswordForm>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: { token },
+  });
 
-  const onSubmit = async (data: ForgotPasswordForm) => {
+  const onSubmit = async (data: ResetPasswordForm) => {
     setLoading(true);
     setServerError('');
     try {
-      await api.post('/auth/recuperar-contrasena', data);
-      setSent(true);
+      await api.post('/auth/restablecer-contrasena', {
+        token: data.token,
+        nuevaPassword: data.password,
+      });
+      setDone(true);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: unknown } } };
       const msg = axiosErr.response?.data?.message ?? 'Error. Inténtalo de nuevo.';
@@ -50,18 +61,26 @@ export default function RecuperarContrasenaPage() {
         <div className="auth-card">
           <div className="text-center mb-3">
             <i className="bi bi-shield-lock-fill mb-2 d-block" style={{ fontSize: '2rem', color: 'var(--enmv-azul)' }} />
-            <p className="nombre-escuela mb-0">Recuperar contraseña</p>
+            <p className="nombre-escuela mb-0">Restablecer contraseña</p>
             <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.8rem' }}>
-              Te enviaremos un enlace a tu correo para que definas una nueva
-              contraseña.
+              Define tu nueva contraseña.
             </p>
             <div className="auth-divider" />
           </div>
 
-          {sent ? (
-            <Alert variant="success">
-              Si el correo está registrado, recibirás un enlace para restablecer
-              tu contraseña en breve. Revisa también tu carpeta de spam.
+          {done ? (
+            <>
+              <Alert variant="success">
+                Contraseña actualizada correctamente. Ya puedes iniciar sesión.
+              </Alert>
+              <Button className="btn-primary w-100" onClick={() => router.push('/login')}>
+                Ir al login
+              </Button>
+            </>
+          ) : !token ? (
+            <Alert variant="danger">
+              Token no encontrado en la URL. Solicita un nuevo enlace de
+              recuperación.
             </Alert>
           ) : (
             <>
@@ -71,16 +90,34 @@ export default function RecuperarContrasenaPage() {
                 </Alert>
               )}
               <Form onSubmit={handleSubmit(onSubmit)} noValidate>
-                <Form.Group className="mb-4">
-                  <Form.Label>Correo electrónico</Form.Label>
+                <input type="hidden" {...register('token')} />
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Nueva contraseña</Form.Label>
                   <Form.Control
-                    type="email"
-                    {...register('email')}
-                    isInvalid={!!errors.email}
-                    autoComplete="email"
+                    type="password"
+                    {...register('password')}
+                    isInvalid={!!errors.password}
+                    autoComplete="new-password"
                   />
                   <Form.Control.Feedback type="invalid">
-                    {errors.email?.message}
+                    {errors.password?.message}
+                  </Form.Control.Feedback>
+                  <Form.Text className="text-muted">
+                    Mínimo 10 caracteres, con mayúsculas, minúsculas y números.
+                  </Form.Text>
+                </Form.Group>
+
+                <Form.Group className="mb-4">
+                  <Form.Label>Confirmar contraseña</Form.Label>
+                  <Form.Control
+                    type="password"
+                    {...register('confirmar')}
+                    isInvalid={!!errors.confirmar}
+                    autoComplete="new-password"
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.confirmar?.message}
                   </Form.Control.Feedback>
                 </Form.Group>
 
@@ -93,10 +130,10 @@ export default function RecuperarContrasenaPage() {
                   {loading ? (
                     <>
                       <Spinner size="sm" className="me-2" />
-                      Enviando…
+                      Guardando…
                     </>
                   ) : (
-                    'Enviar enlace de recuperación'
+                    'Restablecer contraseña'
                   )}
                 </Button>
               </Form>
@@ -112,5 +149,19 @@ export default function RecuperarContrasenaPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function RestablecerContrasenaPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="d-flex align-items-center justify-content-center min-vh-100">
+          <Spinner animation="border" />
+        </div>
+      }
+    >
+      <RestablecerContrasenaContent />
+    </Suspense>
   );
 }

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Auditoria, AuditoriaDocument } from './schemas/auditoria.schema';
+import { escapeRegex } from '../../common/utils/regex.util';
 
 interface RegistrarAuditoriaInput {
   actorId: string;
@@ -38,8 +39,9 @@ export class AuditoriaService {
     const { actorEmail, accion, desde, hasta, page = 1, limit = 50 } = options;
 
     const filter: Record<string, unknown> = {};
-    if (actorEmail) filter.actorEmail = { $regex: actorEmail, $options: 'i' };
-    if (accion) filter.accion = { $regex: accion, $options: 'i' };
+    if (actorEmail)
+      filter.actorEmail = { $regex: escapeRegex(actorEmail), $options: 'i' };
+    if (accion) filter.accion = { $regex: escapeRegex(accion), $options: 'i' };
     if (desde || hasta) {
       const dateFilter: Record<string, Date> = {};
       if (desde) dateFilter.$gte = new Date(desde);

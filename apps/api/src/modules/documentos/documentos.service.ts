@@ -103,7 +103,12 @@ export class DocumentosService {
         subidasEn: new Date(),
       });
 
-      const urlDescargar = this.storageService.getDownloadUrl(CV_CATEGORY, key);
+      const urlDescargar = this.storageService.getSecureDownloadUrl(
+        CV_CATEGORY,
+        key,
+        file.originalname,
+        file.mimetype,
+      );
 
       return {
         _id: documento._id.toString(),
@@ -140,9 +145,18 @@ export class DocumentosService {
     });
   }
 
-  private urlFromStoragePath(storagePath: string): string {
+  private urlFromStoragePath(
+    storagePath: string,
+    nombreOriginal: string,
+    tipoMime: string,
+  ): string {
     const [category, ...rest] = storagePath.split('/');
-    return this.storageService.getDownloadUrl(category, rest.join('/'));
+    return this.storageService.getSecureDownloadUrl(
+      category,
+      rest.join('/'),
+      nombreOriginal,
+      tipoMime,
+    );
   }
 
   async obtenerCVActual(
@@ -165,7 +179,11 @@ export class DocumentosService {
       tamanio: documento.tamanio,
       version: documento.version,
       subidasEn: documento.subidasEn,
-      urlDescargar: this.urlFromStoragePath(documento.storagePath),
+      urlDescargar: this.urlFromStoragePath(
+        documento.storagePath,
+        documento.nombreOriginal,
+        documento.tipoMime,
+      ),
     };
   }
 
@@ -211,7 +229,11 @@ export class DocumentosService {
       tamanio: documento.tamanio,
       version: documento.version,
       subidasEn: documento.subidasEn,
-      urlDescargar: this.urlFromStoragePath(documento.storagePath),
+      urlDescargar: this.urlFromStoragePath(
+        documento.storagePath,
+        documento.nombreOriginal,
+        documento.tipoMime,
+      ),
     };
   }
 
@@ -232,7 +254,11 @@ export class DocumentosService {
       tamanio: documento.tamanio,
       version: documento.version,
       subidasEn: documento.subidasEn,
-      urlDescargar: this.urlFromStoragePath(documento.storagePath),
+      urlDescargar: this.urlFromStoragePath(
+        documento.storagePath,
+        documento.nombreOriginal,
+        documento.tipoMime,
+      ),
     };
   }
 

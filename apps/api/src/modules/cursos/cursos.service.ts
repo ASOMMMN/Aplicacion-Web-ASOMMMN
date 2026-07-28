@@ -222,7 +222,12 @@ export class CursosService {
           nombreOriginal: curso.documentoExtra.nombreOriginal,
           tamanio: curso.documentoExtra.tamanio,
           tipoMime: curso.documentoExtra.tipoMime,
-          urlDescargar: this.storageService.getDownloadUrl(cat, rest.join('/')),
+          urlDescargar: this.storageService.getSecureDownloadUrl(
+            cat,
+            rest.join('/'),
+            curso.documentoExtra.nombreOriginal,
+            curso.documentoExtra.tipoMime,
+          ),
         };
       }
 
@@ -285,7 +290,12 @@ export class CursosService {
           nombreOriginal: curso.documentoExtra.nombreOriginal,
           tamanio: curso.documentoExtra.tamanio,
           tipoMime: curso.documentoExtra.tipoMime,
-          urlDescargar: this.storageService.getDownloadUrl(cat, rest.join('/')),
+          urlDescargar: this.storageService.getSecureDownloadUrl(
+            cat,
+            rest.join('/'),
+            curso.documentoExtra.nombreOriginal,
+            curso.documentoExtra.tipoMime,
+          ),
         };
       }
 

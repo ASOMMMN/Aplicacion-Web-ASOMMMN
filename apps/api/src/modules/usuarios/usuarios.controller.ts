@@ -7,8 +7,6 @@ import {
   Param,
   Query,
   UseGuards,
-  ParseIntPipe,
-  DefaultValuePipe,
   Req,
 } from '@nestjs/common';
 import {
@@ -23,12 +21,12 @@ import { Request } from 'express';
 import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateEstadoDto } from './dto/update-estado.dto';
+import { FindAllUsuariosQueryDto } from './dto/find-all-usuarios-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
-import { UserRole } from './schemas/usuario.schema';
 
 @ApiTags('usuarios')
 @ApiBearerAuth('access-token')
@@ -47,12 +45,8 @@ export class UsuariosController {
     required: false,
     enum: ['postulante', 'evaluador', 'administrador'],
   })
-  findAll(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
-    @Query('rol') rol?: UserRole,
-  ) {
-    return this.usuariosService.findAll({ page, limit, rol });
+  findAll(@Query() query: FindAllUsuariosQueryDto) {
+    return this.usuariosService.findAll(query);
   }
 
   @Post()

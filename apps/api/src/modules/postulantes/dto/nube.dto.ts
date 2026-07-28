@@ -105,6 +105,16 @@ export class NubeItemResponseDto {
   downloadUrl?: string;
 }
 
+export class ListarMiNubeQueryDto {
+  @IsOptional()
+  @IsMongoId()
+  parentId?: string;
+
+  @IsOptional()
+  @IsIn(['cv', 'curso', 'certificacion', 'otro'])
+  categoria?: 'cv' | 'curso' | 'certificacion' | 'otro';
+}
+
 export class NubeListadoResponseDto {
   @ApiProperty({ type: [NubeItemResponseDto] })
   items: NubeItemResponseDto[];

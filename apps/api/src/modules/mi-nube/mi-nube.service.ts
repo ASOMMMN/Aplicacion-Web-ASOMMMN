@@ -18,6 +18,7 @@ import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
+import { escapeRegex } from '../../common/utils/regex.util';
 
 const NUBE_CATEGORY = 'mi-nube';
 
@@ -73,7 +74,7 @@ export class MiNubeService {
       .find({
         ownerId,
         isDeleted: false,
-        nombre: { $regex: this.escapeRegex(term), $options: 'i' },
+        nombre: { $regex: escapeRegex(term), $options: 'i' },
       })
       .sort({ tipo: -1, nombre: 1 })
       .limit(50)
@@ -349,10 +350,6 @@ export class MiNubeService {
     const hash = createHash('sha1').update(nombre).digest('hex').slice(0, 10);
     const suffix = extension ? `.${extension}` : '';
     return `${ownerId}/${Date.now()}-${randomUUID()}-${hash}${suffix}`;
-  }
-
-  private escapeRegex(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private async validarNoEsDescendiente(

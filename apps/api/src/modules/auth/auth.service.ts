@@ -12,7 +12,11 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import * as crypto from 'crypto';
-import * as bcrypt from 'bcryptjs';
+import {
+  hashPassword,
+  esHashBcrypt,
+  verificarPasswordCompatible,
+} from '../../common/utils/password.util';
 
 import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import {
@@ -30,7 +34,6 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { ChangeRequiredPasswordDto } from './dto/change-required-password.dto';
-import { generarContrasenaTemporal } from '../../common/utils/password.util';
 
 type MfaTempPurpose = 'verify_login' | 'setup_mfa';
 
@@ -135,7 +138,7 @@ export class AuthService implements OnModuleInit {
     // All new users are created with active status
     const usuario = await this.usuarioModel.create({
       email: dto.email.toLowerCase(),
-      passwordHash: dto.password,
+      passwordHash: await hashPassword(dto.password),
       nombre: dto.nombre,
       apellidos: dto.apellidos,
       rol: 'postulante',
@@ -268,15 +271,15 @@ export class AuthService implements OnModuleInit {
     // Email verification is disabled by default (EMAIL_VERIFICATION_REQUIRED=false)
     // Users can login immediately after registration
 
-    const passwordOk = await this.verificarPasswordCompatible(
+    const passwordOk = await verificarPasswordCompatible(
       dto.password,
       user.passwordHash,
     );
     if (!passwordOk)
       throw new UnauthorizedException('Credenciales incorrectas');
 
-    if (this.esHashBcrypt(user.passwordHash)) {
-      user.passwordHash = dto.password;
+    if (!esHashBcrypt(user.passwordHash)) {
+      user.passwordHash = await hashPassword(dto.password);
       await user.save();
     }
 
@@ -418,19 +421,56 @@ export class AuthService implements OnModuleInit {
     // No revelar si el correo existe
     if (!user || user.estadoCuenta === 'bloqueada') return;
 
-    const passwordTemporal = generarContrasenaTemporal(12);
-    user.passwordHash = await bcrypt.hash(passwordTemporal, 10);
-    user.debeCambiarContrasena = true;
-    await user.save();
+    // Eliminar tokens previos para este usuario
+    await this.oneTimeTokenModel.deleteMany({
+      userId: user._id,
+      tipo: 'password_reset',
+    });
 
-    // Revocar todas las sesiones (seguridad post-reset)
-    await this.refreshTokenModel.deleteMany({ userId: user._id });
+    const { rawToken, tokenHash } = this.generarToken();
+    await this.oneTimeTokenModel.create({
+      userId: user._id,
+      tokenHash,
+      tipo: 'password_reset',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
 
-    await this.notificaciones.enviarPasswordTemporalEmail(
+    const frontendUrl = this.config.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3000',
+    );
+    const resetUrl = `${frontendUrl}/restablecer-contrasena?token=${rawToken}`;
+
+    await this.notificaciones.enviarResetPasswordEmail(
       user.email,
       user.nombre,
-      passwordTemporal,
+      resetUrl,
     );
+  }
+
+  async resetearPassword(
+    rawToken: string,
+    nuevaPassword: string,
+  ): Promise<void> {
+    const tokenHash = this.hashToken(rawToken);
+    const doc = await this.oneTimeTokenModel.findOne({
+      tokenHash,
+      tipo: 'password_reset',
+      usado: false,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!doc) throw new BadRequestException('Token inválido o expirado');
+
+    await this.usuarioModel.findByIdAndUpdate(doc.userId, {
+      passwordHash: await hashPassword(nuevaPassword),
+      debeCambiarContrasena: false,
+    });
+
+    await this.oneTimeTokenModel.findByIdAndUpdate(doc._id, { usado: true });
+
+    // Revocar todas las sesiones (seguridad post-reset)
+    await this.refreshTokenModel.deleteMany({ userId: doc.userId });
   }
 
   async cambiarContrasenaObligatoria(
@@ -447,14 +487,14 @@ export class AuthService implements OnModuleInit {
       );
     }
 
-    const temporalOk = await this.verificarPasswordCompatible(
+    const temporalOk = await verificarPasswordCompatible(
       dto.passwordTemporal,
       user.passwordHash,
     );
     if (!temporalOk)
       throw new UnauthorizedException('Contraseña temporal incorrecta');
 
-    user.passwordHash = dto.nuevaPassword;
+    user.passwordHash = await hashPassword(dto.nuevaPassword);
     user.debeCambiarContrasena = false;
     await user.save();
 
@@ -674,22 +714,4 @@ export class AuthService implements OnModuleInit {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  private async verificarPasswordCompatible(
-    plainPassword: string,
-    storedPassword: string,
-  ): Promise<boolean> {
-    if (plainPassword === storedPassword) {
-      return true;
-    }
-
-    if (this.esHashBcrypt(storedPassword)) {
-      return bcrypt.compare(plainPassword, storedPassword);
-    }
-
-    return false;
-  }
-
-  private esHashBcrypt(value: string): boolean {
-    return /^\$2[aby]\$\d{2}\$/.test(value);
-  }
 }

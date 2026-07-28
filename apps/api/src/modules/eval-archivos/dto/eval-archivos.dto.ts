@@ -33,5 +33,6 @@ export class RenombrarArchivoDto {
 export class BuscarArchivosDto {
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   q?: string;
 }

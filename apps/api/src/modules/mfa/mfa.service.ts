@@ -1,15 +1,41 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import * as crypto from 'crypto';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
+import * as bcrypt from 'bcryptjs';
 import { MFA } from './schemas/mfa.schema';
+import {
+  Usuario,
+  UsuarioDocument,
+} from '../usuarios/schemas/usuario.schema';
+import { verificarPasswordCompatible } from '../../common/utils/password.util';
+
+const RECOVERY_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const RECOVERY_CODE_SALT_ROUNDS = 10;
 
 @Injectable()
 export class MFAService {
   private readonly logger = new Logger(MFAService.name);
 
-  constructor(@InjectModel(MFA.name) private mfaModel: Model<MFA>) {}
+  constructor(
+    @InjectModel(MFA.name) private mfaModel: Model<MFA>,
+    @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
+  ) {}
+
+  /**
+   * Verifica la contraseña real de la cuenta antes de permitir acciones
+   * sensibles sobre MFA (desactivar, regenerar códigos de recuperación).
+   */
+  async verificarPasswordUsuario(
+    usuarioId: string,
+    plainPassword: string,
+  ): Promise<boolean> {
+    const user = await this.usuarioModel.findById(usuarioId);
+    if (!user) return false;
+    return verificarPasswordCompatible(plainPassword, user.passwordHash);
+  }
 
   /**
    * Genera un nuevo secret TOTP y retorna datos para mostrar QR
@@ -65,7 +91,10 @@ export class MFAService {
   generateRecoveryCodes(count: number = 10): string[] {
     const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-      const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+      let code = '';
+      for (let j = 0; j < 8; j++) {
+        code += RECOVERY_CODE_ALPHABET[crypto.randomInt(0, RECOVERY_CODE_ALPHABET.length)];
+      }
       codes.push(code);
     }
     return codes;
@@ -138,17 +167,20 @@ export class MFAService {
   async generateAndSaveRecoveryCodes(usuarioId: string): Promise<string[]> {
     const objectId = new Types.ObjectId(usuarioId);
     const codes = this.generateRecoveryCodes(10);
+    const hashedCodes = await Promise.all(
+      codes.map((code) => bcrypt.hash(code, RECOVERY_CODE_SALT_ROUNDS)),
+    );
 
-    // Hash cada código con bcrypt en producción, aquí simplificado
     await this.mfaModel.findOneAndUpdate(
       { usuarioId: objectId },
       {
-        codigosRecuperacion: codes,
+        codigosRecuperacion: hashedCodes,
         generadosCodigosEn: new Date(),
       },
       { new: true },
     );
 
+    // Los códigos en claro solo se devuelven una vez, al usuario, para que los guarde.
     return codes;
   }
 
@@ -166,13 +198,19 @@ export class MFAService {
       return false;
     }
 
-    const index = mfa.codigosRecuperacion.indexOf(recoveryCode);
-    if (index === -1) {
+    let matchIndex = -1;
+    for (let i = 0; i < mfa.codigosRecuperacion.length; i++) {
+      if (await bcrypt.compare(recoveryCode, mfa.codigosRecuperacion[i])) {
+        matchIndex = i;
+        break;
+      }
+    }
+    if (matchIndex === -1) {
       return false;
     }
 
-    // Elimina el código usado
-    mfa.codigosRecuperacion.splice(index, 1);
+    // Elimina el código usado (de un solo uso)
+    mfa.codigosRecuperacion.splice(matchIndex, 1);
     await mfa.save();
 
     return true;

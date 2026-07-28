@@ -29,6 +29,7 @@ import { ExpedienteProgressDto } from './dto/expediente.dto';
 import {
   CambiarCategoriaNubeItemDto,
   CrearCarpetaDto,
+  ListarMiNubeQueryDto,
   MoverNubeItemDto,
   NubeItemResponseDto,
   NubeListadoResponseDto,
@@ -129,10 +130,13 @@ export class PostulantesController {
   @ApiResponse({ status: 200, type: NubeListadoResponseDto })
   async listarMiNube(
     @CurrentUser() user: AuthUser,
-    @Query('parentId') parentId?: string,
-    @Query('categoria') categoria?: 'cv' | 'curso' | 'certificacion' | 'otro',
+    @Query() query: ListarMiNubeQueryDto,
   ): Promise<NubeListadoResponseDto> {
-    return this.postulantesService.listarMiNube(user.userId, parentId, categoria);
+    return this.postulantesService.listarMiNube(
+      user.userId,
+      query.parentId,
+      query.categoria,
+    );
   }
 
   @Post('mi-nube/carpeta')

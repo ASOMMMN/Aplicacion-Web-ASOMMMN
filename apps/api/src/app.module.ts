@@ -11,6 +11,7 @@ import * as winston from 'winston';
 import { validate } from './config/env.validation';
 import { LoggerModule } from './common/logger';
 import { StorageModule } from './modules/storage/storage.module';
+import { FilesModule } from './modules/files/files.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
@@ -105,6 +106,7 @@ import { HealthController } from './health.controller';
     // ── Módulos de dominio ───────────────────────────────────────────────────
     TerminusModule,
     StorageModule,
+    FilesModule,
     NotificacionesModule,
     AuthModule,
     UsuariosModule,

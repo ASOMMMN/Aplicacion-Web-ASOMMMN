@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 
 export class DocumentoResponseDto {
   @ApiProperty()
@@ -54,5 +54,8 @@ export class HistorialDocumentosResponseDto {
 
 export class RenombrarDocumentoDto {
   @ApiProperty({ description: 'Nuevo nombre visible del archivo' })
-  declare nombreOriginal: string;
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  nombreOriginal: string;
 }

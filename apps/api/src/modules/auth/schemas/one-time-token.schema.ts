@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-export type OneTimeTokenType = 'email_verification';
+export type OneTimeTokenType = 'email_verification' | 'password_reset';
 
 @Schema({
   collection: 'one_time_tokens',
@@ -14,7 +14,7 @@ export class OneTimeToken {
   @Prop({ required: true, index: true })
   tokenHash: string;
 
-  @Prop({ required: true, enum: ['email_verification'] })
+  @Prop({ required: true, enum: ['email_verification', 'password_reset'] })
   tipo: OneTimeTokenType;
 
   @Prop({ required: true })

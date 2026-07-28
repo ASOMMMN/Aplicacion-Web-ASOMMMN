@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   mkdir,
@@ -9,6 +14,15 @@ import {
 } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { dirname, join } from 'node:path';
+import * as crypto from 'node:crypto';
+
+interface DownloadTokenPayload {
+  cat: string;
+  key: string;
+  filename: string;
+  mime: string;
+  exp: number;
+}
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -57,23 +71,69 @@ export class StorageService implements OnModuleInit {
     }
   }
 
-  getDownloadUrl(category: string, key: string): string {
+  /**
+   * URL de descarga autenticada por token firmado (HMAC) y de corta duración —
+   * evita servir archivos como estáticos públicos permanentes. El token va
+   * firmado con JWT_SECRET y expira a los `ttlSeconds` segundos.
+   */
+  getSecureDownloadUrl(
+    category: string,
+    key: string,
+    filename: string,
+    mime: string,
+    ttlSeconds = 300,
+  ): string {
     const port = this.config.get<number>('PORT', 3001);
     const base = this.config
       .get<string>('BACKEND_PUBLIC_URL', `http://localhost:${port}`)
       .replace(/\/$/, '');
-    const safeCat = encodeURIComponent(category.replace(/[^a-zA-Z0-9._-]/g, '_'));
-    const encodedKey = key
-      .replace(/\\/g, '/')
-      .split('/')
-      .filter(Boolean)
-      .map((p) => encodeURIComponent(p))
-      .join('/');
-    return `${base}/uploads/${safeCat}/${encodedKey}`;
+    const token = this.signDownloadToken(
+      { cat: category, key, filename, mime, exp: Date.now() + ttlSeconds * 1000 },
+    );
+    return `${base}/files/download?token=${encodeURIComponent(token)}`;
   }
 
-  /** Alias for backward compat — expiry param is ignored with disk storage */
-  getPresignedUrl(category: string, key: string, _expiry?: number): Promise<string> {
-    return Promise.resolve(this.getDownloadUrl(category, key));
+  private getTokenSecret(): string {
+    return this.config.get<string>('JWT_SECRET') ?? '';
+  }
+
+  private signDownloadToken(payload: DownloadTokenPayload): string {
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = crypto
+      .createHmac('sha256', this.getTokenSecret())
+      .update(body)
+      .digest('base64url');
+    return `${body}.${signature}`;
+  }
+
+  verifyDownloadToken(token: string): DownloadTokenPayload {
+    const [body, signature] = token.split('.');
+    if (!body || !signature) {
+      throw new BadRequestException('Token de descarga inválido.');
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', this.getTokenSecret())
+      .update(body)
+      .digest('base64url');
+
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSignature);
+    if (
+      sigBuf.length !== expectedBuf.length ||
+      !crypto.timingSafeEqual(sigBuf, expectedBuf)
+    ) {
+      throw new BadRequestException('Token de descarga inválido.');
+    }
+
+    const payload = JSON.parse(
+      Buffer.from(body, 'base64url').toString('utf8'),
+    ) as DownloadTokenPayload;
+
+    if (Date.now() > payload.exp) {
+      throw new BadRequestException('Token de descarga expirado.');
+    }
+
+    return payload;
   }
 }

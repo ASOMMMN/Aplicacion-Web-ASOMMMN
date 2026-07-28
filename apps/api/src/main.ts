@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import helmet from 'helmet';
+import compression from 'compression';
 import cookieParser = require('cookie-parser');
 import express = require('express');
 import { join } from 'node:path';
@@ -24,12 +25,35 @@ async function bootstrap() {
   const port = config.get<number>('PORT', 3001);
   const isProduction = config.get('NODE_ENV') === 'production';
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:'],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          upgradeInsecureRequests: isProduction ? [] : null,
+        },
+      },
+      hsts: {
+        maxAge: 63_072_000,
+        includeSubDomains: true,
+        preload: true,
+      },
+      crossOriginResourcePolicy: { policy: 'same-site' },
+    }),
+  );
+  app.use(compression());
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());
 
   const uploadsDir = config.get<string>('STORAGE_PATH') || join(process.cwd(), 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
-  app.use('/uploads', express.static(uploadsDir));
 
   app.enableCors({
     origin: isProduction

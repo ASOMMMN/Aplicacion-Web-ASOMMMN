@@ -23,6 +23,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangeRequiredPasswordDto } from './dto/change-required-password.dto';
 import {
   ActivarMfaDto,
@@ -72,7 +73,12 @@ export class AuthController {
   })
   async testVerificarEmail(@Query('email') email: string) {
     // Endpoint solo para testing - ELIMINAR EN PRODUCCIÓN
-    if (process.env.NODE_ENV !== 'development') {
+    // Requiere NODE_ENV=development Y ENABLE_TEST_ENDPOINTS=true explícito,
+    // para que un NODE_ENV mal configurado en producción no lo deje expuesto.
+    if (
+      process.env.NODE_ENV !== 'development' ||
+      process.env.ENABLE_TEST_ENDPOINTS !== 'true'
+    ) {
       throw new Error('No disponible');
     }
     await this.authService.verificarEmailPorEmail(email);
@@ -178,6 +184,7 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
   @ApiOperation({ summary: 'Renovar access token (usa cookie httpOnly)' })
   async refresh(
     @Req() req: Request,
@@ -224,12 +231,23 @@ export class AuthController {
   @Post('recuperar-contrasena')
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 600_000 } })
-  @ApiOperation({ summary: 'Solicitar contraseña temporal por correo' })
+  @ApiOperation({ summary: 'Solicitar enlace de recuperación de contraseña por correo' })
   async recuperarContrasena(@Body() dto: ForgotPasswordDto) {
     await this.authService.solicitarRecuperacion(dto.email);
     return {
       message:
-        'Si el correo está registrado, recibirás una contraseña temporal en breve.',
+        'Si el correo está registrado, recibirás un enlace para restablecer tu contraseña.',
+    };
+  }
+
+  @Post('restablecer-contrasena')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  @ApiOperation({ summary: 'Definir nueva contraseña usando el token del correo' })
+  async restablecerContrasena(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetearPassword(dto.token, dto.nuevaPassword);
+    return {
+      message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.',
     };
   }
 
