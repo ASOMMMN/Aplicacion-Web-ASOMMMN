@@ -42,6 +42,9 @@ export class NotificacionesService implements OnModuleInit {
       port: smtpPort,
       secure: smtpSecure,
       auth: { user: smtpUser, pass: smtpPass },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
     });
 
     LoggerService.mail({
@@ -66,8 +69,9 @@ export class NotificacionesService implements OnModuleInit {
 
       this.logger.log(`Correo enviado a ${options.to} (id: ${info.messageId})`);
     } catch (err) {
+      const e = err as { message?: string; code?: string; command?: string };
       this.logger.error(
-        `Error enviando correo a ${options.to}: ${(err as Error).message}`,
+        `Error enviando correo a ${options.to}: message=${e.message ?? 'desconocido'} code=${e.code ?? 'N/A'} command=${e.command ?? 'N/A'}`,
       );
     }
   }
