@@ -49,11 +49,27 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  GMAIL_USER: string = '';
+  SMTP_HOST: string = '';
+
+  @IsOptional()
+  @IsNumber()
+  SMTP_PORT: number = 465;
 
   @IsOptional()
   @IsString()
-  GMAIL_APP_PASSWORD: string = '';
+  SMTP_SECURE: string = 'true';
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER: string = '';
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASS: string = '';
+
+  @IsOptional()
+  @IsString()
+  SMTP_FROM: string = '';
 
   @IsOptional()
   @IsString()

@@ -19,25 +19,29 @@ export class NotificacionesService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
-    const gmailUser = this.config.get<string>('GMAIL_USER', '').trim();
-    const gmailAppPassword = this.config
-      .get<string>('GMAIL_APP_PASSWORD', '')
-      .trim();
+    const smtpHost = this.config.get<string>('SMTP_HOST', '').trim();
+    const smtpUser = this.config.get<string>('SMTP_USER', '').trim();
+    const smtpPass = this.config.get<string>('SMTP_PASS', '').trim();
 
-    if (!gmailUser || !gmailAppPassword) {
+    if (!smtpHost || !smtpUser || !smtpPass) {
       this.transporter = null;
       this.logger.error(
-        'GMAIL_USER / GMAIL_APP_PASSWORD no configuradas. El envío de correos NO funcionará hasta que se configuren estas variables en el .env.',
+        'SMTP_HOST / SMTP_USER / SMTP_PASS no configuradas. El envío de correos NO funcionará hasta que se configuren estas variables.',
       );
       return;
     }
 
-    this.from = `ASOMMMN <${gmailUser}>`;
+    const smtpPort = this.config.get<number>('SMTP_PORT', 465);
+    const smtpSecure =
+      this.config.get<string>('SMTP_SECURE', 'true').trim() === 'true';
+    const smtpFrom = this.config.get<string>('SMTP_FROM', '').trim() || smtpUser;
+
+    this.from = `ASOMMMN <${smtpFrom}>`;
     this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: gmailUser, pass: gmailAppPassword },
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: { user: smtpUser, pass: smtpPass },
     });
 
     LoggerService.mail({
