@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+if (!apiUrl) {
+  throw new Error('NEXT_PUBLIC_API_URL no está configurada.');
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
+  baseURL: apiUrl,
   withCredentials: true, // envía la cookie refresh_token automáticamente
 });
 
@@ -20,6 +25,7 @@ api.interceptors.request.use((config) => {
 // Renueva el access token transparentemente cuando expira
 let isRefreshing = false;
 let pendingQueue: Array<{
+  
   resolve: (token: string) => void;
   reject: (err: unknown) => void;
 }> = [];

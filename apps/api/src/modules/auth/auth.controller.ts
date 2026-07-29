@@ -35,10 +35,15 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from './strategies/jwt.strategy';
 
 const COOKIE_NAME = 'refresh_token';
+const isProd = process.env.NODE_ENV === 'production';
+// sameSite 'none' es necesario porque el frontend (Netlify) y el backend
+// (Render) son dominios raíz distintos: con 'strict' o 'lax' el navegador
+// no envía la cookie en las peticiones cross-site y /auth/refresh falla.
+// 'none' exige secure:true (requiere HTTPS), por eso solo se activa en prod.
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
+  secure: isProd,
+  sameSite: isProd ? ('none' as const) : ('lax' as const),
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };

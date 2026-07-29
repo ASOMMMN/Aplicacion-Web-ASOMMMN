@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
-const apiOrigin = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "");
 const isDev = process.env.NODE_ENV === "development";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
+if (!rawApiUrl && !isDev) {
+  throw new Error(
+    "NEXT_PUBLIC_API_URL no está configurada. Requerida para el build de producción (CSP connect-src).",
+  );
+}
+const apiOrigin = (rawApiUrl ?? "http://localhost:3001").replace(/\/$/, "");
 
 // CSP sin nonces (patrón documentado por Next.js para apps con render estático/
 // ISR): un CSP con nonces obliga a "dynamic rendering" en TODAS las páginas
