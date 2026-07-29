@@ -16,7 +16,7 @@ import {
   ApiBearerAuth,
   ApiResponse,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 
 import { AuthService } from './auth.service';
@@ -103,7 +103,10 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  @Throttle({ default: { limit: 5, ttl: 300_000 } })
+  // Decisión explícita del cliente: sin límite de intentos en login.
+  // El resto de endpoints de auth (registro, MFA, reset de contraseña, etc.)
+  // sigue protegido por @Throttle().
+  @SkipThrottle()
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiResponse({ status: 200, description: 'Access token + usuario.' })
   async login(

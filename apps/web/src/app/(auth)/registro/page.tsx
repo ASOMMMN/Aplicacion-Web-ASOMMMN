@@ -11,6 +11,7 @@ import api from '@/lib/api/client';
 import { registerSchema, RegisterForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 export default function RegistroPage() {
   const router = useRouter();
@@ -124,8 +125,7 @@ export default function RegistroPage() {
 
             <Form.Group className="mb-3">
               <Form.Label>Contraseña</Form.Label>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 {...register('password')}
                 isInvalid={!!errors.password}
                 autoComplete="new-password"
@@ -140,8 +140,7 @@ export default function RegistroPage() {
 
             <Form.Group className="mb-4">
               <Form.Label>Confirmar contraseña</Form.Label>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 {...register('confirmar')}
                 isInvalid={!!errors.confirmar}
                 autoComplete="new-password"

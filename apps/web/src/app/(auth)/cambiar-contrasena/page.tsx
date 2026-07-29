@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 const schema = z
   .object({
@@ -103,8 +104,7 @@ export default function CambiarContrasenaPage() {
 
           <Form.Group className="mb-3">
             <Form.Label>Contraseña temporal</Form.Label>
-            <Form.Control
-              type="password"
+            <PasswordInput
               {...register('passwordTemporal')}
               isInvalid={!!errors.passwordTemporal}
             />
@@ -115,8 +115,7 @@ export default function CambiarContrasenaPage() {
 
           <Form.Group className="mb-3">
             <Form.Label>Nueva contraseña</Form.Label>
-            <Form.Control
-              type="password"
+            <PasswordInput
               {...register('nuevaPassword')}
               isInvalid={!!errors.nuevaPassword}
             />
@@ -127,8 +126,7 @@ export default function CambiarContrasenaPage() {
 
           <Form.Group className="mb-4">
             <Form.Label>Confirmar nueva contraseña</Form.Label>
-            <Form.Control
-              type="password"
+            <PasswordInput
               {...register('confirmar')}
               isInvalid={!!errors.confirmar}
             />

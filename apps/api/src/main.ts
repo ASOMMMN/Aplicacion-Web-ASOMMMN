@@ -17,7 +17,13 @@ import { LoggerService } from './common/logger';
  
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
- 
+
+  // Render corre la app detrás de un proxy inverso: sin esto, Express ve
+  // todas las peticiones como si vinieran de la IP interna del proxy, y el
+  // rate limiting de @nestjs/throttler (que usa req.ip) termina compartiendo
+  // el mismo cupo entre todos los usuarios en vez de contarlos por IP real.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   const winstonLogger = app.get(WINSTON_MODULE_NEST_PROVIDER);
   app.useLogger(winstonLogger);
  

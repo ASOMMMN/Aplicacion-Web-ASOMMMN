@@ -9,6 +9,7 @@ import Link from 'next/link';
 import api from '@/lib/api/client';
 import { resetPasswordSchema, ResetPasswordForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 function RestablecerContrasenaContent() {
   const params = useSearchParams();
@@ -94,8 +95,7 @@ function RestablecerContrasenaContent() {
 
                 <Form.Group className="mb-3">
                   <Form.Label>Nueva contraseña</Form.Label>
-                  <Form.Control
-                    type="password"
+                  <PasswordInput
                     {...register('password')}
                     isInvalid={!!errors.password}
                     autoComplete="new-password"
@@ -110,8 +110,7 @@ function RestablecerContrasenaContent() {
 
                 <Form.Group className="mb-4">
                   <Form.Label>Confirmar contraseña</Form.Label>
-                  <Form.Control
-                    type="password"
+                  <PasswordInput
                     {...register('confirmar')}
                     isInvalid={!!errors.confirmar}
                     autoComplete="new-password"

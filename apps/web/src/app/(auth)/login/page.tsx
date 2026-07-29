@@ -11,6 +11,7 @@ import api from '@/lib/api/client';
 import { loginSchema, LoginForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
+import PasswordInput from '@/components/ui/PasswordInput';
 
 const ROLE_HOME: Record<string, string> = {
   postulante: '/dashboard',
@@ -158,8 +159,7 @@ export default function LoginPage() {
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
-              <Form.Control
-                type="password"
+              <PasswordInput
                 {...register('password')}
                 isInvalid={!!errors.password}
                 autoComplete="current-password"
