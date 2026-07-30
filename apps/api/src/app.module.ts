@@ -89,6 +89,19 @@ import { HealthController } from './health.controller';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         uri: config.get<string>('MONGODB_URI'),
+        // TEMP DEBUG - eliminar después de diagnosticar el 401 post-migración a Render
+        connectionFactory: (connection: {
+          on: (event: string, cb: () => void) => void;
+          host: string;
+          name: string;
+        }) => {
+          connection.on('connected', () => {
+            console.log(
+              `[TEMP-DEBUG] Mongo conectado -> host=${connection.host}, db=${connection.name}`,
+            );
+          });
+          return connection;
+        },
       }),
     }),
 

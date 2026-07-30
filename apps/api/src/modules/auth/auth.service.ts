@@ -377,6 +377,18 @@ export class AuthService implements OnModuleInit {
       expiresAt: { $gt: new Date() },
     });
 
+    // TEMP DEBUG - eliminar después de diagnosticar el 401 post-migración a Render
+    if (!doc) {
+      const anyDoc = await this.refreshTokenModel.findOne({ tokenHash });
+      this.logger.warn(
+        `[TEMP-DEBUG] refresh fallido: tokenHash=${tokenHash.slice(0, 12)}... ` +
+          (anyDoc
+            ? `encontrado pero EXPIRADO (expiresAt=${anyDoc.expiresAt.toISOString()}, ahora=${new Date().toISOString()})`
+            : `NO existe ningún documento con ese tokenHash en refresh_tokens ` +
+              `(conexión mongo: host=${this.refreshTokenModel.db.host}, db=${this.refreshTokenModel.db.name})`),
+      );
+    }
+
     if (!doc)
       throw new UnauthorizedException(
         'Sesión expirada. Inicia sesión nuevamente.',
