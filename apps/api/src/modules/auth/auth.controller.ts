@@ -199,12 +199,6 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const oldToken = req.cookies?.[COOKIE_NAME] as string | undefined;
-    // TEMP DEBUG - eliminar después de diagnosticar el 401 post-migración a Render
-    console.log(
-      `[TEMP-DEBUG] POST /auth/refresh - cookie ${COOKIE_NAME} ${
-        oldToken ? `presente (len=${oldToken.length})` : 'AUSENTE'
-      }, Origin=${req.headers.origin ?? 'n/a'}, Cookie header presente=${!!req.headers.cookie}`,
-    );
     if (!oldToken) throw new UnauthorizedException('Sin refresh token');
 
     const ip =
