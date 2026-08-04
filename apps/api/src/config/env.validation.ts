@@ -49,27 +49,7 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  SMTP_HOST: string = '';
-
-  @IsOptional()
-  @IsNumber()
-  SMTP_PORT: number = 465;
-
-  @IsOptional()
-  @IsString()
-  SMTP_SECURE: string = 'true';
-
-  @IsOptional()
-  @IsString()
-  SMTP_USER: string = '';
-
-  @IsOptional()
-  @IsString()
-  SMTP_PASS: string = '';
-
-  @IsOptional()
-  @IsString()
-  SMTP_FROM: string = '';
+  RESEND_FROM: string = '';
 
   @IsOptional()
   @IsString()

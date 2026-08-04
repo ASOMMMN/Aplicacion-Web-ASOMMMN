@@ -51,15 +51,16 @@ Completa esta lista **antes de hacer deploy**. Cada ítem indica dónde cambiar 
 
 ---
 
-## 5. Resend (correo transaccional)
+## 5. Resend (correo transaccional, vía API HTTPS)
 
 | Variable | Archivo | Acción |
 |---|---|---|
 | `RESEND_API_KEY` | `apps/api/.env` | API key real de tu cuenta de Resend (https://resend.com/api-keys). |
+| `RESEND_FROM` | `apps/api/.env` | Dirección de un dominio verificado en https://resend.com/domains (ej. `notificaciones@tudominio.com`). |
 
-✅ Se lee de variables de entorno.
-> Si `RESEND_API_KEY` falta, el servicio de notificaciones no envía correos: registra un error claro en el log al arrancar y en cada intento de envío, pero no impide que el servidor arranque.
-> El remitente por defecto es `ASOMMMN <onboarding@resend.dev>` (dominio de pruebas de Resend). En modo de pruebas, Resend solo entrega correos a la dirección con la que te registraste. Cuando se verifique un dominio propio en Resend, actualizar el remitente en `notificaciones.service.ts` (constante `FROM_DEFAULT`).
+✅ Se usa el SDK oficial (`resend`, método `emails.send()`), **no SMTP** — necesario porque el plan Free de Render bloquea el tráfico saliente en los puertos SMTP (25, 465, 587); la API HTTPS de Resend usa el puerto 443.
+> Si `RESEND_API_KEY` o `RESEND_FROM` faltan, el servicio de notificaciones no envía correos: registra un error claro en el log al arrancar y no intenta llamar a la API, pero no impide que el servidor arranque.
+> Si `RESEND_FROM` no pertenece a un dominio verificado en Resend, la API rechaza el envío (`error.statusCode`/`error.message` quedan logueados en cada intento fallido).
 
 ---
 
@@ -121,7 +122,7 @@ Efectos al cambiar a `production`:
 | 2 | Credenciales MinIO | 🔴 Cambiar |
 | 3 | Contraseña admin seed | 🔴 Cambiar |
 | 4 | Secretos JWT | 🔴 Generar nuevos |
-| 5 | SMTP real | 🔴 Configurar |
+| 5 | `RESEND_API_KEY` / `RESEND_FROM` (dominio verificado) | 🔴 Configurar |
 | 6 | Dominio en CORS (`main.ts`) | 🟡 Hardcodeado — cambiar o mover a env var |
 | 7 | `NODE_ENV=production` | 🔴 Cambiar |
 | 8 | `NEXT_PUBLIC_API_URL` | 🔴 Configurar |

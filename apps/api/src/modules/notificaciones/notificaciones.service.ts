@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { LoggerService } from '../../common/logger';
 
 interface EmailOptions {
@@ -12,66 +12,58 @@ interface EmailOptions {
 @Injectable()
 export class NotificacionesService implements OnModuleInit {
   private readonly logger = new Logger(NotificacionesService.name);
-  private transporter: ReturnType<typeof nodemailer.createTransport> | null =
-    null;
+  private resend: Resend | null = null;
   private from = 'ASOMMMN';
 
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
-    const smtpHost = this.config.get<string>('SMTP_HOST', '').trim();
-    const smtpUser = this.config.get<string>('SMTP_USER', '').trim();
-    const smtpPass = this.config.get<string>('SMTP_PASS', '').trim();
+    const apiKey = this.config.get<string>('RESEND_API_KEY', '').trim();
+    const resendFrom = this.config.get<string>('RESEND_FROM', '').trim();
 
-    if (!smtpHost || !smtpUser || !smtpPass) {
-      this.transporter = null;
+    if (!apiKey || !resendFrom) {
+      this.resend = null;
       this.logger.error(
-        'SMTP_HOST / SMTP_USER / SMTP_PASS no configuradas. El envío de correos NO funcionará hasta que se configuren estas variables.',
+        'RESEND_API_KEY / RESEND_FROM no configuradas. El envío de correos NO funcionará hasta que se configuren estas variables.',
       );
       return;
     }
 
-    const smtpPort = this.config.get<number>('SMTP_PORT', 465);
-    const smtpSecure =
-      this.config.get<string>('SMTP_SECURE', 'true').trim() === 'true';
-    const smtpFrom = this.config.get<string>('SMTP_FROM', '').trim() || smtpUser;
-
-    this.from = `ASOMMMN <${smtpFrom}>`;
-    this.transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure,
-      auth: { user: smtpUser, pass: smtpPass },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 10_000,
-    });
+    this.from = `ASOMMMN <${resendFrom}>`;
+    this.resend = new Resend(apiKey);
 
     LoggerService.mail({
-      detalle: `Gmail SMTP configurado · from=${this.from}`,
+      detalle: `Resend API configurado · from=${this.from}`,
     });
   }
 
   private async send(options: EmailOptions) {
-    if (!this.transporter) {
+    if (!this.resend) {
       this.logger.warn(
-        `[SIN SMTP] Para: ${options.to} | Asunto: ${options.subject}`,
+        `[SIN RESEND] Para: ${options.to} | Asunto: ${options.subject}`,
       );
       return;
     }
     try {
-      const info = await this.transporter.sendMail({
+      const { data, error } = await this.resend.emails.send({
         from: this.from,
         to: options.to,
         subject: options.subject,
         html: options.html,
       });
 
-      this.logger.log(`Correo enviado a ${options.to} (id: ${info.messageId})`);
+      if (error) {
+        this.logger.error(
+          `Resend rechazó el correo a ${options.to}: statusCode=${error.statusCode ?? 'N/A'} name=${error.name} message=${error.message}`,
+        );
+        return;
+      }
+
+      this.logger.log(`Correo enviado a ${options.to} (id: ${data?.id})`);
     } catch (err) {
-      const e = err as { message?: string; code?: string; command?: string };
+      const e = err as { message?: string; name?: string };
       this.logger.error(
-        `Error enviando correo a ${options.to}: message=${e.message ?? 'desconocido'} code=${e.code ?? 'N/A'} command=${e.command ?? 'N/A'}`,
+        `Excepción llamando a la API de Resend para ${options.to}: name=${e.name ?? 'desconocido'} message=${e.message ?? 'desconocido'}`,
       );
     }
   }

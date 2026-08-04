@@ -501,18 +501,18 @@ export class LoggerService {
     fl()?.info(`AUDIT: ${action}`, { type: 'audit', ...opts });
   }
 
-  /* ── MAIL (estado del servicio de correo SMTP) ─────────────────────────── */
+  /* ── MAIL (estado del servicio de correo, Resend API) ──────────────────── */
   static mail(opts: MailLogOpts): void {
     if (SOC) {
       soc('MAIL', opts);
       return;
     }
     const { detalle } = opts;
-    const etiqueta = `${C.green}SMTP real${C.reset}`;
+    const etiqueta = `${C.green}Resend API${C.reset}`;
     out(
       `${C.gray}[${ts()}]${C.reset} 📧 ${C.bold}Servicio de correo${C.reset}: ${etiqueta} ${C.gray}— ${detalle}${C.reset}`,
     );
-    fl()?.info('Correo: smtp', { type: 'mail', ...opts });
+    fl()?.info('Correo: resend', { type: 'mail', ...opts });
   }
 
   /* ── Métodos de instancia (para inyección DI) ─────────────────────────── */
