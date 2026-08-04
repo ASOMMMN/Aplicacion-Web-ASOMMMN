@@ -100,7 +100,7 @@ export class PostulantesService {
       estadoPostulacion: postulante.estadoPostulacion,
       estadoExpediente: progreso.estadoExpediente,
       enviadoEn: progreso.enviadoEn,
-      creadoEn: postulante.creadoEn,
+      creadoEn: usuario.creadoEn,
     };
   }
 
@@ -152,7 +152,7 @@ export class PostulantesService {
   async obtenerPerfilPor(postulanteId: string): Promise<GetPerfilResponseDto> {
     const postulante = await this.postulanteModel
       .findById(postulanteId)
-      .populate('usuarioId', 'nombre apellidos email')
+      .populate('usuarioId', 'nombre apellidos email creadoEn')
       .lean();
 
     if (!postulante) throw new NotFoundException('Postulante no encontrado');
@@ -162,6 +162,7 @@ export class PostulantesService {
       nombre: string;
       apellidos: string;
       email: string;
+      creadoEn: Date;
     };
 
     // Reutiliza calcularProgreso para que estadoExpediente/enviadoEn reflejen
@@ -182,7 +183,7 @@ export class PostulantesService {
       estadoPostulacion: postulante.estadoPostulacion,
       estadoExpediente: progreso.estadoExpediente,
       enviadoEn: progreso.enviadoEn,
-      creadoEn: postulante.creadoEn,
+      creadoEn: usuario.creadoEn,
     };
   }
 

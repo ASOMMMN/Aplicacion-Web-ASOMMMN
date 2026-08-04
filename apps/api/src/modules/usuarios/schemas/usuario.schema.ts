@@ -55,6 +55,9 @@ export class Usuario {
 
   @Prop()
   ultimoAcceso?: Date;
+
+  @Prop()
+  creadoEn: Date;
 }
 
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
