@@ -29,6 +29,15 @@ export class DocumentoNube {
   storageKey!: string | null;
 
   @Prop({ type: String, default: null })
+  cloudinaryUrl?: string | null;
+
+  @Prop({ type: String, default: null })
+  cloudinaryPublicId?: string | null;
+
+  @Prop({ type: String, enum: ['local', 'cloudinary'], default: null })
+  storageType?: 'local' | 'cloudinary' | null;
+
+  @Prop({ type: String, default: null })
   mimeType!: string | null;
 
   @Prop({ type: Number, default: 0 })

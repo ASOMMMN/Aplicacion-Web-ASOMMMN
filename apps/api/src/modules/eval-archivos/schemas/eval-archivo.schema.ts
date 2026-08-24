@@ -32,6 +32,15 @@ export class EvalArchivo {
   @Prop({ default: '' })
   storagePath!: string;
 
+  @Prop()
+  cloudinaryUrl?: string;
+
+  @Prop()
+  cloudinaryPublicId?: string;
+
+  @Prop({ enum: ['local', 'cloudinary'] })
+  storageType?: 'local' | 'cloudinary';
+
   @Prop({ default: '' })
   tipoMime!: string;
 

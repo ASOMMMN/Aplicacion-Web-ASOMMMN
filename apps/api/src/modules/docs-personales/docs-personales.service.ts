@@ -30,7 +30,8 @@ import {
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 
 const ACCEPTED_MIMES = ['application/pdf', 'image/jpeg', 'image/png'];
-const STORAGE_CATEGORY = 'docs-personales';
+/** Carpeta Cloudinary: asommmn/documentos (requisito explícito de la migración) */
+const STORAGE_CATEGORY = 'documentos';
 
 @Injectable()
 export class DocsPersonalesService {
@@ -61,8 +62,11 @@ export class DocsPersonalesService {
   }
 
   private toResponseDto(doc: DocPersonalDocument): DocPersonalResponseDto {
-    const [category, ...rest] = doc.storagePath.split('/');
-    const key = rest.join('/');
+    const storageType: 'local' | 'cloudinary' =
+      doc.storageType === 'cloudinary' && doc.cloudinaryUrl
+        ? 'cloudinary'
+        : 'local';
+
     return {
       _id: doc._id.toString(),
       tipo: doc.tipo,
@@ -70,12 +74,15 @@ export class DocsPersonalesService {
       tamanio: doc.tamanio,
       tipoMime: doc.tipoMime,
       subidasEn: doc.subidasEn,
-      urlDescargar: this.storage.getSecureDownloadUrl(
-        category,
-        key,
-        doc.nombreOriginal,
-        doc.tipoMime,
-      ),
+      urlDescargar:
+        storageType === 'cloudinary'
+          ? this.storage.getSecureDownloadUrl(
+              doc.cloudinaryUrl!,
+              doc.nombreOriginal,
+              doc.tipoMime,
+            )
+          : undefined,
+      storageType,
     };
   }
 
@@ -118,11 +125,10 @@ export class DocsPersonalesService {
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key = `${postulanteId}/${tipo}/${Date.now()}-${safeName}`;
 
-    await this.storage.putObject(
+    const { url, publicId } = await this.storage.putObject(
       STORAGE_CATEGORY,
       key,
       file.buffer,
-      file.mimetype,
     );
 
     const doc = await this.docModel.create({
@@ -133,6 +139,9 @@ export class DocsPersonalesService {
       tipoMime: file.mimetype,
       tamanio: file.size,
       storagePath: `${STORAGE_CATEGORY}/${key}`,
+      cloudinaryUrl: url,
+      cloudinaryPublicId: publicId,
+      storageType: 'cloudinary',
       subidasPor: new Types.ObjectId(actor.userId),
       subidasEn: new Date(),
     });
@@ -179,11 +188,9 @@ export class DocsPersonalesService {
       );
     }
 
-    const [category, ...rest] = doc.storagePath.split('/');
-    const key = rest.join('/');
-    await this.storage.removeObject(category, key).catch(() => {
-      // Si el archivo ya no existe en disco, continuamos con el borrado del registro
-    });
+    if (doc.storageType === 'cloudinary' && doc.cloudinaryPublicId) {
+      await this.storage.removeObject(doc.cloudinaryPublicId);
+    }
 
     await this.docModel.findByIdAndDelete(docId);
 

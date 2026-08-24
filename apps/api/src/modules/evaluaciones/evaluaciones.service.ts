@@ -276,6 +276,7 @@ export class EvaluacionesService {
             version: cvActual.version,
             subidasEn: cvActual.subidasEn,
             urlDescargar: cvActual.urlDescargar,
+            storageType: cvActual.storageType,
           }
         : null,
     };

@@ -81,7 +81,9 @@ export class CursosController {
 
   @Post()
   @Roles('postulante')
-  @UseInterceptors(FileInterceptor('documentoExtra'))
+  @UseInterceptors(
+    FileInterceptor('documentoExtra', { storage: memoryStorage() }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary:

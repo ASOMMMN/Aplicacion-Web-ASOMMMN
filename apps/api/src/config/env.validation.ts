@@ -90,6 +90,15 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   CHATBOT_WHATSAPP_NUMERO: string = '';
+
+  @IsString()
+  CLOUDINARY_CLOUD_NAME!: string;
+
+  @IsString()
+  CLOUDINARY_API_KEY!: string;
+
+  @IsString()
+  CLOUDINARY_API_SECRET!: string;
 }
 
 export function validate(config: Record<string, unknown>) {

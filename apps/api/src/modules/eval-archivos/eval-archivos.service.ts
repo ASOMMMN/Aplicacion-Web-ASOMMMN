@@ -131,11 +131,10 @@ export class EvalArchivosService {
     const key = `${postulanteId}/${ts}-${nombre}`;
     const storagePath = `${EVAL_CATEGORY}/${key}`;
 
-    await this.storage.putObject(
+    const { url, publicId } = await this.storage.putObject(
       EVAL_CATEGORY,
       key,
       file.buffer,
-      file.mimetype,
     );
 
     const doc = await this.archivoModel.create({
@@ -144,6 +143,9 @@ export class EvalArchivosService {
       nombre,
       tipo: 'archivo',
       storagePath,
+      cloudinaryUrl: url,
+      cloudinaryPublicId: publicId,
+      storageType: 'cloudinary',
       tipoMime: file.mimetype,
       tamanio: file.size,
       creadoPor: new Types.ObjectId(actor.userId),
@@ -190,13 +192,13 @@ export class EvalArchivosService {
 
     const archivos = await this.archivoModel
       .find({ _id: { $in: idsAEliminar }, tipo: 'archivo' })
-      .select('storagePath')
+      .select('storageType cloudinaryPublicId')
       .lean();
 
     for (const archivo of archivos) {
-      if (!archivo.storagePath) continue;
-      const [cat, ...rest] = archivo.storagePath.split('/');
-      await this.storage.removeObject(cat, rest.join('/'));
+      if (archivo.storageType === 'cloudinary' && archivo.cloudinaryPublicId) {
+        await this.storage.removeObject(archivo.cloudinaryPublicId);
+      }
     }
 
     await this.archivoModel.deleteMany({ _id: { $in: idsAEliminar } });
@@ -288,7 +290,7 @@ export class EvalArchivosService {
   async descargar(
     id: string,
     postulanteId: string,
-  ): Promise<{ path: string; nombre: string }> {
+  ): Promise<{ url: string; nombre: string }> {
     const doc = await this.archivoModel.findOne({
       _id: new Types.ObjectId(id),
       postulanteId: new Types.ObjectId(postulanteId),
@@ -297,10 +299,14 @@ export class EvalArchivosService {
     if (doc.tipo !== 'archivo' || !doc.storagePath) {
       throw new BadRequestException('Solo los archivos se pueden descargar.');
     }
+    if (doc.storageType !== 'cloudinary' || !doc.cloudinaryUrl) {
+      throw new NotFoundException(
+        'Este archivo es de un almacenamiento anterior y ya no está disponible. Debe volver a subirse.',
+      );
+    }
 
-    const [cat, ...rest] = doc.storagePath.split('/');
     return {
-      path: this.storage.resolveFilePath(cat, rest.join('/')),
+      url: doc.cloudinaryUrl,
       nombre: doc.nombre,
     };
   }
@@ -314,7 +320,10 @@ export class EvalArchivosService {
     tamanio?: number;
     creadoEn?: Date;
     storagePath?: string;
+    cloudinaryUrl?: string;
+    storageType?: 'local' | 'cloudinary';
   }) {
+    const esCloudinario = i.storageType === 'cloudinary' && !!i.cloudinaryUrl;
     return {
       _id: String(i._id),
       nombre: i.nombre,
@@ -323,20 +332,20 @@ export class EvalArchivosService {
       tipoMime: i.tipoMime,
       tamanio: i.tamanio,
       creadoEn: i.creadoEn,
-      urlDescargar:
-        i.tipo === 'archivo' && i.storagePath
-          ? this.urlFromPath(i.storagePath, i.nombre ?? 'archivo', i.tipoMime ?? 'application/octet-stream')
+      storageType:
+        i.tipo === 'archivo'
+          ? esCloudinario
+            ? 'cloudinary'
+            : 'local'
           : undefined,
+      urlDescargar: esCloudinario
+        ? this.storage.getSecureDownloadUrl(
+            i.cloudinaryUrl!,
+            i.nombre ?? 'archivo',
+            i.tipoMime ?? 'application/octet-stream',
+          )
+        : undefined,
     };
-  }
-
-  private urlFromPath(
-    storagePath: string,
-    nombre: string,
-    tipoMime: string,
-  ): string {
-    const [cat, ...rest] = storagePath.split('/');
-    return this.storage.getSecureDownloadUrl(cat, rest.join('/'), nombre, tipoMime);
   }
 
   private async validarNoEsDescendiente(

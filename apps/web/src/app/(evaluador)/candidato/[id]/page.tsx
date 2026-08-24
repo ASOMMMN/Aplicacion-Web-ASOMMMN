@@ -61,7 +61,8 @@ interface DocPersonalFile {
   tamanio: number;
   tipoMime: string;
   subidasEn: string;
-  urlDescargar: string;
+  urlDescargar?: string;
+  storageType?: 'local' | 'cloudinary';
 }
 
 interface DocsPersonalesResumen {
@@ -87,7 +88,8 @@ interface CandidatoDetalle {
     tamanio: number;
     version: number;
     subidasEn: string;
-    urlDescargar: string;
+    urlDescargar?: string;
+    storageType?: 'local' | 'cloudinary';
   } | null;
 }
 
@@ -114,7 +116,8 @@ interface CursoItem {
     nombreOriginal: string;
     tamanio: number;
     tipoMime: string;
-    urlDescargar: string;
+    urlDescargar?: string;
+    storageType?: 'local' | 'cloudinary';
   };
 }
 
@@ -543,15 +546,21 @@ export default function CandidatoDetallePage() {
                         </div>
                       </div>
                     </div>
-                    <Button
-                      variant="outline-primary"
-                      size="sm"
-                      className="flex-shrink-0"
-                      onClick={() => window.open(detalle.cvActual?.urlDescargar, '_blank')}
-                    >
-                      <i className="bi bi-download me-1" />
-                      Descargar CV
-                    </Button>
+                    {detalle.cvActual.urlDescargar ? (
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        className="flex-shrink-0"
+                        onClick={() => window.open(detalle.cvActual?.urlDescargar, '_blank')}
+                      >
+                        <i className="bi bi-download me-1" />
+                        Descargar CV
+                      </Button>
+                    ) : (
+                      <span className="text-warning small flex-shrink-0">
+                        ⚠️ Versión anterior no disponible
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div className="empty-state">
@@ -632,17 +641,23 @@ export default function CandidatoDetallePage() {
                                       </div>
                                     </div>
                                   </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline-primary"
-                                    href={f.urlDescargar}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex-shrink-0"
-                                  >
-                                    <i className="bi bi-download me-1" />
-                                    Descargar
-                                  </Button>
+                                  {f.urlDescargar ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline-primary"
+                                      href={f.urlDescargar}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex-shrink-0"
+                                    >
+                                      <i className="bi bi-download me-1" />
+                                      Descargar
+                                    </Button>
+                                  ) : (
+                                    <span className="text-warning small flex-shrink-0">
+                                      ⚠️ Vuelve a subirlo
+                                    </span>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -728,17 +743,21 @@ export default function CandidatoDetallePage() {
                               )}
                             </td>
                             <td className="small">
-                              {curso.documentoExtra ? (
+                              {curso.documentoExtra?.urlDescargar ? (
                                 <a href={curso.documentoExtra.urlDescargar} target="_blank" rel="noreferrer"
                                   title={curso.documentoExtra.nombreOriginal}>
                                   📥 {formatFileSize(curso.documentoExtra.tamanio)}
                                 </a>
+                              ) : curso.documentoExtra ? (
+                                <span className="text-warning" title="Archivo de una versión anterior; vuelve a subirlo.">
+                                  ⚠️ Vuelve a subirlo
+                                </span>
                               ) : (
                                 <span className="text-muted">—</span>
                               )}
                             </td>
                             <td>
-                              {curso.documentoExtra && (
+                              {curso.documentoExtra?.urlDescargar && (
                                 <a
                                   href={curso.documentoExtra.urlDescargar}
                                   target="_blank"

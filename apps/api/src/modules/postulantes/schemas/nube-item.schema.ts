@@ -9,7 +9,12 @@ export type NubeItemCategoria = 'cv' | 'curso' | 'certificacion' | 'otro';
   timestamps: { createdAt: 'creadoEn', updatedAt: 'actualizadoEn' },
 })
 export class NubeItem {
-  @Prop({ type: Types.ObjectId, ref: 'Postulante', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Postulante',
+    required: true,
+    index: true,
+  })
   postulanteId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Usuario', required: true, index: true })
@@ -39,6 +44,15 @@ export class NubeItem {
 
   @Prop({ trim: true })
   storagePath?: string;
+
+  @Prop()
+  cloudinaryUrl?: string;
+
+  @Prop()
+  cloudinaryPublicId?: string;
+
+  @Prop({ enum: ['local', 'cloudinary'] })
+  storageType?: 'local' | 'cloudinary';
 
   @Prop()
   creadoEn: Date;

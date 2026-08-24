@@ -11,7 +11,8 @@ export class CursoItemResponseDto {
     nombreOriginal: string;
     tamanio: number;
     tipoMime: string;
-    urlDescargar: string;
+    urlDescargar?: string;
+    storageType: 'local' | 'cloudinary';
   };
   creadoEn: string;
 }

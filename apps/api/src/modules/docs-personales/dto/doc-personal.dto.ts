@@ -22,7 +22,17 @@ export class DocPersonalResponseDto {
   @ApiProperty() tamanio: number;
   @ApiProperty() tipoMime: string;
   @ApiProperty() subidasEn: Date;
-  @ApiProperty() urlDescargar: string;
+  @ApiPropertyOptional({
+    description:
+      'Ausente si el archivo es de un almacenamiento anterior (storageType local)',
+  })
+  urlDescargar?: string;
+  @ApiProperty({
+    enum: ['local', 'cloudinary'],
+    description:
+      "'local' = archivo del almacenamiento anterior, ya no disponible; hay que volver a subirlo",
+  })
+  storageType: 'local' | 'cloudinary';
 }
 
 export class ResumenTipoDto {

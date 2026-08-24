@@ -30,7 +30,8 @@ type CursoItem = {
     nombreOriginal: string;
     tamanio: number;
     tipoMime: string;
-    urlDescargar: string;
+    urlDescargar?: string;
+    storageType?: 'local' | 'cloudinary';
   };
 };
 
@@ -512,7 +513,7 @@ export default function MisCursosPage() {
                                 )}
                               </td>
                               <td>
-                                {curso.documentoExtra ? (
+                                {curso.documentoExtra?.urlDescargar ? (
                                   <a
                                     href={curso.documentoExtra.urlDescargar}
                                     target="_blank"
@@ -522,6 +523,13 @@ export default function MisCursosPage() {
                                   >
                                     📥 {formatSize(curso.documentoExtra.tamanio)}
                                   </a>
+                                ) : curso.documentoExtra ? (
+                                  <span
+                                    className="text-warning small"
+                                    title="Archivo de una versión anterior del sistema; vuelve a subirlo."
+                                  >
+                                    ⚠️ Vuelve a subirlo
+                                  </span>
                                 ) : (
                                   <span className="text-muted small">—</span>
                                 )}

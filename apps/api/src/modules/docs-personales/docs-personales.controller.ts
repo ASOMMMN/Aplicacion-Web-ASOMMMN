@@ -11,6 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -45,7 +46,7 @@ export class DocsPersonalesController {
 
   @Post('subir')
   @Roles('postulante')
-  @UseInterceptors(FileInterceptor('archivo'))
+  @UseInterceptors(FileInterceptor('archivo', { storage: memoryStorage() }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Postulante: sube un archivo de documento personal',

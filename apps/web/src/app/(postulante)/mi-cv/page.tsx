@@ -31,7 +31,8 @@ interface CVActual {
   tamanio: number;
   version: number;
   subidasEn: string;
-  urlDescargar: string;
+  urlDescargar?: string;
+  storageType?: 'local' | 'cloudinary';
 }
 
 const toErrorMessage = (msg: unknown): string => {
@@ -193,6 +194,14 @@ export default function MiCVPage() {
   const descargarCV = async (documentoId: string) => {
     try {
       const res = await api.get<CVActual>(`/documentos/${documentoId}/descargar`);
+      if (!res.data.urlDescargar) {
+        void Swal.fire({
+          icon: 'warning',
+          title: 'Archivo no disponible',
+          text: 'Este CV es de una versión anterior del sistema y ya no está disponible. Vuelve a subirlo.',
+        });
+        return;
+      }
       window.open(res.data.urlDescargar, '_blank');
     } catch {
       void Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo descargar el documento.' });
@@ -272,6 +281,11 @@ export default function MiCVPage() {
                       {formatDate(cvActual.subidasEn)}
                     </p>
                   </div>
+                  {cvActual.storageType === 'local' && (
+                    <p className="text-warning small mb-3">
+                      ⚠️ Este archivo es de una versión anterior del sistema y ya no está disponible. Vuelve a subirlo.
+                    </p>
+                  )}
                   <div className="d-flex gap-2 flex-wrap">
                     <Button
                       variant="outline-success"

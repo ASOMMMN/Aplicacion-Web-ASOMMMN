@@ -114,6 +114,6 @@ export class EvalArchivosController {
     @Res() res: Response,
   ): Promise<void> {
     const doc = await this.service.descargar(id, postulanteId);
-    res.download(doc.path, doc.nombre);
+    res.redirect(302, doc.url);
   }
 }

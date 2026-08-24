@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { StorageService } from '../storage/storage.service';
 
@@ -8,9 +8,9 @@ export class FilesController {
 
   /**
    * Descarga autenticada por token firmado de corta duración (ver
-   * StorageService.getSecureDownloadUrl). Reemplaza el antiguo servido
-   * estático de /uploads, que exponía cualquier archivo sin autenticación
-   * a quien conociera o adivinara la ruta.
+   * StorageService.getSecureDownloadUrl). El token envuelve la URL real del
+   * archivo en Cloudinary; aquí solo se verifica y se redirige — el archivo
+   * nunca se lee ni se sirve desde disco local.
    */
   @Get('download')
   async download(
@@ -18,13 +18,17 @@ export class FilesController {
     @Res() res: Response,
   ): Promise<void> {
     const payload = this.storage.verifyDownloadToken(token ?? '');
-    const buffer = await this.storage.getObject(payload.cat, payload.key);
 
-    res.setHeader('Content-Type', payload.mime || 'application/octet-stream');
-    res.setHeader(
-      'Content-Disposition',
-      `inline; filename="${encodeURIComponent(payload.filename)}"`,
-    );
-    res.send(buffer);
+    let head: globalThis.Response;
+    try {
+      head = await fetch(payload.url, { method: 'HEAD' });
+    } catch {
+      throw new NotFoundException('El archivo no está disponible.');
+    }
+    if (!head.ok) {
+      throw new NotFoundException('El archivo no está disponible.');
+    }
+
+    res.redirect(302, payload.url);
   }
 }

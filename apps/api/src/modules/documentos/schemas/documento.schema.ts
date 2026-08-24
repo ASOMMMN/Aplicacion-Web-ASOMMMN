@@ -6,7 +6,12 @@ import { Document, Types } from 'mongoose';
   timestamps: { createdAt: 'subidasEn', updatedAt: false },
 })
 export class Documento {
-  @Prop({ type: Types.ObjectId, ref: 'Postulante', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Postulante',
+    required: true,
+    index: true,
+  })
   postulanteId!: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Usuario', required: true })
@@ -24,9 +29,19 @@ export class Documento {
   @Prop({ required: true, index: true })
   hash!: string;
 
-  /** Ruta relativa dentro del directorio de almacenamiento: category/key */
+  /** Ruta relativa legacy del disco local: category/key (solo informativa) */
   @Prop({ required: true, trim: true })
   storagePath!: string;
+
+  @Prop()
+  cloudinaryUrl?: string;
+
+  @Prop()
+  cloudinaryPublicId?: string;
+
+  /** Ausente o 'local' = archivo legacy en disco (ya no existe en Render); 'cloudinary' = disponible */
+  @Prop({ enum: ['local', 'cloudinary'] })
+  storageType?: 'local' | 'cloudinary';
 
   @Prop({ required: true, default: 1 })
   version!: number;

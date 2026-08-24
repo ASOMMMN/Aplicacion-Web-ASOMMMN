@@ -82,11 +82,10 @@ export class DocumentosService {
     const key = `postulante-${userId}-v${newVersion}.pdf`;
 
     try {
-      await this.storageService.putObject(
+      const { url, publicId } = await this.storageService.putObject(
         CV_CATEGORY,
         key,
         file.buffer,
-        file.mimetype,
       );
 
       const documento = await this.documentoModel.create({
@@ -97,6 +96,9 @@ export class DocumentosService {
         tamanio: file.size,
         hash,
         storagePath: `${CV_CATEGORY}/${key}`,
+        cloudinaryUrl: url,
+        cloudinaryPublicId: publicId,
+        storageType: 'cloudinary',
         version: newVersion,
         esActual: true,
         subidasPor: new Types.ObjectId(userId),
@@ -104,8 +106,7 @@ export class DocumentosService {
       });
 
       const urlDescargar = this.storageService.getSecureDownloadUrl(
-        CV_CATEGORY,
-        key,
+        url,
         file.originalname,
         file.mimetype,
       );
@@ -117,6 +118,7 @@ export class DocumentosService {
         version: documento.version,
         subidasEn: documento.subidasEn,
         urlDescargar,
+        storageType: 'cloudinary',
       };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Error desconocido';
@@ -145,18 +147,28 @@ export class DocumentosService {
     });
   }
 
-  private urlFromStoragePath(
-    storagePath: string,
-    nombreOriginal: string,
-    tipoMime: string,
-  ): string {
-    const [category, ...rest] = storagePath.split('/');
-    return this.storageService.getSecureDownloadUrl(
-      category,
-      rest.join('/'),
-      nombreOriginal,
-      tipoMime,
-    );
+  private toDto(documento: DocumentoDocument): DocumentoActualResponseDto {
+    const storageType: 'local' | 'cloudinary' =
+      documento.storageType === 'cloudinary' && documento.cloudinaryUrl
+        ? 'cloudinary'
+        : 'local';
+
+    return {
+      _id: documento._id.toString(),
+      nombreOriginal: documento.nombreOriginal,
+      tamanio: documento.tamanio,
+      version: documento.version,
+      subidasEn: documento.subidasEn,
+      urlDescargar:
+        storageType === 'cloudinary'
+          ? this.storageService.getSecureDownloadUrl(
+              documento.cloudinaryUrl!,
+              documento.nombreOriginal,
+              documento.tipoMime,
+            )
+          : undefined,
+      storageType,
+    };
   }
 
   async obtenerCVActual(
@@ -173,18 +185,7 @@ export class DocumentosService {
     });
     if (!documento) return null;
 
-    return {
-      _id: documento._id.toString(),
-      nombreOriginal: documento.nombreOriginal,
-      tamanio: documento.tamanio,
-      version: documento.version,
-      subidasEn: documento.subidasEn,
-      urlDescargar: this.urlFromStoragePath(
-        documento.storagePath,
-        documento.nombreOriginal,
-        documento.tipoMime,
-      ),
-    };
+    return this.toDto(documento);
   }
 
   async obtenerHistorial(
@@ -223,18 +224,7 @@ export class DocumentosService {
     });
     if (!documento) return null;
 
-    return {
-      _id: documento._id.toString(),
-      nombreOriginal: documento.nombreOriginal,
-      tamanio: documento.tamanio,
-      version: documento.version,
-      subidasEn: documento.subidasEn,
-      urlDescargar: this.urlFromStoragePath(
-        documento.storagePath,
-        documento.nombreOriginal,
-        documento.tipoMime,
-      ),
-    };
+    return this.toDto(documento);
   }
 
   async descargarDocumento(
@@ -248,24 +238,17 @@ export class DocumentosService {
       throw new BadRequestException('No tienes acceso a este documento');
     }
 
-    return {
-      _id: documento._id.toString(),
-      nombreOriginal: documento.nombreOriginal,
-      tamanio: documento.tamanio,
-      version: documento.version,
-      subidasEn: documento.subidasEn,
-      urlDescargar: this.urlFromStoragePath(
-        documento.storagePath,
-        documento.nombreOriginal,
-        documento.tipoMime,
-      ),
-    };
+    return this.toDto(documento);
   }
 
-  /** Used by ingest-ia to read the PDF buffer from disk */
-  async getDocumentBuffer(storagePath: string): Promise<Buffer> {
-    const [category, ...rest] = storagePath.split('/');
-    return this.storageService.getObject(category, rest.join('/'));
+  /** Used by ingest-ia to read el buffer del PDF desde Cloudinary */
+  async getDocumentBuffer(documento: DocumentoDocument): Promise<Buffer> {
+    if (documento.storageType !== 'cloudinary' || !documento.cloudinaryUrl) {
+      throw new BadRequestException(
+        'Este CV es de un almacenamiento anterior y ya no está disponible. Vuelve a subirlo.',
+      );
+    }
+    return this.storageService.getObjectBuffer(documento.cloudinaryUrl);
   }
 
   async eliminarCV(
@@ -281,8 +264,9 @@ export class DocumentosService {
     const wasActual = doc.esActual;
     const postulanteId = doc.postulanteId;
 
-    const [cat, ...rest] = doc.storagePath.split('/');
-    await this.storageService.removeObject(cat, rest.join('/')).catch(() => {});
+    if (doc.storageType === 'cloudinary' && doc.cloudinaryPublicId) {
+      await this.storageService.removeObject(doc.cloudinaryPublicId);
+    }
     await this.documentoModel.findByIdAndDelete(docId);
 
     if (wasActual) {

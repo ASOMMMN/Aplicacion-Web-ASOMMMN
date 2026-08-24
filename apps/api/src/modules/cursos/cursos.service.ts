@@ -135,15 +135,17 @@ export class CursosService {
         this.validarDocumentoExtra(file);
         const key = `postulante-${userId}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
 
-        await this.storageService.putObject(
+        const { url, publicId } = await this.storageService.putObject(
           CURSOS_CATEGORY,
           key,
           file.buffer,
-          file.mimetype,
         );
 
         documentoExtra = {
           storagePath: `${CURSOS_CATEGORY}/${key}`,
+          cloudinaryUrl: url,
+          cloudinaryPublicId: publicId,
+          storageType: 'cloudinary',
           nombreOriginal: file.originalname,
           tipoMime: file.mimetype,
           tamanio: file.size,
@@ -213,21 +215,26 @@ export class CursosService {
             nombreOriginal: string;
             tamanio: number;
             tipoMime: string;
-            urlDescargar: string;
+            urlDescargar?: string;
+            storageType: 'local' | 'cloudinary';
           }
         | undefined;
       if (curso.documentoExtra?.storagePath) {
-        const [cat, ...rest] = curso.documentoExtra.storagePath.split('/');
+        const esCloudinary =
+          curso.documentoExtra.storageType === 'cloudinary' &&
+          curso.documentoExtra.cloudinaryUrl;
         documentoExtra = {
           nombreOriginal: curso.documentoExtra.nombreOriginal,
           tamanio: curso.documentoExtra.tamanio,
           tipoMime: curso.documentoExtra.tipoMime,
-          urlDescargar: this.storageService.getSecureDownloadUrl(
-            cat,
-            rest.join('/'),
-            curso.documentoExtra.nombreOriginal,
-            curso.documentoExtra.tipoMime,
-          ),
+          urlDescargar: esCloudinary
+            ? this.storageService.getSecureDownloadUrl(
+                curso.documentoExtra.cloudinaryUrl!,
+                curso.documentoExtra.nombreOriginal,
+                curso.documentoExtra.tipoMime,
+              )
+            : undefined,
+          storageType: esCloudinary ? 'cloudinary' : 'local',
         };
       }
 
@@ -281,21 +288,26 @@ export class CursosService {
             nombreOriginal: string;
             tamanio: number;
             tipoMime: string;
-            urlDescargar: string;
+            urlDescargar?: string;
+            storageType: 'local' | 'cloudinary';
           }
         | undefined;
       if (curso.documentoExtra?.storagePath) {
-        const [cat, ...rest] = curso.documentoExtra.storagePath.split('/');
+        const esCloudinary =
+          curso.documentoExtra.storageType === 'cloudinary' &&
+          curso.documentoExtra.cloudinaryUrl;
         documentoExtra = {
           nombreOriginal: curso.documentoExtra.nombreOriginal,
           tamanio: curso.documentoExtra.tamanio,
           tipoMime: curso.documentoExtra.tipoMime,
-          urlDescargar: this.storageService.getSecureDownloadUrl(
-            cat,
-            rest.join('/'),
-            curso.documentoExtra.nombreOriginal,
-            curso.documentoExtra.tipoMime,
-          ),
+          urlDescargar: esCloudinary
+            ? this.storageService.getSecureDownloadUrl(
+                curso.documentoExtra.cloudinaryUrl!,
+                curso.documentoExtra.nombreOriginal,
+                curso.documentoExtra.tipoMime,
+              )
+            : undefined,
+          storageType: esCloudinary ? 'cloudinary' : 'local',
         };
       }
 
@@ -343,9 +355,13 @@ export class CursosService {
       );
     }
 
-    if (curso.documentoExtra?.storagePath) {
-      const [cat, ...rest] = curso.documentoExtra.storagePath.split('/');
-      await this.storageService.removeObject(cat, rest.join('/'));
+    if (
+      curso.documentoExtra?.storageType === 'cloudinary' &&
+      curso.documentoExtra.cloudinaryPublicId
+    ) {
+      await this.storageService.removeObject(
+        curso.documentoExtra.cloudinaryPublicId,
+      );
     }
 
     await this.cursoModel.deleteOne({ _id: curso._id });

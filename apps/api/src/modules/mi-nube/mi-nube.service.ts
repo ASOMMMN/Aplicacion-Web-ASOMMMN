@@ -29,6 +29,8 @@ type DocumentoNubeLean = {
   parentId?: Types.ObjectId | null;
   ownerId?: Types.ObjectId | null;
   storageKey?: string | null;
+  cloudinaryUrl?: string | null;
+  storageType?: 'local' | 'cloudinary' | null;
   mimeType?: string | null;
   size?: number;
   extension?: string | null;
@@ -133,11 +135,10 @@ export class MiNubeService {
       extension,
     );
 
-    await this.storage.putObject(
+    const { url, publicId } = await this.storage.putObject(
       NUBE_CATEGORY,
       storageKey,
       file.buffer,
-      file.mimetype,
     );
 
     const doc = await this.documentoModel.create({
@@ -146,6 +147,9 @@ export class MiNubeService {
       parentId: parentObjId,
       ownerId,
       storageKey,
+      cloudinaryUrl: url,
+      cloudinaryPublicId: publicId,
+      storageType: 'cloudinary',
       mimeType: file.mimetype || null,
       size: file.size,
       extension,
@@ -169,9 +173,14 @@ export class MiNubeService {
     if (doc.tipo !== 'file' || !doc.storageKey) {
       throw new BadRequestException('Solo los archivos pueden abrirse.');
     }
+    if (doc.storageType !== 'cloudinary' || !doc.cloudinaryUrl) {
+      throw new NotFoundException(
+        'Este archivo es de un almacenamiento anterior y ya no está disponible. Debe volver a subirse.',
+      );
+    }
 
     return {
-      buffer: await this.storage.getObject(NUBE_CATEGORY, doc.storageKey),
+      buffer: await this.storage.getObjectBuffer(doc.cloudinaryUrl),
       nombre: doc.nombre,
       mimeType: doc.mimeType ?? 'application/octet-stream',
       size: doc.size,
@@ -433,6 +442,12 @@ export class MiNubeService {
       ownerId: item.ownerId ? String(item.ownerId) : null,
       owner: item.ownerId ? (userMap.get(String(item.ownerId)) ?? null) : null,
       storageKey: item.storageKey ?? null,
+      storageType:
+        item.tipo === 'file'
+          ? item.storageType === 'cloudinary' && item.cloudinaryUrl
+            ? 'cloudinary'
+            : 'local'
+          : undefined,
       mimeType: item.mimeType ?? null,
       size: item.size ?? 0,
       extension: item.extension ?? null,

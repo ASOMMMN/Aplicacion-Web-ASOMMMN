@@ -35,6 +35,15 @@ export class DocPersonal {
   @Prop({ required: true })
   storagePath: string;
 
+  @Prop()
+  cloudinaryUrl?: string;
+
+  @Prop()
+  cloudinaryPublicId?: string;
+
+  @Prop({ enum: ['local', 'cloudinary'] })
+  storageType?: 'local' | 'cloudinary';
+
   @Prop({ type: Types.ObjectId, ref: 'Usuario', required: true })
   subidasPor: Types.ObjectId;
 

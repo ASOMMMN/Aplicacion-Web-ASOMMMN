@@ -45,7 +45,11 @@ export class Postulante {
   estadoPostulacion: EstadoPostulacion;
 
   // Estado del expediente (independiente del estado de postulación)
-  @Prop({ type: String, enum: ['en_proceso', 'enviado'], default: 'en_proceso' })
+  @Prop({
+    type: String,
+    enum: ['en_proceso', 'enviado'],
+    default: 'en_proceso',
+  })
   estadoExpediente: 'en_proceso' | 'enviado';
 
   @Prop()

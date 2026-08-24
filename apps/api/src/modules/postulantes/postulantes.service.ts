@@ -8,10 +8,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { Model, Types } from 'mongoose';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname, extname, join } from 'node:path';
+import { extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+import { StorageService } from '../storage/storage.service';
 import { Postulante, PostulanteDocument } from './schemas/postulante.schema';
 import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import { UpdatePerfilDto, GetPerfilResponseDto } from './dto/update-perfil.dto';
@@ -20,8 +20,14 @@ import {
   REQUISITOS_EXPEDIENTE,
   resolverEstadoExpediente,
 } from './constants/expediente.constants';
-import { DocPersonal, DocPersonalDocument } from '../docs-personales/schemas/doc-personal.schema';
-import { Documento, DocumentoDocument } from '../documentos/schemas/documento.schema';
+import {
+  DocPersonal,
+  DocPersonalDocument,
+} from '../docs-personales/schemas/doc-personal.schema';
+import {
+  Documento,
+  DocumentoDocument,
+} from '../documentos/schemas/documento.schema';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
@@ -43,7 +49,7 @@ import {
 @Injectable()
 export class PostulantesService {
   private readonly logger = new Logger(PostulantesService.name);
-  private readonly nubeBaseDir = join(process.cwd(), 'uploads', 'postulantes-nube');
+  private readonly NUBE_CATEGORY = 'postulantes-nube';
 
   constructor(
     @InjectModel(Postulante.name)
@@ -59,6 +65,7 @@ export class PostulantesService {
     private readonly auditoriaService: AuditoriaService,
     private readonly notificaciones: NotificacionesService,
     private readonly config: ConfigService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -221,7 +228,9 @@ export class PostulantesService {
     };
   }
 
-  async listarNubePorPostulante(postulanteId: string): Promise<NubeListadoResponseDto> {
+  async listarNubePorPostulante(
+    postulanteId: string,
+  ): Promise<NubeListadoResponseDto> {
     if (!Types.ObjectId.isValid(postulanteId)) {
       throw new BadRequestException('Postulante inválido.');
     }
@@ -242,7 +251,10 @@ export class PostulantesService {
     dto: CrearCarpetaDto,
   ): Promise<NubeItemResponseDto> {
     const postulante = await this.obtenerOCrearPostulante(userId);
-    const parentId = await this.validarCarpetaPadre(postulante._id, dto.parentId);
+    const parentId = await this.validarCarpetaPadre(
+      postulante._id,
+      dto.parentId,
+    );
 
     const carpeta = await this.nubeItemModel.create({
       postulanteId: postulante._id,
@@ -280,18 +292,24 @@ export class PostulantesService {
     }
 
     const postulante = await this.obtenerOCrearPostulante(userId);
-    const parentId = await this.validarCarpetaPadre(postulante._id, dto.parentId);
-
-    const nombreBase = (dto.nombre?.trim() || file.originalname || 'documento.pdf').trim();
-    const nombreArchivo = this.ensurePdfName(nombreBase);
-    const relPath = join(
-      postulante._id.toString(),
-      `${Date.now()}-${randomUUID()}-${this.sanitizeFileName(nombreArchivo)}`,
+    const parentId = await this.validarCarpetaPadre(
+      postulante._id,
+      dto.parentId,
     );
-    const absPath = this.getAbsoluteStoragePath(relPath);
 
-    await mkdir(dirname(absPath), { recursive: true });
-    await writeFile(absPath, file.buffer);
+    const nombreBase = (
+      dto.nombre?.trim() ||
+      file.originalname ||
+      'documento.pdf'
+    ).trim();
+    const nombreArchivo = this.ensurePdfName(nombreBase);
+    const key = `${postulante._id.toString()}/${Date.now()}-${randomUUID()}-${this.sanitizeFileName(nombreArchivo)}`;
+
+    const { url, publicId } = await this.storage.putObject(
+      this.NUBE_CATEGORY,
+      key,
+      file.buffer,
+    );
 
     const item = await this.nubeItemModel.create({
       postulanteId: postulante._id,
@@ -302,7 +320,10 @@ export class PostulantesService {
       categoria,
       mimeType: file.mimetype,
       tamanio: file.size,
-      storagePath: relPath.replace(/\\/g, '/'),
+      storagePath: `${this.NUBE_CATEGORY}/${key}`,
+      cloudinaryUrl: url,
+      cloudinaryPublicId: publicId,
+      storageType: 'cloudinary',
       creadoEn: new Date(),
       actualizadoEn: new Date(),
     });
@@ -327,10 +348,15 @@ export class PostulantesService {
     dto: MoverNubeItemDto,
   ): Promise<NubeItemResponseDto> {
     const item = await this.getOwnedNubeItem(userId, itemId);
-    const parentId = await this.validarCarpetaPadre(item.postulanteId, dto.parentId);
+    const parentId = await this.validarCarpetaPadre(
+      item.postulanteId,
+      dto.parentId,
+    );
 
     if (parentId && item._id.equals(parentId)) {
-      throw new BadRequestException('No puedes mover un item dentro de sí mismo.');
+      throw new BadRequestException(
+        'No puedes mover un item dentro de sí mismo.',
+      );
     }
 
     item.parentId = parentId;
@@ -349,12 +375,15 @@ export class PostulantesService {
     return this.toNubeItemDto(item.toObject());
   }
 
-  async eliminarItemNube(userId: string, itemId: string): Promise<{ message: string }> {
+  async eliminarItemNube(
+    userId: string,
+    itemId: string,
+  ): Promise<{ message: string }> {
     const item = await this.getOwnedNubeItem(userId, itemId);
 
-    const idsAEliminar: Types.ObjectId[] = [item._id as Types.ObjectId];
+    const idsAEliminar: Types.ObjectId[] = [item._id];
     if (item.tipo === 'carpeta') {
-      const cola: Types.ObjectId[] = [item._id as Types.ObjectId];
+      const cola: Types.ObjectId[] = [item._id];
       while (cola.length > 0) {
         const actual = cola.shift() as Types.ObjectId;
         const hijos = await this.nubeItemModel
@@ -371,12 +400,13 @@ export class PostulantesService {
 
     const items = await this.nubeItemModel
       .find({ _id: { $in: idsAEliminar }, tipo: 'archivo' })
-      .select('storagePath')
+      .select('storageType cloudinaryPublicId')
       .lean();
 
     for (const archivo of items) {
-      if (!archivo.storagePath) continue;
-      await rm(this.getAbsoluteStoragePath(archivo.storagePath), { force: true });
+      if (archivo.storageType === 'cloudinary' && archivo.cloudinaryPublicId) {
+        await this.storage.removeObject(archivo.cloudinaryPublicId);
+      }
     }
 
     await this.nubeItemModel.deleteMany({ _id: { $in: idsAEliminar } });
@@ -384,7 +414,10 @@ export class PostulantesService {
     return { message: 'Item eliminado correctamente.' };
   }
 
-  async resolverDescargaNube(userId: string, itemId: string): Promise<{ path: string; nombre: string }> {
+  async resolverDescargaNube(
+    userId: string,
+    itemId: string,
+  ): Promise<{ url: string; nombre: string }> {
     const item = await this.getOwnedNubeItem(userId, itemId);
     return this.resolverDescargaPorItem(item);
   }
@@ -392,7 +425,7 @@ export class PostulantesService {
   async resolverDescargaNubeEvaluador(
     postulanteId: string,
     itemId: string,
-  ): Promise<{ path: string; nombre: string }> {
+  ): Promise<{ url: string; nombre: string }> {
     if (!Types.ObjectId.isValid(postulanteId)) {
       throw new BadRequestException('Postulante inválido.');
     }
@@ -405,20 +438,31 @@ export class PostulantesService {
     return this.resolverDescargaPorItem(item);
   }
 
-  private async resolverDescargaPorItem(
-    item: Pick<NubeItem, 'tipo' | 'storagePath' | 'nombre'>,
-  ): Promise<{ path: string; nombre: string }> {
+  private resolverDescargaPorItem(
+    item: Pick<
+      NubeItem,
+      'tipo' | 'storagePath' | 'nombre' | 'cloudinaryUrl' | 'storageType'
+    >,
+  ): { url: string; nombre: string } {
     if (item.tipo !== 'archivo' || !item.storagePath) {
       throw new BadRequestException('Solo los archivos se pueden descargar.');
     }
+    if (item.storageType !== 'cloudinary' || !item.cloudinaryUrl) {
+      throw new NotFoundException(
+        'Este archivo es de un almacenamiento anterior y ya no está disponible. Debe volver a subirse.',
+      );
+    }
 
     return {
-      path: this.getAbsoluteStoragePath(item.storagePath),
+      url: item.cloudinaryUrl,
       nombre: item.nombre,
     };
   }
 
-  private async getOwnedNubeItem(userId: string, itemId: string): Promise<NubeItemDocument> {
+  private async getOwnedNubeItem(
+    userId: string,
+    itemId: string,
+  ): Promise<NubeItemDocument> {
     if (!Types.ObjectId.isValid(itemId)) {
       throw new BadRequestException('ID de item inválido.');
     }
@@ -452,10 +496,12 @@ export class PostulantesService {
       throw new NotFoundException('Carpeta padre no encontrada.');
     }
 
-    return carpeta._id as Types.ObjectId;
+    return carpeta._id;
   }
 
   private toNubeItemDto(item: any): NubeItemResponseDto {
+    const esCloudinario =
+      item.storageType === 'cloudinary' && !!item.cloudinaryUrl;
     return {
       id: String(item._id),
       nombre: item.nombre,
@@ -466,8 +512,14 @@ export class PostulantesService {
       tamanio: item.tamanio,
       creadoEn: item.creadoEn,
       actualizadoEn: item.actualizadoEn,
-      downloadUrl:
+      storageType:
         item.tipo === 'archivo'
+          ? esCloudinario
+            ? 'cloudinary'
+            : 'local'
+          : undefined,
+      downloadUrl:
+        item.tipo === 'archivo' && esCloudinario
           ? `/postulantes/mi-nube/${String(item._id)}/descargar`
           : undefined,
     };
@@ -482,16 +534,9 @@ export class PostulantesService {
     return extname(limpio).toLowerCase() === '.pdf' ? limpio : `${limpio}.pdf`;
   }
 
-  private getAbsoluteStoragePath(relativePath: string): string {
-    const safe = relativePath
-      .replace(/\\/g, '/')
-      .split('/')
-      .filter((part) => part && part !== '.' && part !== '..')
-      .join('/');
-    return join(this.nubeBaseDir, safe);
-  }
-
-  private async obtenerOCrearPostulante(userId: string): Promise<PostulanteDocument> {
+  private async obtenerOCrearPostulante(
+    userId: string,
+  ): Promise<PostulanteDocument> {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Usuario autenticado inválido.');
     }
@@ -532,7 +577,7 @@ export class PostulantesService {
         : Promise.resolve([] as string[]),
     ]);
 
-    const cumplidos = new Set<string>(tiposDP as string[]);
+    const cumplidos = new Set<string>(tiposDP);
     if (tieneCV) cumplidos.add('cv');
     if (postulante?.vacante?.trim()) cumplidos.add('vacante');
 
@@ -591,10 +636,13 @@ export class PostulantesService {
     const postulante = await this.postulanteModel.findOne({
       usuarioId: new Types.ObjectId(userId),
     });
-    if (!postulante) throw new NotFoundException('Perfil de postulante no encontrado');
+    if (!postulante)
+      throw new NotFoundException('Perfil de postulante no encontrado');
 
     if (postulante.estadoExpediente === 'enviado') {
-      throw new BadRequestException('El expediente ya fue enviado anteriormente.');
+      throw new BadRequestException(
+        'El expediente ya fue enviado anteriormente.',
+      );
     }
 
     postulante.estadoExpediente = 'enviado';
@@ -610,7 +658,7 @@ export class PostulantesService {
       metadata: { vacante: postulante.vacante ?? '' },
     });
 
-    await this.notificarExpedienteEnviado(userId, postulante._id as Types.ObjectId);
+    await this.notificarExpedienteEnviado(userId, postulante._id);
 
     return {
       ...progreso,
@@ -646,7 +694,10 @@ export class PostulantesService {
         .find({ rol: { $in: ['evaluador', 'administrador'] } })
         .select('email nombre')
         .lean();
-      const frontendUrl = this.config.get('FRONTEND_URL', 'http://localhost:3000');
+      const frontendUrl = this.config.get(
+        'FRONTEND_URL',
+        'http://localhost:3000',
+      );
       const candidatoUrl = `${frontendUrl}/candidato/${postulanteId}`;
       const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
 
@@ -687,7 +738,10 @@ export class PostulantesService {
     let enviados = 0;
     for (const usuario of usuarios) {
       const progreso = await this.calcularProgreso(String(usuario._id));
-      if (progreso.estadoExpediente === 'enviado' || progreso.porcentaje >= 100) {
+      if (
+        progreso.estadoExpediente === 'enviado' ||
+        progreso.porcentaje >= 100
+      ) {
         continue;
       }
 

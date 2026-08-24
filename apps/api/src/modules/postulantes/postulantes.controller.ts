@@ -13,6 +13,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import {
   ApiTags,
@@ -80,7 +81,9 @@ export class PostulantesController {
 
   @Get('mi-expediente')
   @Roles('postulante')
-  @ApiOperation({ summary: 'Progreso del expediente del postulante autenticado' })
+  @ApiOperation({
+    summary: 'Progreso del expediente del postulante autenticado',
+  })
   @ApiResponse({ status: 200, type: ExpedienteProgressDto })
   async miExpediente(
     @CurrentUser() user: AuthUser,
@@ -90,7 +93,9 @@ export class PostulantesController {
 
   @Post('finalizar-postulacion')
   @Roles('postulante')
-  @ApiOperation({ summary: 'Finalizar y enviar postulación (requiere expediente 100%)' })
+  @ApiOperation({
+    summary: 'Finalizar y enviar postulación (requiere expediente 100%)',
+  })
   @ApiResponse({ status: 200, type: ExpedienteProgressDto })
   async finalizarPostulacion(
     @CurrentUser() user: AuthUser,
@@ -126,7 +131,9 @@ export class PostulantesController {
 
   @Get('mi-nube')
   @Roles('evaluador')
-  @ApiOperation({ summary: 'Listar nube documental de evaluador (archivos de postulantes)' })
+  @ApiOperation({
+    summary: 'Listar nube documental de evaluador (archivos de postulantes)',
+  })
   @ApiResponse({ status: 200, type: NubeListadoResponseDto })
   async listarMiNube(
     @CurrentUser() user: AuthUser,
@@ -152,7 +159,7 @@ export class PostulantesController {
 
   @Post('mi-nube/subir')
   @Roles('evaluador')
-  @UseInterceptors(FileInterceptor('archivo'))
+  @UseInterceptors(FileInterceptor('archivo', { storage: memoryStorage() }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Subir documento a nube de evaluador' })
   @ApiResponse({ status: 201, type: NubeItemResponseDto })
@@ -188,13 +195,19 @@ export class PostulantesController {
 
   @Patch('mi-nube/:itemId/categoria')
   @Roles('evaluador')
-  @ApiOperation({ summary: 'Cambiar categoría de archivo en nube de evaluador' })
+  @ApiOperation({
+    summary: 'Cambiar categoría de archivo en nube de evaluador',
+  })
   async cambiarCategoria(
     @CurrentUser() user: AuthUser,
     @Param('itemId') itemId: string,
     @Body() dto: CambiarCategoriaNubeItemDto,
   ): Promise<NubeItemResponseDto> {
-    return this.postulantesService.cambiarCategoriaItemNube(user.userId, itemId, dto);
+    return this.postulantesService.cambiarCategoriaItemNube(
+      user.userId,
+      itemId,
+      dto,
+    );
   }
 
   @Delete('mi-nube/:itemId')
@@ -216,8 +229,11 @@ export class PostulantesController {
     @Param('itemId') itemId: string,
     @Res() res: Response,
   ): Promise<void> {
-    const doc = await this.postulantesService.resolverDescargaNube(user.userId, itemId);
-    res.download(doc.path, doc.nombre);
+    const doc = await this.postulantesService.resolverDescargaNube(
+      user.userId,
+      itemId,
+    );
+    res.redirect(302, doc.url);
   }
 
   @Get(':id/nube')
@@ -239,7 +255,10 @@ export class PostulantesController {
     @Param('itemId') itemId: string,
     @Res() res: Response,
   ): Promise<void> {
-    const doc = await this.postulantesService.resolverDescargaNubeEvaluador(id, itemId);
-    res.download(doc.path, doc.nombre);
+    const doc = await this.postulantesService.resolverDescargaNubeEvaluador(
+      id,
+      itemId,
+    );
+    res.redirect(302, doc.url);
   }
 }

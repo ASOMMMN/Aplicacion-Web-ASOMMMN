@@ -6,7 +6,12 @@ import { Document, Types } from 'mongoose';
   timestamps: { createdAt: 'creadoEn', updatedAt: 'actualizadoEn' },
 })
 export class Curso {
-  @Prop({ type: Types.ObjectId, ref: 'Postulante', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Postulante',
+    required: true,
+    index: true,
+  })
   postulanteId: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Usuario', required: true, index: true })
@@ -27,6 +32,9 @@ export class Curso {
   @Prop({
     type: {
       storagePath: { type: String },
+      cloudinaryUrl: { type: String },
+      cloudinaryPublicId: { type: String },
+      storageType: { type: String, enum: ['local', 'cloudinary'] },
       nombreOriginal: { type: String },
       tipoMime: { type: String },
       tamanio: { type: Number },
@@ -36,6 +44,9 @@ export class Curso {
   })
   documentoExtra?: {
     storagePath: string;
+    cloudinaryUrl?: string;
+    cloudinaryPublicId?: string;
+    storageType?: 'local' | 'cloudinary';
     nombreOriginal: string;
     tipoMime: string;
     tamanio: number;

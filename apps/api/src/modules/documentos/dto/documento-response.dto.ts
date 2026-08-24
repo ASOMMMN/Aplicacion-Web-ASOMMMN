@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 
 export class DocumentoResponseDto {
@@ -40,8 +40,18 @@ export class DocumentoActualResponseDto {
   @ApiProperty()
   declare subidasEn: Date;
 
-  @ApiProperty()
-  declare urlDescargar: string;
+  @ApiPropertyOptional({
+    description:
+      'Ausente si el archivo es de un almacenamiento anterior (storageType local)',
+  })
+  declare urlDescargar?: string;
+
+  @ApiProperty({
+    enum: ['local', 'cloudinary'],
+    description:
+      "'local' = archivo del almacenamiento anterior, ya no disponible; hay que volver a subirlo",
+  })
+  declare storageType: 'local' | 'cloudinary';
 }
 
 export class HistorialDocumentosResponseDto {

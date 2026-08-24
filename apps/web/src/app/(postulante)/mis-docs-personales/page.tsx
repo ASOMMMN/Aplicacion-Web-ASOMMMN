@@ -55,7 +55,8 @@ interface DocFile {
   tamanio: number;
   tipoMime: string;
   subidasEn: string;
-  urlDescargar: string;
+  urlDescargar?: string;
+  storageType?: 'local' | 'cloudinary';
 }
 
 interface TipoResumen {
@@ -232,16 +233,23 @@ function TarjetaTipo({
                     {formatSize(doc.tamanio)} · {formatDate(doc.subidasEn)}
                   </div>
                 </div>
+                {doc.storageType === 'local' && (
+                  <div className="text-warning small mt-1">
+                    ⚠️ Este archivo es de una versión anterior del sistema y ya no está disponible. Vuelve a subirlo.
+                  </div>
+                )}
                 <div className="d-flex gap-2 flex-wrap mt-2">
-                  <Button
-                    size="sm"
-                    variant="outline-primary"
-                    href={doc.urlDescargar}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    ↓ Descargar
-                  </Button>
+                  {doc.urlDescargar && (
+                    <Button
+                      size="sm"
+                      variant="outline-primary"
+                      href={doc.urlDescargar}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      ↓ Descargar
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline-secondary"

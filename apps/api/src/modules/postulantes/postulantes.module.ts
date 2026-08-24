@@ -5,8 +5,14 @@ import { PostulantesController } from './postulantes.controller';
 import { PostulantesService } from './postulantes.service';
 import { Postulante, PostulanteSchema } from './schemas/postulante.schema';
 import { NubeItem, NubeItemSchema } from './schemas/nube-item.schema';
-import { DocPersonal, DocPersonalSchema } from '../docs-personales/schemas/doc-personal.schema';
-import { Documento, DocumentoSchema } from '../documentos/schemas/documento.schema';
+import {
+  DocPersonal,
+  DocPersonalSchema,
+} from '../docs-personales/schemas/doc-personal.schema';
+import {
+  Documento,
+  DocumentoSchema,
+} from '../documentos/schemas/documento.schema';
 import { UsuariosModule } from '../usuarios/usuarios.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
 

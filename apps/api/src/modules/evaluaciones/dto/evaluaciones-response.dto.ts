@@ -153,6 +153,7 @@ export class CandidatoDetalleDto {
     tamanio: number;
     version: number;
     subidasEn: Date;
-    urlDescargar: string;
+    urlDescargar?: string;
+    storageType: 'local' | 'cloudinary';
   } | null;
 }

@@ -22,7 +22,10 @@ export class CrearCarpetaDto {
   @IsMongoId()
   parentId?: string;
 
-  @ApiPropertyOptional({ enum: ['cv', 'curso', 'certificacion', 'otro'], default: 'otro' })
+  @ApiPropertyOptional({
+    enum: ['cv', 'curso', 'certificacion', 'otro'],
+    default: 'otro',
+  })
   @IsOptional()
   @IsIn(['cv', 'curso', 'certificacion', 'otro'])
   categoria?: 'cv' | 'curso' | 'certificacion' | 'otro';
@@ -34,7 +37,10 @@ export class SubirDocumentoNubeDto {
   @IsMongoId()
   parentId?: string;
 
-  @ApiPropertyOptional({ enum: ['cv', 'curso', 'certificacion', 'otro'], default: 'otro' })
+  @ApiPropertyOptional({
+    enum: ['cv', 'curso', 'certificacion', 'otro'],
+    default: 'otro',
+  })
   @IsOptional()
   @IsIn(['cv', 'curso', 'certificacion', 'otro'])
   categoria?: 'cv' | 'curso' | 'certificacion' | 'otro';
@@ -45,7 +51,10 @@ export class SubirDocumentoNubeDto {
   @MaxLength(160)
   nombre?: string;
 
-  @ApiPropertyOptional({ description: 'Si el curso aparece en CV (solo categoría curso/certificación)' })
+  @ApiPropertyOptional({
+    description:
+      'Si el curso aparece en CV (solo categoría curso/certificación)',
+  })
   @IsOptional()
   @Type(() => Boolean)
   @IsBoolean()
@@ -103,6 +112,13 @@ export class NubeItemResponseDto {
 
   @ApiPropertyOptional()
   downloadUrl?: string;
+
+  @ApiPropertyOptional({
+    enum: ['local', 'cloudinary'],
+    description:
+      "'local' = archivo del almacenamiento anterior, ya no disponible; hay que volver a subirlo",
+  })
+  storageType?: 'local' | 'cloudinary';
 }
 
 export class ListarMiNubeQueryDto {

@@ -1,84 +1,72 @@
 import {
-  BadRequestException,
   Injectable,
   Logger,
-  OnModuleInit,
+  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  mkdir,
-  writeFile,
-  readFile,
-  rm,
-  access,
-} from 'node:fs/promises';
-import { constants as fsConstants } from 'node:fs';
-import { dirname, join } from 'node:path';
 import * as crypto from 'node:crypto';
+import {
+  CloudinaryService,
+  CloudinaryUploadResult,
+} from '../cloudinary/cloudinary.service';
 
 interface DownloadTokenPayload {
-  cat: string;
-  key: string;
+  url: string;
   filename: string;
   mime: string;
   exp: number;
 }
 
 @Injectable()
-export class StorageService implements OnModuleInit {
+export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  readonly baseDir: string;
 
-  constructor(private readonly config: ConfigService) {
-    this.baseDir = this.config.get<string>('STORAGE_PATH', join(process.cwd(), 'uploads'));
+  constructor(
+    private readonly config: ConfigService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
+
+  async putObject(
+    category: string,
+    key: string,
+    buffer: Buffer,
+  ): Promise<CloudinaryUploadResult> {
+    return this.cloudinary.uploadFile(buffer, key, `asommmn/${category}`);
   }
 
-  async onModuleInit() {
-    await mkdir(this.baseDir, { recursive: true });
-    this.logger.log(`Almacenamiento en disco: ${this.baseDir}`);
+  async removeObject(publicId: string): Promise<void> {
+    await this.cloudinary.deleteFile(publicId);
   }
 
-  resolveFilePath(category: string, key: string): string {
-    const safeCat = category.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const safeKey = key
-      .replace(/\\/g, '/')
-      .split('/')
-      .filter((p) => p && p !== '..' && p !== '.')
-      .join('/');
-    return join(this.baseDir, safeCat, safeKey);
-  }
-
-  async putObject(category: string, key: string, buffer: Buffer, _mime?: string): Promise<void> {
-    const filePath = this.resolveFilePath(category, key);
-    await mkdir(dirname(filePath), { recursive: true });
-    await writeFile(filePath, buffer);
-  }
-
-  async getObject(category: string, key: string): Promise<Buffer> {
-    return readFile(this.resolveFilePath(category, key));
-  }
-
-  async removeObject(category: string, key: string): Promise<void> {
-    await rm(this.resolveFilePath(category, key), { force: true });
-  }
-
-  async objectExists(category: string, key: string): Promise<boolean> {
+  /** Descarga el contenido desde Cloudinary. 404 si el archivo ya no existe ahí. */
+  async getObjectBuffer(url: string): Promise<Buffer> {
+    let res: Response;
     try {
-      await access(this.resolveFilePath(category, key), fsConstants.F_OK);
-      return true;
-    } catch {
-      return false;
+      res = await fetch(url);
+    } catch (err) {
+      this.logger.error(
+        `Error al descargar ${url} de Cloudinary: ${(err as Error).message}`,
+      );
+      throw new NotFoundException(
+        'El archivo no está disponible en el almacenamiento.',
+      );
     }
+    if (!res.ok) {
+      throw new NotFoundException(
+        'El archivo no está disponible en el almacenamiento.',
+      );
+    }
+    return Buffer.from(await res.arrayBuffer());
   }
 
   /**
    * URL de descarga autenticada por token firmado (HMAC) y de corta duración —
-   * evita servir archivos como estáticos públicos permanentes. El token va
-   * firmado con JWT_SECRET y expira a los `ttlSeconds` segundos.
+   * el token envuelve la URL real de Cloudinary y expira a los `ttlSeconds`
+   * segundos, evitando exponer URLs de Cloudinary permanentes sin control.
    */
   getSecureDownloadUrl(
-    category: string,
-    key: string,
+    cloudinaryUrl: string,
     filename: string,
     mime: string,
     ttlSeconds = 300,
@@ -87,9 +75,12 @@ export class StorageService implements OnModuleInit {
     const base = this.config
       .get<string>('BACKEND_PUBLIC_URL', `http://localhost:${port}`)
       .replace(/\/$/, '');
-    const token = this.signDownloadToken(
-      { cat: category, key, filename, mime, exp: Date.now() + ttlSeconds * 1000 },
-    );
+    const token = this.signDownloadToken({
+      url: cloudinaryUrl,
+      filename,
+      mime,
+      exp: Date.now() + ttlSeconds * 1000,
+    });
     return `${base}/files/download?token=${encodeURIComponent(token)}`;
   }
 
@@ -109,7 +100,7 @@ export class StorageService implements OnModuleInit {
   verifyDownloadToken(token: string): DownloadTokenPayload {
     const [body, signature] = token.split('.');
     if (!body || !signature) {
-      throw new BadRequestException('Token de descarga inválido.');
+      throw new UnauthorizedException('Token de descarga inválido.');
     }
 
     const expectedSignature = crypto
@@ -123,7 +114,7 @@ export class StorageService implements OnModuleInit {
       sigBuf.length !== expectedBuf.length ||
       !crypto.timingSafeEqual(sigBuf, expectedBuf)
     ) {
-      throw new BadRequestException('Token de descarga inválido.');
+      throw new UnauthorizedException('Token de descarga inválido.');
     }
 
     const payload = JSON.parse(
@@ -131,7 +122,7 @@ export class StorageService implements OnModuleInit {
     ) as DownloadTokenPayload;
 
     if (Date.now() > payload.exp) {
-      throw new BadRequestException('Token de descarga expirado.');
+      throw new UnauthorizedException('Token de descarga expirado.');
     }
 
     return payload;

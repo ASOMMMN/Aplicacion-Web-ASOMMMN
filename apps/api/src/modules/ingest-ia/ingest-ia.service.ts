@@ -87,8 +87,14 @@ export class IngestIaService {
     documento: DocumentoDocument,
   ): Promise<void> {
     try {
-      const [category, ...rest] = documento.storagePath.split('/');
-      const buffer = await this.storage.getObject(category, rest.join('/'));
+      if (documento.storageType !== 'cloudinary' || !documento.cloudinaryUrl) {
+        throw new Error(
+          'El CV es de un almacenamiento anterior y ya no está disponible. Pide que vuelva a subirlo.',
+        );
+      }
+      const buffer = await this.storage.getObjectBuffer(
+        documento.cloudinaryUrl,
+      );
       const texto = await this.openAiIa.extraerTextoPdf(buffer);
 
       if (!texto || texto.length < 50) {

@@ -12,7 +12,9 @@ export class ExpedienteProgressDto {
   @ApiProperty() total: number;
   @ApiProperty() cumplidos: number;
   @ApiProperty({ type: [RequisitoItemDto] }) requisitos: RequisitoItemDto[];
-  @ApiProperty({ enum: ['en_proceso', 'enviado'] }) estadoExpediente: 'en_proceso' | 'enviado';
+  @ApiProperty({ enum: ['en_proceso', 'enviado'] }) estadoExpediente:
+    | 'en_proceso'
+    | 'enviado';
   @ApiProperty() puedeEnviar: boolean;
   @ApiPropertyOptional() enviadoEn?: Date;
 }

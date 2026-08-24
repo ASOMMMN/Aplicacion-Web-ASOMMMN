@@ -30,6 +30,7 @@ interface EvalItem {
   tamanio?: number;
   creadoEn: string;
   urlDescargar?: string;
+  storageType?: 'local' | 'cloudinary';
 }
 
 function formatBytes(bytes: number): string {
@@ -353,6 +354,14 @@ export default function EvalArchivosPage() {
                           >
                             Descargar
                           </Button>
+                        )}
+                        {item.tipo === 'archivo' && !item.urlDescargar && (
+                          <span
+                            className="text-warning small align-self-center"
+                            title="Archivo de una versión anterior del sistema; vuelve a subirlo."
+                          >
+                            ⚠️ No disponible
+                          </span>
                         )}
                         {item.tipo === 'archivo' && (
                           <Button variant="outline-secondary" size="sm" onClick={() => abrirMover(item)}>
