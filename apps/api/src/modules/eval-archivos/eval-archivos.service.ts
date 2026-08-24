@@ -48,7 +48,7 @@ export class EvalArchivosService {
       .sort({ tipo: -1, nombre: 1 })
       .lean();
 
-    return items.map((i) => this.mapItem(i));
+    return Promise.all(items.map((i) => this.mapItem(i)));
   }
 
   async buscar(postulanteId: string, q: string) {
@@ -61,7 +61,7 @@ export class EvalArchivosService {
       .sort({ nombre: 1 })
       .lean();
 
-    return items.map((i) => this.mapItem(i));
+    return Promise.all(items.map((i) => this.mapItem(i)));
   }
 
   async crearCarpeta(
@@ -131,7 +131,7 @@ export class EvalArchivosService {
     const key = `${postulanteId}/${ts}-${nombre}`;
     const storagePath = `${EVAL_CATEGORY}/${key}`;
 
-    const { url, publicId } = await this.storage.putObject(
+    const { url, key: s3Key } = await this.storage.putObject(
       EVAL_CATEGORY,
       key,
       file.buffer,
@@ -144,7 +144,7 @@ export class EvalArchivosService {
       tipo: 'archivo',
       storagePath,
       cloudinaryUrl: url,
-      cloudinaryPublicId: publicId,
+      cloudinaryPublicId: s3Key,
       storageType: 'cloudinary',
       tipoMime: file.mimetype,
       tamanio: file.size,
@@ -311,7 +311,7 @@ export class EvalArchivosService {
     };
   }
 
-  private mapItem(i: {
+  private async mapItem(i: {
     _id: unknown;
     nombre?: string;
     tipo?: 'archivo' | 'carpeta';
@@ -339,7 +339,7 @@ export class EvalArchivosService {
             : 'local'
           : undefined,
       urlDescargar: esCloudinario
-        ? this.storage.getSecureDownloadUrl(
+        ? await this.storage.getSecureDownloadUrl(
             i.cloudinaryUrl!,
             i.nombre ?? 'archivo',
             i.tipoMime ?? 'application/octet-stream',

@@ -11,6 +11,7 @@ import * as winston from 'winston';
 import { validate } from './config/env.validation';
 import { LoggerModule } from './common/logger';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
+import { S3Module } from './modules/s3/s3.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { FilesModule } from './modules/files/files.module';
 import { NotificacionesModule } from './modules/notificaciones/notificaciones.module';
@@ -107,6 +108,7 @@ import { HealthController } from './health.controller';
     // ── Módulos de dominio ───────────────────────────────────────────────────
     TerminusModule,
     CloudinaryModule,
+    S3Module,
     StorageModule,
     FilesModule,
     NotificacionesModule,

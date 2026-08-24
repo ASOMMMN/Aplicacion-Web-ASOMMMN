@@ -61,7 +61,9 @@ export class DocsPersonalesService {
     return postulante;
   }
 
-  private toResponseDto(doc: DocPersonalDocument): DocPersonalResponseDto {
+  private async toResponseDto(
+    doc: DocPersonalDocument,
+  ): Promise<DocPersonalResponseDto> {
     const storageType: 'local' | 'cloudinary' =
       doc.storageType === 'cloudinary' && doc.cloudinaryUrl
         ? 'cloudinary'
@@ -76,7 +78,7 @@ export class DocsPersonalesService {
       subidasEn: doc.subidasEn,
       urlDescargar:
         storageType === 'cloudinary'
-          ? this.storage.getSecureDownloadUrl(
+          ? await this.storage.getSecureDownloadUrl(
               doc.cloudinaryUrl!,
               doc.nombreOriginal,
               doc.tipoMime,
@@ -86,18 +88,24 @@ export class DocsPersonalesService {
     };
   }
 
-  private buildResumen(docs: DocPersonalDocument[]): MisDocsResponseDto {
-    const tipos: ResumenTipoDto[] = TIPOS_DOC_PERSONAL.map((tipo) => {
-      const archivos = docs
-        .filter((d) => d.tipo === tipo)
-        .map((d) => this.toResponseDto(d));
-      return {
-        tipo,
-        label: LABEL_TIPO_DOC[tipo],
-        cantidad: archivos.length,
-        archivos,
-      };
-    });
+  private async buildResumen(
+    docs: DocPersonalDocument[],
+  ): Promise<MisDocsResponseDto> {
+    const tipos: ResumenTipoDto[] = await Promise.all(
+      TIPOS_DOC_PERSONAL.map(async (tipo) => {
+        const archivos = await Promise.all(
+          docs
+            .filter((d) => d.tipo === tipo)
+            .map((d) => this.toResponseDto(d)),
+        );
+        return {
+          tipo,
+          label: LABEL_TIPO_DOC[tipo],
+          cantidad: archivos.length,
+          archivos,
+        };
+      }),
+    );
     const tiposConArchivos = tipos.filter((t) => t.cantidad > 0).length;
     return { tipos, totalArchivos: docs.length, tiposConArchivos };
   }
@@ -125,7 +133,7 @@ export class DocsPersonalesService {
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const key = `${postulanteId}/${tipo}/${Date.now()}-${safeName}`;
 
-    const { url, publicId } = await this.storage.putObject(
+    const { url, key: s3Key } = await this.storage.putObject(
       STORAGE_CATEGORY,
       key,
       file.buffer,
@@ -140,7 +148,7 @@ export class DocsPersonalesService {
       tamanio: file.size,
       storagePath: `${STORAGE_CATEGORY}/${key}`,
       cloudinaryUrl: url,
-      cloudinaryPublicId: publicId,
+      cloudinaryPublicId: s3Key,
       storageType: 'cloudinary',
       subidasPor: new Types.ObjectId(actor.userId),
       subidasEn: new Date(),

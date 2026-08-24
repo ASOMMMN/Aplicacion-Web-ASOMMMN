@@ -82,7 +82,7 @@ export class DocumentosService {
     const key = `postulante-${userId}-v${newVersion}.pdf`;
 
     try {
-      const { url, publicId } = await this.storageService.putObject(
+      const { url, key: s3Key } = await this.storageService.putObject(
         CV_CATEGORY,
         key,
         file.buffer,
@@ -97,7 +97,7 @@ export class DocumentosService {
         hash,
         storagePath: `${CV_CATEGORY}/${key}`,
         cloudinaryUrl: url,
-        cloudinaryPublicId: publicId,
+        cloudinaryPublicId: s3Key,
         storageType: 'cloudinary',
         version: newVersion,
         esActual: true,
@@ -105,7 +105,7 @@ export class DocumentosService {
         subidasEn: new Date(),
       });
 
-      const urlDescargar = this.storageService.getSecureDownloadUrl(
+      const urlDescargar = await this.storageService.getSecureDownloadUrl(
         url,
         file.originalname,
         file.mimetype,
@@ -147,7 +147,9 @@ export class DocumentosService {
     });
   }
 
-  private toDto(documento: DocumentoDocument): DocumentoActualResponseDto {
+  private async toDto(
+    documento: DocumentoDocument,
+  ): Promise<DocumentoActualResponseDto> {
     const storageType: 'local' | 'cloudinary' =
       documento.storageType === 'cloudinary' && documento.cloudinaryUrl
         ? 'cloudinary'
@@ -161,7 +163,7 @@ export class DocumentosService {
       subidasEn: documento.subidasEn,
       urlDescargar:
         storageType === 'cloudinary'
-          ? this.storageService.getSecureDownloadUrl(
+          ? await this.storageService.getSecureDownloadUrl(
               documento.cloudinaryUrl!,
               documento.nombreOriginal,
               documento.tipoMime,

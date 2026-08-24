@@ -305,7 +305,7 @@ export class PostulantesService {
     const nombreArchivo = this.ensurePdfName(nombreBase);
     const key = `${postulante._id.toString()}/${Date.now()}-${randomUUID()}-${this.sanitizeFileName(nombreArchivo)}`;
 
-    const { url, publicId } = await this.storage.putObject(
+    const { url, key: s3Key } = await this.storage.putObject(
       this.NUBE_CATEGORY,
       key,
       file.buffer,
@@ -322,7 +322,7 @@ export class PostulantesService {
       tamanio: file.size,
       storagePath: `${this.NUBE_CATEGORY}/${key}`,
       cloudinaryUrl: url,
-      cloudinaryPublicId: publicId,
+      cloudinaryPublicId: s3Key,
       storageType: 'cloudinary',
       creadoEn: new Date(),
       actualizadoEn: new Date(),

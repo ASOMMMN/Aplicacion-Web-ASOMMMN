@@ -6,10 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'node:crypto';
-import {
-  CloudinaryService,
-  CloudinaryUploadResult,
-} from '../cloudinary/cloudinary.service';
+import { S3Service, S3UploadResult } from '../s3/s3.service';
 
 interface DownloadTokenPayload {
   url: string;
@@ -24,29 +21,29 @@ export class StorageService {
 
   constructor(
     private readonly config: ConfigService,
-    private readonly cloudinary: CloudinaryService,
+    private readonly s3: S3Service,
   ) {}
 
   async putObject(
     category: string,
     key: string,
     buffer: Buffer,
-  ): Promise<CloudinaryUploadResult> {
-    return this.cloudinary.uploadFile(buffer, key, `asommmn/${category}`);
+  ): Promise<S3UploadResult> {
+    return this.s3.uploadFile(buffer, key, `asommmn/${category}`);
   }
 
-  async removeObject(publicId: string): Promise<void> {
-    await this.cloudinary.deleteFile(publicId);
+  async removeObject(key: string): Promise<void> {
+    await this.s3.deleteFile(key);
   }
 
-  /** Descarga el contenido desde Cloudinary. 404 si el archivo ya no existe ahí. */
+  /** Descarga el contenido desde S3. 404 si el archivo ya no existe ahí. */
   async getObjectBuffer(url: string): Promise<Buffer> {
     let res: Response;
     try {
       res = await fetch(url);
     } catch (err) {
       this.logger.error(
-        `Error al descargar ${url} de Cloudinary: ${(err as Error).message}`,
+        `Error al descargar ${url} de S3: ${(err as Error).message}`,
       );
       throw new NotFoundException(
         'El archivo no está disponible en el almacenamiento.',
@@ -61,27 +58,24 @@ export class StorageService {
   }
 
   /**
-   * URL de descarga autenticada por token firmado (HMAC) y de corta duración —
-   * el token envuelve la URL real de Cloudinary y expira a los `ttlSeconds`
-   * segundos, evitando exponer URLs de Cloudinary permanentes sin control.
+   * URL de descarga firmada de S3, de corta duración (`ttlSeconds`), generada
+   * por S3Service.getSignedUrl. `url` es la URL "canónica" (no firmada) del
+   * objeto guardada en BD; aquí se extrae la key para pedir la firma.
    */
-  getSecureDownloadUrl(
-    cloudinaryUrl: string,
-    filename: string,
-    mime: string,
+  async getSecureDownloadUrl(
+    url: string,
+    _filename: string,
+    _mime: string,
     ttlSeconds = 300,
-  ): string {
-    const port = this.config.get<number>('PORT', 3001);
-    const base = this.config
-      .get<string>('BACKEND_PUBLIC_URL', `http://localhost:${port}`)
-      .replace(/\/$/, '');
-    const token = this.signDownloadToken({
-      url: cloudinaryUrl,
-      filename,
-      mime,
-      exp: Date.now() + ttlSeconds * 1000,
-    });
-    return `${base}/files/download?token=${encodeURIComponent(token)}`;
+  ): Promise<string> {
+    return this.s3.getSignedUrl(this.extractKeyFromUrl(url), ttlSeconds);
+  }
+
+  private extractKeyFromUrl(url: string): string {
+    const bucket = this.config.get<string>('AWS_S3_BUCKET', '');
+    const region = this.config.get<string>('AWS_REGION', 'us-east-2');
+    const prefix = `https://${bucket}.s3.${region}.amazonaws.com/`;
+    return url.startsWith(prefix) ? url.slice(prefix.length) : url;
   }
 
   private getTokenSecret(): string {

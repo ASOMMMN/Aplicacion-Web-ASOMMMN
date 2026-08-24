@@ -135,7 +135,7 @@ export class CursosService {
         this.validarDocumentoExtra(file);
         const key = `postulante-${userId}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
 
-        const { url, publicId } = await this.storageService.putObject(
+        const { url, key: s3Key } = await this.storageService.putObject(
           CURSOS_CATEGORY,
           key,
           file.buffer,
@@ -144,7 +144,7 @@ export class CursosService {
         documentoExtra = {
           storagePath: `${CURSOS_CATEGORY}/${key}`,
           cloudinaryUrl: url,
-          cloudinaryPublicId: publicId,
+          cloudinaryPublicId: s3Key,
           storageType: 'cloudinary',
           nombreOriginal: file.originalname,
           tipoMime: file.mimetype,
@@ -209,52 +209,54 @@ export class CursosService {
       .sort({ fechaCurso: -1, creadoEn: -1 })
       .lean();
 
-    const mapped = cursos.map((curso) => {
-      let documentoExtra:
-        | {
-            nombreOriginal: string;
-            tamanio: number;
-            tipoMime: string;
-            urlDescargar?: string;
-            storageType: 'local' | 'cloudinary';
-          }
-        | undefined;
-      if (curso.documentoExtra?.storagePath) {
-        const esCloudinary =
-          curso.documentoExtra.storageType === 'cloudinary' &&
-          curso.documentoExtra.cloudinaryUrl;
-        documentoExtra = {
-          nombreOriginal: curso.documentoExtra.nombreOriginal,
-          tamanio: curso.documentoExtra.tamanio,
-          tipoMime: curso.documentoExtra.tipoMime,
-          urlDescargar: esCloudinary
-            ? this.storageService.getSecureDownloadUrl(
-                curso.documentoExtra.cloudinaryUrl!,
-                curso.documentoExtra.nombreOriginal,
-                curso.documentoExtra.tipoMime,
-              )
-            : undefined,
-          storageType: esCloudinary ? 'cloudinary' : 'local',
-        };
-      }
+    const mapped = await Promise.all(
+      cursos.map(async (curso) => {
+        let documentoExtra:
+          | {
+              nombreOriginal: string;
+              tamanio: number;
+              tipoMime: string;
+              urlDescargar?: string;
+              storageType: 'local' | 'cloudinary';
+            }
+          | undefined;
+        if (curso.documentoExtra?.storagePath) {
+          const esCloudinary =
+            curso.documentoExtra.storageType === 'cloudinary' &&
+            curso.documentoExtra.cloudinaryUrl;
+          documentoExtra = {
+            nombreOriginal: curso.documentoExtra.nombreOriginal,
+            tamanio: curso.documentoExtra.tamanio,
+            tipoMime: curso.documentoExtra.tipoMime,
+            urlDescargar: esCloudinary
+              ? await this.storageService.getSecureDownloadUrl(
+                  curso.documentoExtra.cloudinaryUrl!,
+                  curso.documentoExtra.nombreOriginal,
+                  curso.documentoExtra.tipoMime,
+                )
+              : undefined,
+            storageType: esCloudinary ? 'cloudinary' : 'local',
+          };
+        }
 
-      return {
-        _id: curso._id.toString(),
-        nombreCurso: curso.nombreCurso,
-        institucion: curso.institucion,
-        fechaCurso: new Date(curso.fechaCurso).toISOString(),
-        fechaInicio: curso.fechaInicio
-          ? new Date(curso.fechaInicio).toISOString()
-          : undefined,
-        fechaVencimiento: curso.fechaVencimiento
-          ? new Date(curso.fechaVencimiento).toISOString()
-          : undefined,
-        apareceEnCV: Boolean(curso.apareceEnCV),
-        tieneDocumentoExtra: Boolean(curso.documentoExtra),
-        documentoExtra,
-        creadoEn: new Date(curso.creadoEn).toISOString(),
-      };
-    });
+        return {
+          _id: curso._id.toString(),
+          nombreCurso: curso.nombreCurso,
+          institucion: curso.institucion,
+          fechaCurso: new Date(curso.fechaCurso).toISOString(),
+          fechaInicio: curso.fechaInicio
+            ? new Date(curso.fechaInicio).toISOString()
+            : undefined,
+          fechaVencimiento: curso.fechaVencimiento
+            ? new Date(curso.fechaVencimiento).toISOString()
+            : undefined,
+          apareceEnCV: Boolean(curso.apareceEnCV),
+          tieneDocumentoExtra: Boolean(curso.documentoExtra),
+          documentoExtra,
+          creadoEn: new Date(curso.creadoEn).toISOString(),
+        };
+      }),
+    );
 
     return {
       postulante: {
@@ -282,52 +284,54 @@ export class CursosService {
       .sort({ fechaCurso: -1, creadoEn: -1 })
       .lean();
 
-    const mapped = cursos.map((curso) => {
-      let documentoExtra:
-        | {
-            nombreOriginal: string;
-            tamanio: number;
-            tipoMime: string;
-            urlDescargar?: string;
-            storageType: 'local' | 'cloudinary';
-          }
-        | undefined;
-      if (curso.documentoExtra?.storagePath) {
-        const esCloudinary =
-          curso.documentoExtra.storageType === 'cloudinary' &&
-          curso.documentoExtra.cloudinaryUrl;
-        documentoExtra = {
-          nombreOriginal: curso.documentoExtra.nombreOriginal,
-          tamanio: curso.documentoExtra.tamanio,
-          tipoMime: curso.documentoExtra.tipoMime,
-          urlDescargar: esCloudinary
-            ? this.storageService.getSecureDownloadUrl(
-                curso.documentoExtra.cloudinaryUrl!,
-                curso.documentoExtra.nombreOriginal,
-                curso.documentoExtra.tipoMime,
-              )
-            : undefined,
-          storageType: esCloudinary ? 'cloudinary' : 'local',
-        };
-      }
+    const mapped = await Promise.all(
+      cursos.map(async (curso) => {
+        let documentoExtra:
+          | {
+              nombreOriginal: string;
+              tamanio: number;
+              tipoMime: string;
+              urlDescargar?: string;
+              storageType: 'local' | 'cloudinary';
+            }
+          | undefined;
+        if (curso.documentoExtra?.storagePath) {
+          const esCloudinary =
+            curso.documentoExtra.storageType === 'cloudinary' &&
+            curso.documentoExtra.cloudinaryUrl;
+          documentoExtra = {
+            nombreOriginal: curso.documentoExtra.nombreOriginal,
+            tamanio: curso.documentoExtra.tamanio,
+            tipoMime: curso.documentoExtra.tipoMime,
+            urlDescargar: esCloudinary
+              ? await this.storageService.getSecureDownloadUrl(
+                  curso.documentoExtra.cloudinaryUrl!,
+                  curso.documentoExtra.nombreOriginal,
+                  curso.documentoExtra.tipoMime,
+                )
+              : undefined,
+            storageType: esCloudinary ? 'cloudinary' : 'local',
+          };
+        }
 
-      return {
-        _id: curso._id.toString(),
-        nombreCurso: curso.nombreCurso,
-        institucion: curso.institucion,
-        fechaCurso: new Date(curso.fechaCurso).toISOString(),
-        fechaInicio: curso.fechaInicio
-          ? new Date(curso.fechaInicio).toISOString()
-          : undefined,
-        fechaVencimiento: curso.fechaVencimiento
-          ? new Date(curso.fechaVencimiento).toISOString()
-          : undefined,
-        apareceEnCV: Boolean(curso.apareceEnCV),
-        tieneDocumentoExtra: Boolean(curso.documentoExtra),
-        documentoExtra,
-        creadoEn: new Date(curso.creadoEn).toISOString(),
-      };
-    });
+        return {
+          _id: curso._id.toString(),
+          nombreCurso: curso.nombreCurso,
+          institucion: curso.institucion,
+          fechaCurso: new Date(curso.fechaCurso).toISOString(),
+          fechaInicio: curso.fechaInicio
+            ? new Date(curso.fechaInicio).toISOString()
+            : undefined,
+          fechaVencimiento: curso.fechaVencimiento
+            ? new Date(curso.fechaVencimiento).toISOString()
+            : undefined,
+          apareceEnCV: Boolean(curso.apareceEnCV),
+          tieneDocumentoExtra: Boolean(curso.documentoExtra),
+          documentoExtra,
+          creadoEn: new Date(curso.creadoEn).toISOString(),
+        };
+      }),
+    );
 
     return {
       postulante: {

@@ -135,7 +135,7 @@ export class MiNubeService {
       extension,
     );
 
-    const { url, publicId } = await this.storage.putObject(
+    const { url, key: s3Key } = await this.storage.putObject(
       NUBE_CATEGORY,
       storageKey,
       file.buffer,
@@ -148,7 +148,7 @@ export class MiNubeService {
       ownerId,
       storageKey,
       cloudinaryUrl: url,
-      cloudinaryPublicId: publicId,
+      cloudinaryPublicId: s3Key,
       storageType: 'cloudinary',
       mimeType: file.mimetype || null,
       size: file.size,
