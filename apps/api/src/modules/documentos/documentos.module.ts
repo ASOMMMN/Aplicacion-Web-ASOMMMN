@@ -8,6 +8,7 @@ import {
   Postulante,
   PostulanteSchema,
 } from '../postulantes/schemas/postulante.schema';
+import { Usuario, UsuarioSchema } from '../usuarios/schemas/usuario.schema';
 import { PostulantesModule } from '../postulantes/postulantes.module';
 import { StorageModule } from '../storage/storage.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
@@ -17,6 +18,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
     MongooseModule.forFeature([
       { name: Documento.name, schema: DocumentoSchema },
       { name: Postulante.name, schema: PostulanteSchema },
+      { name: Usuario.name, schema: UsuarioSchema },
     ]),
     PostulantesModule,
     StorageModule,

@@ -45,6 +45,7 @@ import {
   NubeItemDocument,
   NubeItemCategoria,
 } from './schemas/nube-item.schema';
+import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
 
 @Injectable()
 export class PostulantesService {
@@ -303,7 +304,14 @@ export class PostulantesService {
       'documento.pdf'
     ).trim();
     const nombreArchivo = this.ensurePdfName(nombreBase);
-    const key = `${postulante._id.toString()}/${Date.now()}-${randomUUID()}-${this.sanitizeFileName(nombreArchivo)}`;
+    const usuario = await this.usuarioModel
+      .findById(userId)
+      .select('nombre apellidos')
+      .lean();
+    const carpeta =
+      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
+      userId;
+    const key = `${carpeta}/${Date.now()}-${randomUUID()}-${this.sanitizeFileName(nombreArchivo)}`;
 
     const { url, key: s3Key } = await this.storage.putObject(
       this.NUBE_CATEGORY,

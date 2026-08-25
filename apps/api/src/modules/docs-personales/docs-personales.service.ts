@@ -13,6 +13,7 @@ import {
   Postulante,
   PostulanteDocument,
 } from '../postulantes/schemas/postulante.schema';
+import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import {
   DocPersonal,
   DocPersonalDocument,
@@ -28,6 +29,7 @@ import {
   ResumenTipoDto,
 } from './dto/doc-personal.dto';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
 
 const ACCEPTED_MIMES = ['application/pdf', 'image/jpeg', 'image/png'];
 /** Carpeta Cloudinary: asommmn/documentos (requisito explícito de la migración) */
@@ -40,6 +42,8 @@ export class DocsPersonalesService {
     private readonly docModel: Model<DocPersonalDocument>,
     @InjectModel(Postulante.name)
     private readonly postulanteModel: Model<PostulanteDocument>,
+    @InjectModel(Usuario.name)
+    private readonly usuarioModel: Model<UsuarioDocument>,
     private readonly storage: StorageService,
     private readonly auditoria: AuditoriaService,
   ) {}
@@ -128,10 +132,17 @@ export class DocsPersonalesService {
     }
 
     const postulante = await this.obtenerPostulante(actor.userId);
-    const postulanteId = postulante._id.toString();
+
+    const usuario = await this.usuarioModel
+      .findById(actor.userId)
+      .select('nombre apellidos')
+      .lean();
+    const carpeta =
+      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
+      actor.userId;
 
     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const key = `${postulanteId}/${tipo}/${Date.now()}-${safeName}`;
+    const key = `${carpeta}/${tipo}/${Date.now()}-${safeName}`;
 
     const { url, key: s3Key } = await this.storage.putObject(
       STORAGE_CATEGORY,

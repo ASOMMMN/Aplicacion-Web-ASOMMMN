@@ -19,6 +19,7 @@ import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import { escapeRegex } from '../../common/utils/regex.util';
+import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
 
 const NUBE_CATEGORY = 'mi-nube';
 
@@ -129,11 +130,14 @@ export class MiNubeService {
     await this.validarNombreDisponible(ownerId, parentObjId, nombreSeguro);
 
     const extension = this.obtenerExtension(nombreSeguro);
-    const storageKey = this.crearStorageKey(
-      ownerId.toString(),
-      nombreSeguro,
-      extension,
-    );
+    const owner = await this.usuarioModel
+      .findById(ownerId)
+      .select('nombre apellidos')
+      .lean();
+    const carpeta =
+      construirCarpetaPorNombre(owner?.nombre, owner?.apellidos) ??
+      ownerId.toString();
+    const storageKey = this.crearStorageKey(carpeta, nombreSeguro, extension);
 
     const { url, key: s3Key } = await this.storage.putObject(
       NUBE_CATEGORY,
@@ -352,13 +356,13 @@ export class MiNubeService {
   }
 
   private crearStorageKey(
-    ownerId: string,
+    carpeta: string,
     nombre: string,
     extension: string | null,
   ): string {
     const hash = createHash('sha1').update(nombre).digest('hex').slice(0, 10);
     const suffix = extension ? `.${extension}` : '';
-    return `${ownerId}/${Date.now()}-${randomUUID()}-${hash}${suffix}`;
+    return `${carpeta}/${Date.now()}-${randomUUID()}-${hash}${suffix}`;
   }
 
   private async validarNoEsDescendiente(

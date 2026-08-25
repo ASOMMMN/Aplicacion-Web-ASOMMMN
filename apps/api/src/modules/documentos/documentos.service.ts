@@ -13,12 +13,14 @@ import {
   Postulante,
   PostulanteDocument,
 } from '../postulantes/schemas/postulante.schema';
+import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import {
   DocumentoActualResponseDto,
   HistorialDocumentosResponseDto,
 } from './dto/documento-response.dto';
+import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
 
 const CV_CATEGORY = 'cvs';
 const MAX_VERSIONS = 10;
@@ -32,6 +34,8 @@ export class DocumentosService {
     private documentoModel: Model<DocumentoDocument>,
     @InjectModel(Postulante.name)
     private postulanteModel: Model<PostulanteDocument>,
+    @InjectModel(Usuario.name)
+    private usuarioModel: Model<UsuarioDocument>,
     private storageService: StorageService,
     private auditoriaService: AuditoriaService,
   ) {}
@@ -79,7 +83,14 @@ export class DocumentosService {
       { esActual: false },
     );
 
-    const key = `postulante-${userId}-v${newVersion}.pdf`;
+    const usuario = await this.usuarioModel
+      .findById(userId)
+      .select('nombre apellidos')
+      .lean();
+    const carpeta =
+      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
+      userId;
+    const key = `${carpeta}/postulante-${userId}-v${newVersion}.pdf`;
 
     try {
       const { url, key: s3Key } = await this.storageService.putObject(

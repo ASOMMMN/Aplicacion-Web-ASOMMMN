@@ -37,6 +37,7 @@ import {
   CursosListResponseDto,
   ExtraerIaResponseDto,
 } from './dto/curso-response.dto';
+import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
 
 const SYSTEM_PROMPT_CURSO = `Eres un extractor experto de datos de certificados académicos y diplomas de cursos.
 Analiza únicamente el contenido del texto del documento (nunca el nombre del archivo).
@@ -133,7 +134,14 @@ export class CursosService {
       let documentoExtra: Curso['documentoExtra'];
       if (file) {
         this.validarDocumentoExtra(file);
-        const key = `postulante-${userId}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+        const usuario = await this.usuarioModel
+          .findById(userId)
+          .select('nombre apellidos')
+          .lean();
+        const carpeta =
+          construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
+          userId;
+        const key = `${carpeta}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
 
         const { url, key: s3Key } = await this.storageService.putObject(
           CURSOS_CATEGORY,

@@ -11,10 +11,16 @@ import {
   EvalArchivo,
   EvalArchivoDocument,
 } from './schemas/eval-archivo.schema';
+import {
+  Postulante,
+  PostulanteDocument,
+} from '../postulantes/schemas/postulante.schema';
+import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { escapeRegex } from '../../common/utils/regex.util';
+import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
 
 const EVAL_CATEGORY = 'eval';
 
@@ -34,6 +40,10 @@ export class EvalArchivosService {
   constructor(
     @InjectModel(EvalArchivo.name)
     private readonly archivoModel: Model<EvalArchivoDocument>,
+    @InjectModel(Postulante.name)
+    private readonly postulanteModel: Model<PostulanteDocument>,
+    @InjectModel(Usuario.name)
+    private readonly usuarioModel: Model<UsuarioDocument>,
     private readonly storage: StorageService,
     private readonly auditoria: AuditoriaService,
   ) {}
@@ -127,8 +137,9 @@ export class EvalArchivosService {
         `Ya existe un archivo llamado "${nombre}" aquí.`,
       );
 
+    const carpeta = await this.resolverCarpetaPostulante(postulanteId);
     const ts = Date.now();
-    const key = `${postulanteId}/${ts}-${nombre}`;
+    const key = `${carpeta}/${ts}-${nombre}`;
     const storagePath = `${EVAL_CATEGORY}/${key}`;
 
     const { url, key: s3Key } = await this.storage.putObject(
@@ -309,6 +320,20 @@ export class EvalArchivosService {
       url: doc.cloudinaryUrl,
       nombre: doc.nombre,
     };
+  }
+
+  private async resolverCarpetaPostulante(postulanteId: string): Promise<string> {
+    const postulante = await this.postulanteModel
+      .findById(postulanteId)
+      .select('usuarioId')
+      .lean();
+    if (!postulante) return postulanteId;
+
+    const usuario = await this.usuarioModel
+      .findById(postulante.usuarioId)
+      .select('nombre apellidos')
+      .lean();
+    return construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ?? postulanteId;
   }
 
   private async mapItem(i: {
