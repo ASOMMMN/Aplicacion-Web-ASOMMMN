@@ -4,12 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api/client';
 import { session } from '@/lib/auth/session';
-
-const ROLE_HOME: Record<string, string> = {
-  postulante: '/dashboard',
-  evaluador: '/candidatos',
-  administrador: '/usuarios',
-};
+import { ROLE_HOME } from '@/lib/auth/roleHome';
 
 export function useAuth() {
   const router = useRouter();
@@ -25,10 +20,10 @@ export function useAuth() {
   // Al montar, intenta renovar el access token con el refresh cookie
   const initSession = useCallback(async () => {
     try {
-      const { data } = await api.post<{ accessToken: string }>('/auth/refresh');
-      // El user viene en el cookie user_role; para obtener datos completos
-      // hacemos otra llamada al perfil (Fase 2). Por ahora usamos el token.
-      session.set(data.accessToken, getCookieRole());
+      const { data } = await api.post<{ accessToken: string; rol: string }>('/auth/refresh');
+      // El rol viene del backend (usuario actual en BD), no del cookie local,
+      // para que un cambio de rol se refleje sin tener que volver a hacer login.
+      session.set(data.accessToken, data.rol);
     } catch {
       session.clear();
     } finally {
@@ -94,10 +89,4 @@ export function useAuth() {
   }, [router]);
 
   return { user, loading, login, logout };
-}
-
-function getCookieRole(): string {
-  if (typeof document === 'undefined') return '';
-  const match = document.cookie.match(/user_role=([^;]+)/);
-  return match?.[1] ?? '';
 }

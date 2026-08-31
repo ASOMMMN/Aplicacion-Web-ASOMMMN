@@ -71,9 +71,16 @@ export default function MiNubeLayout({
       !(window as Window & { __asommmn_token?: string | null }).__asommmn_token
     ) {
       api
-        .post<{ accessToken: string }>('/auth/refresh')
+        .post<{ accessToken: string; rol: string }>('/auth/refresh')
         .then(({ data }) => {
           (window as Window & { __asommmn_token?: string | null }).__asommmn_token = data.accessToken;
+          // Re-sincroniza el cookie de rol con el rol actual en BD: si cambió
+          // desde el último login, evita que se siga usando el rol viejo.
+          document.cookie = `user_role=${data.rol}; path=/; SameSite=Strict`;
+          setRol(esRolConNube(data.rol) ? data.rol : null);
+          if (!esRolConNube(data.rol)) {
+            router.push('/dashboard');
+          }
         })
         .catch(() => router.push('/login'));
     }

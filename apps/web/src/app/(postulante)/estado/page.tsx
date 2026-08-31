@@ -10,14 +10,24 @@ interface Perfil {
   estadoPostulacion: 'en_proceso' | 'completado' | 'rechazado';
 }
 
+type ResultadoEvaluacion = 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
+
 interface ComentarioEvaluacion {
   id: string;
   comentario: string;
   calificacion?: number;
   estadoSugerido: 'en_proceso' | 'completado' | 'rechazado';
+  resultadoEvaluacion?: ResultadoEvaluacion;
+  fechaEvaluacion?: string;
   evaluadorNombre: string;
   creadoEn: string;
 }
+
+const resultadoLabel: Record<ResultadoEvaluacion, string> = {
+  APROBADO: 'Aprobado',
+  RECHAZADO: 'Rechazado',
+  EN_REVISION: 'En revisión',
+};
 
 export default function EstadoPage() {
   const [perfil, setPerfil] = useState<Perfil | null>(null);
@@ -152,6 +162,22 @@ export default function EstadoPage() {
             </Card>
 
             <div className="horizonte-divider" />
+
+            <Alert variant={comentarios.length > 0 ? 'info' : 'secondary'} className="mb-3">
+              {comentarios.length > 0 ? (
+                <>
+                  Tu expediente fue revisado el {formatDateTime(comentarios[0].fechaEvaluacion ?? comentarios[0].creadoEn)}.{' '}
+                  Resultado:{' '}
+                  <strong>
+                    {comentarios[0].resultadoEvaluacion
+                      ? resultadoLabel[comentarios[0].resultadoEvaluacion]
+                      : estadoLabel[comentarios[0].estadoSugerido]}
+                  </strong>
+                </>
+              ) : (
+                'Tu expediente aún no ha sido evaluado.'
+              )}
+            </Alert>
 
             {/* Comentarios (Fase 3) */}
             <Card className="card-enmv card-enmv-top-azul">

@@ -20,8 +20,8 @@ const publicSans = Public_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'ENMV — Evaluación Curricular',
-  description: 'Sistema de evaluación curricular — Escuela Náutica Mercante de Veracruz',
+  title: 'ASOMMMN — Evaluación Curricular',
+  description: 'Sistema de evaluación curricular — Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional',
 };
 
 export default function RootLayout({

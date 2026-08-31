@@ -93,15 +93,31 @@ interface CandidatoDetalle {
   } | null;
 }
 
+type ResultadoEvaluacion = 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
+
 interface Comentario {
   id: string;
   comentario: string;
   calificacion?: number;
   estadoSugerido: Estado;
+  resultadoEvaluacion?: ResultadoEvaluacion;
+  fechaEvaluacion?: string;
   evaluadorId: string;
   evaluadorNombre: string;
   creadoEn: string;
 }
+
+const resultadoLabel: Record<ResultadoEvaluacion, string> = {
+  APROBADO: 'Aprobado',
+  RECHAZADO: 'Rechazado',
+  EN_REVISION: 'En revisión',
+};
+
+const resultadoColor: Record<ResultadoEvaluacion, string> = {
+  APROBADO: 'success',
+  RECHAZADO: 'danger',
+  EN_REVISION: 'warning',
+};
 
 interface CursoItem {
   _id: string;
@@ -216,7 +232,7 @@ export default function CandidatoDetallePage() {
 
   const [comentario, setComentario] = useState('');
   const [calificacion, setCalificacion] = useState<number | ''>('');
-  const [estadoSugerido, setEstadoSugerido] = useState<Estado>('en_proceso');
+  const [resultadoEvaluacion, setResultadoEvaluacion] = useState<ResultadoEvaluacion>('EN_REVISION');
 
   // ── IA ──────────────────────────────────────────────────────────────────────
   const [extraccion, setExtraccion] = useState<Extraccion | null>(null);
@@ -309,7 +325,6 @@ export default function CandidatoDetallePage() {
       ]);
       setDetalle(detalleRes.data);
       setComentarios(comentariosRes.data ?? []);
-      setEstadoSugerido(detalleRes.data.estadoPostulacion);
 
       try {
         const cursosRes = await api.get<CursosResponse>(
@@ -364,32 +379,50 @@ export default function CandidatoDetallePage() {
   }, [candidatoId, cargarExtraccion, cargarTodo]);
 
   const submitComentario = async () => {
-    if (!comentario.trim()) {
-      setError('Escribe un comentario antes de guardar.');
-      return;
-    }
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: '¿Confirmar evaluación?',
+      text: 'Esta acción no se puede deshacer.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, confirmar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!conf.isConfirmed) return;
 
     try {
       setSaving(true);
       setError('');
       await api.post(`/evaluaciones/${candidatoId}/comentarios`, {
-        comentario,
+        comentario: comentario.trim() || undefined,
         calificacion: calificacion === '' ? undefined : Number(calificacion),
-        estadoSugerido,
+        resultadoEvaluacion,
       });
 
       await Swal.fire({
         icon: 'success',
-        title: 'Evaluacion guardada',
-        text: 'El comentario fue registrado correctamente.',
+        title: 'Evaluación registrada',
+        timer: 1800,
+        showConfirmButton: false,
       });
 
       setComentario('');
       setCalificacion('');
       await cargarTodo();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: unknown } }; message?: string };
-      setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
+      const axiosErr = err as {
+        response?: { status?: number; data?: { message?: unknown } };
+        message?: string;
+      };
+      if (axiosErr.response?.status === 409) {
+        await Swal.fire({
+          icon: 'error',
+          title: 'Ya evaluado',
+          text: 'Otro evaluador acaba de evaluar este expediente. Recarga la página.',
+        });
+        await cargarTodo();
+      } else {
+        setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
+      }
     } finally {
       setSaving(false);
     }
@@ -829,24 +862,71 @@ export default function CandidatoDetallePage() {
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <i className="bi bi-compass nautical-icon" />
-                  Registrar evaluacion
+                  {comentarios.length === 0 ? 'Registrar evaluacion' : 'Evaluación'}
                   <span className="anchor-glyph">⚓</span>
                 </h5>
-                <Form.Group className="mb-3">
-                  <Form.Label>Comentario</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={4}
-                    value={comentario}
-                    onChange={(e) => setComentario(e.target.value)}
-                    placeholder="Escribe observaciones, fortalezas y areas de mejora"
-                  />
-                </Form.Group>
 
-                <Row>
-                  <Col md={6}>
+                {comentarios.length > 0 ? (
+                  <div>
+                    <div className="fw-semibold text-success mb-2">
+                      <i className="bi bi-check-circle-fill me-1" />
+                      Expediente evaluado
+                    </div>
+                    <div className="mb-1">
+                      <strong>Evaluador:</strong> {comentarios[0].evaluadorNombre}
+                    </div>
+                    <div className="mb-1">
+                      <strong>Fecha:</strong>{' '}
+                      {new Date(comentarios[0].fechaEvaluacion ?? comentarios[0].creadoEn).toLocaleString(
+                        'es-MX',
+                        { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' },
+                      )}
+                    </div>
+                    <div className="mb-2">
+                      <strong>Resultado:</strong>{' '}
+                      {comentarios[0].resultadoEvaluacion ? (
+                        <Badge bg={resultadoColor[comentarios[0].resultadoEvaluacion]} className="badge-pill-enmv">
+                          {resultadoLabel[comentarios[0].resultadoEvaluacion]}
+                        </Badge>
+                      ) : (
+                        <Badge bg={estadoColor[comentarios[0].estadoSugerido]} className="badge-pill-enmv">
+                          {estadoLabel[comentarios[0].estadoSugerido]}
+                        </Badge>
+                      )}
+                    </div>
+                    <div>
+                      <strong>Comentarios:</strong> {comentarios[0].comentario || 'Sin comentarios'}
+                    </div>
+                  </div>
+                ) : (
+                  <>
                     <Form.Group className="mb-3">
-                      <Form.Label>Calificacion (1-10)</Form.Label>
+                      <Form.Label>Resultado</Form.Label>
+                      <Form.Select
+                        value={resultadoEvaluacion}
+                        onChange={(e) => setResultadoEvaluacion(e.target.value as ResultadoEvaluacion)}
+                      >
+                        <option value="APROBADO">Aprobado</option>
+                        <option value="RECHAZADO">Rechazado</option>
+                        <option value="EN_REVISION">En revisión</option>
+                      </Form.Select>
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label>Comentarios (opcional)</Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={4}
+                        maxLength={1000}
+                        value={comentario}
+                        onChange={(e) => setComentario(e.target.value)}
+                        placeholder="Escribe observaciones, fortalezas y areas de mejora"
+                      />
+                      <div className="text-muted small text-end mt-1">{comentario.length}/1000</div>
+                    </Form.Group>
+
+                    <Form.Group className="mb-3">
+                      <Form.Label>Calificacion (1-10, opcional)</Form.Label>
                       <Form.Control
                         type="number"
                         min={1}
@@ -857,27 +937,15 @@ export default function CandidatoDetallePage() {
                             e.target.value === '' ? '' : Math.max(1, Math.min(10, Number(e.target.value))),
                           )
                         }
+                        style={{ maxWidth: 160 }}
                       />
                     </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Estado sugerido</Form.Label>
-                      <Form.Select
-                        value={estadoSugerido}
-                        onChange={(e) => setEstadoSugerido(e.target.value as Estado)}
-                      >
-                        <option value="en_proceso">En proceso</option>
-                        <option value="completado">Completado</option>
-                        <option value="rechazado">Rechazado</option>
-                      </Form.Select>
-                    </Form.Group>
-                  </Col>
-                </Row>
 
-                <Button onClick={submitComentario} disabled={saving}>
-                  {saving ? 'Guardando...' : 'Guardar evaluacion'}
-                </Button>
+                    <Button onClick={submitComentario} disabled={saving}>
+                      {saving ? 'Guardando...' : 'Confirmar evaluación'}
+                    </Button>
+                  </>
+                )}
               </Card.Body>
             </Card>
 

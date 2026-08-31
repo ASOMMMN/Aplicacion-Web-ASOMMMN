@@ -43,6 +43,18 @@ export class CandidatoListaItemDto {
 
   @ApiProperty({ enum: ['verde', 'amarillo', 'rojo'] })
   semaforoClave: 'verde' | 'amarillo' | 'rojo';
+
+  @ApiProperty()
+  evaluado: boolean;
+
+  @ApiPropertyOptional()
+  evaluadorNombre?: string;
+
+  @ApiPropertyOptional()
+  fechaEvaluacion?: Date;
+
+  @ApiPropertyOptional({ enum: ['APROBADO', 'RECHAZADO', 'EN_REVISION'] })
+  resultadoEvaluacion?: 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
 }
 
 export class EvaluacionItemDto {
@@ -57,6 +69,12 @@ export class EvaluacionItemDto {
 
   @ApiProperty({ enum: ['en_proceso', 'completado', 'rechazado'] })
   estadoSugerido: 'en_proceso' | 'completado' | 'rechazado';
+
+  @ApiPropertyOptional({ enum: ['APROBADO', 'RECHAZADO', 'EN_REVISION'] })
+  resultadoEvaluacion?: 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
+
+  @ApiPropertyOptional()
+  fechaEvaluacion?: Date;
 
   @ApiProperty()
   evaluadorId: string;

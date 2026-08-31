@@ -57,7 +57,10 @@ export class AuthController {
   @HttpCode(201)
   @Throttle({ default: { limit: 5, ttl: 600_000 } })
   @ApiOperation({ summary: 'Registrar postulante (auto-registro)' })
-  @ApiResponse({ status: 201, description: 'Cuenta creada. Puedes iniciar sesión.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Cuenta creada. Puedes iniciar sesión.',
+  })
   @ApiResponse({ status: 409, description: 'El correo ya está registrado.' })
   async registro(@Body() dto: RegisterDto) {
     await this.authService.registrar(dto);
@@ -136,7 +139,9 @@ export class AuthController {
   @Post('mfa/verificar-login')
   @HttpCode(200)
   @Throttle({ default: { limit: 8, ttl: 300_000 } })
-  @ApiOperation({ summary: 'Completar login MFA con TOTP o codigo de recuperacion' })
+  @ApiOperation({
+    summary: 'Completar login MFA con TOTP o codigo de recuperacion',
+  })
   async verificarMfaLogin(
     @Body() dto: VerificarMfaLoginDto,
     @Req() req: Request,
@@ -161,7 +166,9 @@ export class AuthController {
   @Post('mfa/setup/iniciar')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
-  @ApiOperation({ summary: 'Iniciar setup MFA usando sesion temporal de login' })
+  @ApiOperation({
+    summary: 'Iniciar setup MFA usando sesion temporal de login',
+  })
   async iniciarSetupMfa(@Body() dto: IniciarSetupMfaDto) {
     return this.authService.iniciarSetupMfa(dto.tempSessionToken);
   }
@@ -169,7 +176,9 @@ export class AuthController {
   @Post('mfa/setup/activar')
   @HttpCode(200)
   @Throttle({ default: { limit: 8, ttl: 300_000 } })
-  @ApiOperation({ summary: 'Activar MFA y completar login inicial obligatorio' })
+  @ApiOperation({
+    summary: 'Activar MFA y completar login inicial obligatorio',
+  })
   async activarSetupMfa(
     @Body() dto: ActivarMfaDto,
     @Req() req: Request,
@@ -207,7 +216,7 @@ export class AuthController {
     const result = await this.authService.rotarRefreshToken(oldToken, ip, ua);
 
     res.cookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTS);
-    return { accessToken: result.accessToken };
+    return { accessToken: result.accessToken, rol: result.rol };
   }
 
   @Post('logout')
@@ -239,7 +248,9 @@ export class AuthController {
   @Post('recuperar-contrasena')
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 600_000 } })
-  @ApiOperation({ summary: 'Solicitar enlace de recuperación de contraseña por correo' })
+  @ApiOperation({
+    summary: 'Solicitar enlace de recuperación de contraseña por correo',
+  })
   async recuperarContrasena(@Body() dto: ForgotPasswordDto) {
     await this.authService.solicitarRecuperacion(dto.email);
     return {
@@ -251,11 +262,14 @@ export class AuthController {
   @Post('restablecer-contrasena')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 600_000 } })
-  @ApiOperation({ summary: 'Definir nueva contraseña usando el token del correo' })
+  @ApiOperation({
+    summary: 'Definir nueva contraseña usando el token del correo',
+  })
   async restablecerContrasena(@Body() dto: ResetPasswordDto) {
     await this.authService.resetearPassword(dto.token, dto.nuevaPassword);
     return {
-      message: 'Contraseña actualizada correctamente. Ya puedes iniciar sesión.',
+      message:
+        'Contraseña actualizada correctamente. Ya puedes iniciar sesión.',
     };
   }
 

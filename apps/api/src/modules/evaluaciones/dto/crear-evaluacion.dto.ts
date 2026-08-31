@@ -7,15 +7,16 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 
 export class CrearEvaluacionDto {
-  @ApiProperty({ example: 'Buen perfil tecnico, mejorar comunicacion.' })
+  @ApiPropertyOptional({
+    example: 'Buen perfil tecnico, mejorar comunicacion.',
+  })
+  @IsOptional()
   @IsString()
-  @MinLength(5)
-  @MaxLength(2000)
-  comentario: string;
+  @MaxLength(1000)
+  comentario?: string;
 
   @ApiPropertyOptional({ example: 8, minimum: 1, maximum: 10 })
   @IsOptional()
@@ -23,6 +24,10 @@ export class CrearEvaluacionDto {
   @Min(1)
   @Max(10)
   calificacion?: number;
+
+  @ApiProperty({ enum: ['APROBADO', 'RECHAZADO', 'EN_REVISION'] })
+  @IsIn(['APROBADO', 'RECHAZADO', 'EN_REVISION'])
+  resultadoEvaluacion: 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
 
   @ApiPropertyOptional({
     enum: ['en_proceso', 'completado', 'rechazado'],

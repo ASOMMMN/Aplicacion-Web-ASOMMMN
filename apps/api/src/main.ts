@@ -61,25 +61,18 @@ async function bootstrap() {
   const uploadsDir = config.get<string>('STORAGE_PATH') || join(process.cwd(), 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
  
-  // CORS: en producción, el/los origin(es) permitidos vienen de la variable
-  // de entorno FRONTEND_URL (configurada en Render). Nunca hardcodear el
-  // dominio aquí — si necesitas permitir varios orígenes (ej. www y sin www,
-  // o un dominio custom además del de Netlify), sepáralos por comas en la
-  // variable de entorno y haz el split abajo.
-  const frontendUrl = config.get<string>('FRONTEND_URL');
- 
-  if (isProduction && !frontendUrl) {
-    throw new Error(
-      'FRONTEND_URL no está configurada. Es requerida en producción para CORS.',
-    );
-  }
- 
-  const allowedOrigins = isProduction
-    ? frontendUrl!.split(',').map((origin) => origin.trim())
+  // CORS: en producción, origin exacto (sin wildcards ni múltiples dominios)
+  // desde CORS_ORIGIN (Render), con fallback al dominio de Netlify. En
+  // desarrollo se permite localhost para no bloquear el frontend local.
+  const corsOrigin = isProduction
+    ? (config.get<string>('CORS_ORIGIN') ??
+      'https://reclutamiento-asommmn.netlify.app')
     : ['http://localhost:3000', 'http://localhost:3002'];
- 
+
   app.enableCors({
-    origin: allowedOrigins,
+    origin: corsOrigin,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
  

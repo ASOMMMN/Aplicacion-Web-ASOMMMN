@@ -13,6 +13,7 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { DocumentChecklist } from '@/components/documentos/DocumentChecklist';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,19 @@ function TarjetaTipo({
       setErr('Solo se aceptan PDF, JPG o PNG.');
       return;
     }
+
+    if (info.cantidad > 0) {
+      const conf = await Swal.fire({
+        icon: 'question',
+        title: '¿Agregar otro archivo?',
+        text: `Ya subiste ${info.cantidad} archivo${info.cantidad !== 1 ? 's' : ''} para ${info.label}. ¿Deseas agregar "${file.name}" de todos modos?`,
+        showCancelButton: true,
+        confirmButtonText: 'Sí, agregar',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!conf.isConfirmed) return;
+    }
+
     setErr('');
     setUploading(true);
     setProgress(0);
@@ -375,6 +389,13 @@ export default function MisDocsPersonalesPage() {
         </Row>
 
         {error && <Alert variant="danger">{error}</Alert>}
+
+        <DocumentChecklist
+          items={TIPOS_DOC_REQUERIDOS.map(({ tipo, label }) => ({
+            label,
+            completado: (data?.tipos.find((t) => t.tipo === tipo)?.cantidad ?? 0) > 0,
+          }))}
+        />
 
         <div className="horizonte-divider" />
 

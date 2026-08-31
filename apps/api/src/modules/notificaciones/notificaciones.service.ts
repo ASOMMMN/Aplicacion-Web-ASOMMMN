@@ -129,6 +129,7 @@ export class NotificacionesService implements OnModuleInit {
     email: string,
     nombre: string,
     estadoNuevo: 'en_proceso' | 'completado' | 'rechazado',
+    estadoUrl?: string,
   ) {
     const etiquetas: Record<string, string> = {
       en_proceso: 'En proceso',
@@ -146,11 +147,16 @@ export class NotificacionesService implements OnModuleInit {
     this.logger.log(`[CAMBIO ESTADO] ${email} → ${estadoNuevo}`);
     await this.send({
       to: email,
-      subject: `Actualización de tu postulación — ASOMMMN`,
+      subject: `Tu expediente ha sido actualizado — ${etiqueta}`,
       html: `
         <h2>Hola, ${nombre}</h2>
         <p>El estado de tu postulación ha sido actualizado:</p>
         <p style="font-size:1.2em;font-weight:bold;color:${color};">${etiqueta}</p>
+        ${
+          estadoUrl
+            ? `<p><a href="${estadoUrl}" style="background:#0d6efd;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;">Ver mi expediente</a></p>`
+            : ''
+        }
         <p>Ingresa a tu portal para ver los comentarios del evaluador.</p>
         <p style="color:#666;font-size:0.9em;">Si tienes dudas, contacta al administrador del sistema.</p>
       `,
@@ -162,7 +168,9 @@ export class NotificacionesService implements OnModuleInit {
     nombre: string,
     faltantes: string[],
   ) {
-    this.logger.log(`[RECORDATORIO EXPEDIENTE] ${email} (${faltantes.length} pendientes)`);
+    this.logger.log(
+      `[RECORDATORIO EXPEDIENTE] ${email} (${faltantes.length} pendientes)`,
+    );
     await this.send({
       to: email,
       subject: 'Recordatorio: documentos pendientes de tu expediente — ASOMMMN',
@@ -189,7 +197,11 @@ export class NotificacionesService implements OnModuleInit {
     });
   }
 
-  async enviarAvisoComentarioNuevo(email: string, nombre: string, estadoUrl: string) {
+  async enviarAvisoComentarioNuevo(
+    email: string,
+    nombre: string,
+    estadoUrl: string,
+  ) {
     this.logger.log(`[COMENTARIO NUEVO] ${email}`);
     await this.send({
       to: email,

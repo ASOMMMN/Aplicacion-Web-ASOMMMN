@@ -7,6 +7,7 @@ import api from '@/lib/api/client';
 import NavbarENMV from '@/components/layout/NavbarENMV';
 import FooterENMV from '@/components/layout/FooterENMV';
 import { NotificacionesBell } from '@/components/layout/NotificacionesBell';
+import { ROLE_HOME } from '@/lib/auth/roleHome';
 
 const NAV_ITEMS = [
   { href: '/candidatos', label: 'Candidatos' },
@@ -23,9 +24,15 @@ export default function EvaluadorLayout({
   useEffect(() => {
     if (typeof window !== 'undefined' && !(window as Window & { __asommmn_token?: string | null }).__asommmn_token) {
       api
-        .post<{ accessToken: string }>('/auth/refresh')
+        .post<{ accessToken: string; rol: string }>('/auth/refresh')
         .then(({ data }) => {
           (window as Window & { __asommmn_token?: string | null }).__asommmn_token = data.accessToken;
+          // Re-sincroniza el cookie de rol con el rol actual en BD: si cambió
+          // desde el último login, evita que el proxy siga enrutando con el rol viejo.
+          document.cookie = `user_role=${data.rol}; path=/; SameSite=Strict`;
+          if (data.rol !== 'evaluador') {
+            router.replace(ROLE_HOME[data.rol] ?? '/login');
+          }
         })
         .catch(() => router.push('/login'));
     }

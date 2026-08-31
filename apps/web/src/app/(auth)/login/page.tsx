@@ -12,12 +12,7 @@ import { loginSchema, LoginForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
 import PasswordInput from '@/components/ui/PasswordInput';
-
-const ROLE_HOME: Record<string, string> = {
-  postulante: '/dashboard',
-  evaluador: '/candidatos',
-  administrador: '/usuarios',
-};
+import { ROLE_HOME } from '@/lib/auth/roleHome';
 
 function toErrorMessage(msg: unknown): string {
   if (Array.isArray(msg)) return msg.map(String).join(', ');

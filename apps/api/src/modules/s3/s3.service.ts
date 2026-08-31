@@ -70,7 +70,7 @@ export class S3Service {
     }
   }
 
-  async getSignedUrl(key: string, ttlSeconds = 300): Promise<string> {
+  async getSignedUrl(key: string, ttlSeconds = 900): Promise<string> {
     const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
     return getSignedUrl(this.client, command, { expiresIn: ttlSeconds });
   }

@@ -316,10 +316,13 @@ export class EvalArchivosService {
       );
     }
 
-    return {
-      url: doc.cloudinaryUrl,
-      nombre: doc.nombre,
-    };
+    const url = await this.storage.getSecureDownloadUrl(
+      doc.cloudinaryUrl,
+      doc.nombre,
+      doc.tipoMime ?? 'application/octet-stream',
+    );
+
+    return { url, nombre: doc.nombre };
   }
 
   private async resolverCarpetaPostulante(postulanteId: string): Promise<string> {

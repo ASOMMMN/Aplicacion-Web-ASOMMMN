@@ -105,7 +105,8 @@ export class AuthService implements OnModuleInit {
 
   async onModuleInit() {
     this.emailVerificationRequired =
-      this.config.get<string>('EMAIL_VERIFICATION_REQUIRED', 'false') === 'true';
+      this.config.get<string>('EMAIL_VERIFICATION_REQUIRED', 'false') ===
+      'true';
 
     if (!this.emailVerificationRequired) {
       const result = await this.usuarioModel.updateMany(
@@ -150,13 +151,18 @@ export class AuthService implements OnModuleInit {
     await this.notificarNuevoCandidato(usuario);
   }
 
-  private async notificarNuevoCandidato(usuario: UsuarioDocument): Promise<void> {
+  private async notificarNuevoCandidato(
+    usuario: UsuarioDocument,
+  ): Promise<void> {
     try {
       const evaluadores = await this.usuarioModel
         .find({ rol: { $in: ['evaluador', 'administrador'] } })
         .select('email nombre')
         .lean();
-      const frontendUrl = this.config.get('FRONTEND_URL', 'http://localhost:3000');
+      const frontendUrl = this.config.get(
+        'FRONTEND_URL',
+        'http://localhost:3000',
+      );
       const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
 
       await Promise.all(
@@ -370,7 +376,7 @@ export class AuthService implements OnModuleInit {
     oldRawToken: string,
     ip: string,
     userAgent: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{ accessToken: string; refreshToken: string; rol: string }> {
     const tokenHash = this.hashToken(oldRawToken);
     const doc = await this.refreshTokenModel.findOne({
       tokenHash,
@@ -396,7 +402,7 @@ export class AuthService implements OnModuleInit {
       userAgent,
     );
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, rol: user.rol };
   }
 
   // ─── Logout ──────────────────────────────────────────────────────────────────
@@ -517,7 +523,9 @@ export class AuthService implements OnModuleInit {
 
     const yaActivo = await this.mfaService.isMFAActive(user._id.toString());
     if (yaActivo) {
-      throw new BadRequestException('MFA ya esta configurado para este usuario.');
+      throw new BadRequestException(
+        'MFA ya esta configurado para este usuario.',
+      );
     }
 
     const { secret, qrCodeUrl, manualEntryKey } =
@@ -551,7 +559,9 @@ export class AuthService implements OnModuleInit {
     const payload = this.verificarMfaTempToken(tempSessionToken);
 
     if (payload.purpose !== 'setup_mfa') {
-      throw new ForbiddenException('La sesion temporal no permite activar MFA.');
+      throw new ForbiddenException(
+        'La sesion temporal no permite activar MFA.',
+      );
     }
 
     const user = await this.usuarioModel.findById(payload.userId);
@@ -567,8 +577,9 @@ export class AuthService implements OnModuleInit {
     }
 
     await this.mfaService.activateMFA(user._id.toString());
-    const recoveryCodes =
-      await this.mfaService.generateAndSaveRecoveryCodes(user._id.toString());
+    const recoveryCodes = await this.mfaService.generateAndSaveRecoveryCodes(
+      user._id.toString(),
+    );
 
     await this.usuarioModel.findByIdAndUpdate(user._id, {
       ultimoAcceso: new Date(),
@@ -631,7 +642,9 @@ export class AuthService implements OnModuleInit {
 
     const mfa = await this.mfaService.getMFA(user._id.toString());
     if (!mfa || !mfa.activo) {
-      throw new BadRequestException('MFA no esta habilitado para este usuario.');
+      throw new BadRequestException(
+        'MFA no esta habilitado para este usuario.',
+      );
     }
 
     let validado = false;
@@ -700,7 +713,9 @@ export class AuthService implements OnModuleInit {
 
       return payload;
     } catch {
-      throw new UnauthorizedException('Sesion temporal MFA expirada o invalida.');
+      throw new UnauthorizedException(
+        'Sesion temporal MFA expirada o invalida.',
+      );
     }
   }
 
@@ -713,5 +728,4 @@ export class AuthService implements OnModuleInit {
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
-
 }

@@ -30,6 +30,18 @@ export class Evaluacion {
   })
   estadoSugerido: 'en_proceso' | 'completado' | 'rechazado';
 
+  @Prop({ trim: true })
+  nombreEvaluador?: string;
+
+  @Prop()
+  fechaEvaluacion?: Date;
+
+  @Prop({
+    type: String,
+    enum: ['APROBADO', 'RECHAZADO', 'EN_REVISION'],
+  })
+  resultadoEvaluacion?: 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
+
   @Prop()
   creadoEn: Date;
 }
@@ -38,3 +50,18 @@ export const EvaluacionSchema = SchemaFactory.createForClass(Evaluacion);
 export type EvaluacionDocument = Evaluacion & Document;
 
 EvaluacionSchema.index({ postulanteId: 1, creadoEn: -1 });
+
+// Candado real a nivel BD: un candidato no puede tener más de una evaluación
+// CON resultado final (resultadoEvaluacion seteado). Es parcial (no un índice
+// único plano) porque hay historial legado de múltiples comentarios por
+// candidato de antes de esta funcionalidad, ninguno con resultadoEvaluacion.
+EvaluacionSchema.index(
+  { postulanteId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { resultadoEvaluacion: { $exists: true } },
+    // Nombre explícito: el índice no-único autogenerado por `index: true` en
+    // postulanteId ya ocupa el nombre por defecto "postulanteId_1".
+    name: 'postulanteId_1_evaluacion_unica',
+  },
+);

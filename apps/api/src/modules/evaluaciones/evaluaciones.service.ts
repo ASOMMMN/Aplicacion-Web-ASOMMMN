@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -98,18 +99,29 @@ export class EvaluacionesService {
 
     const postulanteIds = postulantes.map((p) => p._id);
 
-    const [cvsActuales, docsPersonalesList] = await Promise.all([
-      this.documentoModel
-        .find({ postulanteId: { $in: postulanteIds }, esActual: true })
-        .select('postulanteId version subidasEn')
-        .lean(),
-      this.docPersonalModel
-        .find({ postulanteId: { $in: postulanteIds } })
-        .select('postulanteId tipo')
-        .lean(),
-    ]);
+    const [cvsActuales, docsPersonalesList, evaluacionesList] =
+      await Promise.all([
+        this.documentoModel
+          .find({ postulanteId: { $in: postulanteIds }, esActual: true })
+          .select('postulanteId version subidasEn')
+          .lean(),
+        this.docPersonalModel
+          .find({ postulanteId: { $in: postulanteIds } })
+          .select('postulanteId tipo')
+          .lean(),
+        this.evaluacionModel
+          .find({ postulanteId: { $in: postulanteIds } })
+          .select(
+            'postulanteId nombreEvaluador evaluadorId fechaEvaluacion creadoEn resultadoEvaluacion',
+          )
+          .populate('evaluadorId', 'nombre apellidos')
+          .lean(),
+      ]);
 
-    const cvByPostulante = new Map<string, { version: number; subidasEn: Date }>();
+    const cvByPostulante = new Map<
+      string,
+      { version: number; subidasEn: Date }
+    >();
     for (const cv of cvsActuales) {
       cvByPostulante.set(String(cv.postulanteId), {
         version: cv.version,
@@ -121,7 +133,15 @@ export class EvaluacionesService {
     for (const dp of docsPersonalesList) {
       const key = String(dp.postulanteId);
       if (!dpByPostulante.has(key)) dpByPostulante.set(key, new Set());
-      dpByPostulante.get(key)!.add(dp.tipo as string);
+      dpByPostulante.get(key)!.add(dp.tipo);
+    }
+
+    const evalByPostulante = new Map<
+      string,
+      (typeof evaluacionesList)[number]
+    >();
+    for (const ev of evaluacionesList) {
+      evalByPostulante.set(String(ev.postulanteId), ev);
     }
 
     const idsACorregir: Types.ObjectId[] = [];
@@ -158,6 +178,11 @@ export class EvaluacionesService {
         idsACorregir.push((p as { _id: Types.ObjectId })._id);
       }
 
+      const evaluacion = evalByPostulante.get(String(p._id));
+      const evaluadorPopulado = evaluacion?.evaluadorId as unknown as
+        | { nombre?: string; apellidos?: string }
+        | undefined;
+
       return {
         postulanteId: String(p._id),
         nombreCompleto: `${user?.nombre ?? ''} ${user?.apellidos ?? ''}`.trim(),
@@ -178,6 +203,14 @@ export class EvaluacionesService {
           porcentajeExpediente,
           estadoExpediente,
         ),
+        evaluado: Boolean(evaluacion),
+        evaluadorNombre:
+          evaluacion?.nombreEvaluador ??
+          (evaluadorPopulado
+            ? `${evaluadorPopulado.nombre ?? ''} ${evaluadorPopulado.apellidos ?? ''}`.trim()
+            : undefined),
+        fechaEvaluacion: evaluacion?.fechaEvaluacion ?? evaluacion?.creadoEn,
+        resultadoEvaluacion: evaluacion?.resultadoEvaluacion,
       };
     });
 
@@ -298,8 +331,11 @@ export class EvaluacionesService {
       comentario: item.comentario,
       calificacion: item.calificacion,
       estadoSugerido: item.estadoSugerido,
+      resultadoEvaluacion: item.resultadoEvaluacion,
+      fechaEvaluacion: item.fechaEvaluacion ?? item.creadoEn,
       evaluadorId: String(item.evaluadorId?._id ?? ''),
       evaluadorNombre:
+        item.nombreEvaluador ??
         `${item.evaluadorId?.nombre ?? ''} ${item.evaluadorId?.apellidos ?? ''}`.trim(),
       creadoEn: item.creadoEn,
     }));
@@ -334,26 +370,68 @@ export class EvaluacionesService {
 
     const postulante = await this.postulanteModel
       .findById(postulanteId)
-      .populate<{ usuarioId: UsuarioDocument }>('usuarioId', 'nombre apellidos email');
+      .populate<{
+        usuarioId: UsuarioDocument;
+      }>('usuarioId', 'nombre apellidos email');
     if (!postulante) throw new NotFoundException('Postulante no encontrado');
+
+    const evaluacionExistente = await this.evaluacionModel
+      .findOne({ postulanteId: new Types.ObjectId(postulanteId) })
+      .populate<{ evaluadorId: UsuarioDocument }>(
+        'evaluadorId',
+        'nombre apellidos',
+      )
+      .sort({ creadoEn: -1 })
+      .lean();
+
+    if (evaluacionExistente) {
+      const nombreExistente =
+        evaluacionExistente.nombreEvaluador ??
+        `${evaluacionExistente.evaluadorId?.nombre ?? ''} ${evaluacionExistente.evaluadorId?.apellidos ?? ''}`.trim();
+      const fechaExistente = new Date(
+        evaluacionExistente.fechaEvaluacion ?? evaluacionExistente.creadoEn,
+      ).toLocaleString('es-MX', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      throw new ConflictException(
+        `Este expediente ya fue evaluado por ${nombreExistente || 'otro evaluador'} el ${fechaExistente}`,
+      );
+    }
 
     const evaluador = await this.usuarioModel.findById(evaluadorUserId);
     if (!evaluador) throw new NotFoundException('Evaluador no encontrado');
 
     const estadoAnterior = postulante.estadoPostulacion;
 
+    const mapaResultado: Record<
+      'APROBADO' | 'RECHAZADO' | 'EN_REVISION',
+      'en_proceso' | 'completado' | 'rechazado'
+    > = {
+      APROBADO: 'completado',
+      RECHAZADO: 'rechazado',
+      EN_REVISION: 'en_proceso',
+    };
+    const estadoSugerido = mapaResultado[dto.resultadoEvaluacion];
+    const nombreEvaluador = `${evaluador.nombre} ${evaluador.apellidos}`.trim();
+    const fechaEvaluacion = new Date();
+
     const evaluacion = await this.evaluacionModel.create({
       postulanteId: new Types.ObjectId(postulanteId),
       evaluadorId: new Types.ObjectId(evaluadorUserId),
       comentario: dto.comentario,
       calificacion: dto.calificacion,
-      estadoSugerido: dto.estadoSugerido ?? 'en_proceso',
+      estadoSugerido,
+      resultadoEvaluacion: dto.resultadoEvaluacion,
+      nombreEvaluador,
+      fechaEvaluacion,
     });
 
-    if (dto.estadoSugerido) {
-      postulante.estadoPostulacion = dto.estadoSugerido;
-      await postulante.save();
-    }
+    postulante.estadoPostulacion = estadoSugerido;
+    await postulante.save();
 
     await this.auditoria.registrar({
       actorId: evaluadorUserId,
@@ -364,40 +442,29 @@ export class EvaluacionesService {
       ipAddress,
       metadata: {
         estadoAnterior,
-        estadoNuevo: dto.estadoSugerido ?? estadoAnterior,
+        estadoNuevo: estadoSugerido,
+        resultadoEvaluacion: dto.resultadoEvaluacion,
         calificacion: dto.calificacion,
       },
     });
 
-    const usuarioPostulante = postulante.usuarioId as unknown as UsuarioDocument;
-
-    if (dto.estadoSugerido && dto.estadoSugerido !== estadoAnterior) {
-      if (usuarioPostulante?.email) {
-        try {
-          await this.notificaciones.enviarNotificacionCambioEstado(
-            usuarioPostulante.email,
-            usuarioPostulante.nombre,
-            dto.estadoSugerido,
-          );
-        } catch (err) {
-          this.logger.error(
-            `Error enviando cambio de estado a ${usuarioPostulante.email}: ${(err as Error).message}`,
-          );
-        }
-      }
-    }
+    const usuarioPostulante = postulante.usuarioId;
 
     if (usuarioPostulante?.email) {
       try {
-        const frontendUrl = this.config.get('FRONTEND_URL', 'http://localhost:3000');
-        await this.notificaciones.enviarAvisoComentarioNuevo(
+        const frontendUrl = this.config.get(
+          'FRONTEND_URL',
+          'http://localhost:3000',
+        );
+        await this.notificaciones.enviarNotificacionCambioEstado(
           usuarioPostulante.email,
           usuarioPostulante.nombre,
+          estadoSugerido,
           `${frontendUrl}/estado`,
         );
       } catch (err) {
         this.logger.error(
-          `Error enviando aviso de comentario nuevo a ${usuarioPostulante.email}: ${(err as Error).message}`,
+          `Error enviando cambio de estado a ${usuarioPostulante.email}: ${(err as Error).message}`,
         );
       }
     }
@@ -407,8 +474,10 @@ export class EvaluacionesService {
       comentario: evaluacion.comentario,
       calificacion: evaluacion.calificacion,
       estadoSugerido: evaluacion.estadoSugerido,
+      resultadoEvaluacion: evaluacion.resultadoEvaluacion,
+      fechaEvaluacion: evaluacion.fechaEvaluacion,
       evaluadorId: String(evaluador._id),
-      evaluadorNombre: `${evaluador.nombre} ${evaluador.apellidos}`.trim(),
+      evaluadorNombre: nombreEvaluador,
       creadoEn: evaluacion.creadoEn,
     };
   }
