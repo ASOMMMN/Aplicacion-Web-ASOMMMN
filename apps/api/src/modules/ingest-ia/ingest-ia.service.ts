@@ -92,9 +92,12 @@ export class IngestIaService {
           'El CV es de un almacenamiento anterior y ya no está disponible. Pide que vuelva a subirlo.',
         );
       }
-      const buffer = await this.storage.getObjectBuffer(
+      const signedUrl = await this.storage.getSecureDownloadUrl(
         documento.cloudinaryUrl,
+        documento.nombreOriginal,
+        documento.tipoMime,
       );
+      const buffer = await this.storage.getObjectBuffer(signedUrl);
       const texto = await this.openAiIa.extraerTextoPdf(buffer);
 
       if (!texto || texto.length < 50) {
