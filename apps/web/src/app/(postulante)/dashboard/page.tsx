@@ -37,6 +37,7 @@ interface RequisitoItem {
   label: string;
   cumplido: boolean;
   urlFrontend: string;
+  requerido: boolean;
 }
 
 interface ExpedienteProgress {
@@ -257,28 +258,42 @@ export default function DashboardPostulantePage() {
                 {/* Checklist */}
                 {expediente && (
                   <div className="row g-2">
-                    {expediente.requisitos.map((req) => (
-                      <div key={req.clave} className="col-sm-6 col-lg-4">
-                        <Link
-                          href={req.urlFrontend}
-                          className="requisito-checklist-item d-flex align-items-center gap-2 rounded px-3 py-2 text-decoration-none"
-                          style={{
-                            background: req.cumplido ? 'rgba(29,158,117,.08)' : 'rgba(201,162,75,.08)',
-                            border: `1px solid ${req.cumplido ? 'var(--enmv-verde)' : 'var(--enmv-dorado)'}`,
-                          }}
-                        >
-                          <span style={{ fontSize: '1rem' }}>
-                            {req.cumplido ? '✅' : '❌'}
-                          </span>
-                          <span className="small fw-semibold flex-grow-1" style={{ color: 'var(--enmv-azul)' }}>
-                            {req.label}
-                          </span>
-                          <span className="requisito-chevron fw-bold" style={{ fontSize: '1rem' }}>
-                            ›
-                          </span>
-                        </Link>
-                      </div>
-                    ))}
+                    {expediente.requisitos.map((req) => {
+                      // Un requisito opcional pendiente no es un "falta" (rojo/dorado
+                      // de bloqueo) — se muestra neutro con badge "Opcional".
+                      const pendienteOpcional = !req.cumplido && !req.requerido;
+                      return (
+                        <div key={req.clave} className="col-sm-6 col-lg-4">
+                          <Link
+                            href={req.urlFrontend}
+                            className="requisito-checklist-item d-flex align-items-center gap-2 rounded px-3 py-2 text-decoration-none"
+                            style={{
+                              background: req.cumplido
+                                ? 'rgba(29,158,117,.08)'
+                                : pendienteOpcional
+                                  ? 'rgba(108,117,125,.08)'
+                                  : 'rgba(201,162,75,.08)',
+                              border: `1px solid ${req.cumplido ? 'var(--enmv-verde)' : pendienteOpcional ? '#adb5bd' : 'var(--enmv-dorado)'}`,
+                            }}
+                          >
+                            <span style={{ fontSize: '1rem' }}>
+                              {req.cumplido ? '✅' : pendienteOpcional ? '➖' : '❌'}
+                            </span>
+                            <span className="small fw-semibold flex-grow-1" style={{ color: 'var(--enmv-azul)' }}>
+                              {req.label}
+                              {!req.requerido && (
+                                <span className="badge bg-secondary ms-2" style={{ fontSize: '0.65rem', fontWeight: 500 }}>
+                                  Opcional
+                                </span>
+                              )}
+                            </span>
+                            <span className="requisito-chevron fw-bold" style={{ fontSize: '1rem' }}>
+                              ›
+                            </span>
+                          </Link>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

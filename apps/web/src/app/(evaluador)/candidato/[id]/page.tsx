@@ -53,7 +53,10 @@ const TIPOS_DOC_PERSONAL: { tipo: TipoDocPersonal; label: string }[] = [
   { tipo: 'certificado_competencia',   label: 'Certificado de competencia' },
 ];
 
-const TIPOS_DOC_PERSONAL_REQUERIDOS = TIPOS_DOC_PERSONAL.filter((t) => t.tipo !== 'visa');
+const TIPOS_DOC_OPCIONALES: TipoDocPersonal[] = ['visa', 'vacuna_fiebre_amarilla'];
+const TIPOS_DOC_PERSONAL_REQUERIDOS = TIPOS_DOC_PERSONAL.filter(
+  (t) => !TIPOS_DOC_OPCIONALES.includes(t.tipo),
+);
 
 interface DocPersonalFile {
   _id: string;
@@ -789,19 +792,23 @@ export default function CandidatoDetallePage() {
                     {TIPOS_DOC_PERSONAL.map(({ tipo, label }) => {
                       const resumen = docsPersonales.tipos.find((t) => t.tipo === tipo);
                       const cantidad = resumen?.cantidad ?? 0;
+                      const esOpcional = TIPOS_DOC_OPCIONALES.includes(tipo);
                       return (
                         <li key={tipo} className="mb-2">
                           <div className="d-flex justify-content-between align-items-start">
                             <span>
-                              <span className="me-2">{cantidad > 0 ? '✅' : tipo === 'visa' ? '⭕' : '❌'}</span>
+                              <span className="me-2">{cantidad > 0 ? '✅' : esOpcional ? '⭕' : '❌'}</span>
                               <strong>{label}</strong>
-                              {cantidad === 0 && (
-                                <span className="text-muted small ms-2">
-                                  {tipo === 'visa' ? 'Opcional' : 'Faltante'}
+                              {esOpcional && (
+                                <span className="badge bg-secondary ms-2" style={{ fontSize: '0.65rem', fontWeight: 500 }}>
+                                  Opcional
                                 </span>
                               )}
+                              {cantidad === 0 && !esOpcional && (
+                                <span className="text-muted small ms-2">Faltante</span>
+                              )}
                             </span>
-                            {cantidad > 0 || tipo === 'visa' ? (
+                            {cantidad > 0 || esOpcional ? (
                               <span className="text-muted small">{cantidad} archivo{cantidad !== 1 ? 's' : ''}</span>
                             ) : (
                               <span className="badge badge-pill-enmv badge-estado-rechazado">

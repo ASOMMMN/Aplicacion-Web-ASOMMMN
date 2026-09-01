@@ -1,50 +1,71 @@
 export const REQUISITOS_EXPEDIENTE = [
-  { clave: 'cv', label: 'Currículum Vitae', urlFrontend: '/mi-cv' },
-  { clave: 'CURP', label: 'CURP', urlFrontend: '/mis-docs-personales' },
+  {
+    clave: 'cv',
+    label: 'Currículum Vitae',
+    urlFrontend: '/mi-cv',
+    requerido: true,
+  },
+  {
+    clave: 'CURP',
+    label: 'CURP',
+    urlFrontend: '/mis-docs-personales',
+    requerido: true,
+  },
   {
     clave: 'INE',
     label: 'INE / Credencial de elector',
     urlFrontend: '/mis-docs-personales',
+    requerido: true,
   },
   {
     clave: 'acta_nacimiento',
     label: 'Acta de nacimiento',
     urlFrontend: '/mis-docs-personales',
+    requerido: true,
   },
   {
     clave: 'pasaporte',
     label: 'Pasaporte',
     urlFrontend: '/mis-docs-personales',
+    requerido: true,
   },
   {
     clave: 'vacuna_fiebre_amarilla',
     label: 'Vacuna de fiebre amarilla',
     urlFrontend: '/mis-docs-personales',
+    // Opcional: no bloquea el % de avance del expediente ni aparece en
+    // "Falta: ...". Sigue siendo evaluable como documento si se sube.
+    requerido: false,
   },
   {
     clave: 'constancia_participacion',
     label: 'Constancia de participación',
     urlFrontend: '/mis-docs-personales',
+    requerido: true,
   },
   {
     clave: 'certificado_medico',
     label: 'Certificado médico',
     urlFrontend: '/mis-docs-personales',
+    requerido: true,
   },
   {
     clave: 'libreta_identidad_maritima',
     label: 'Libreta de identidad marítima',
     urlFrontend: '/mis-docs-personales',
+    requerido: true,
   },
   {
     clave: 'certificado_competencia',
     label: 'Certificado de competencia',
     urlFrontend: '/mis-docs-personales',
+    requerido: true,
   },
   {
     clave: 'vacante',
     label: 'Vacante (puesto al que aplicas)',
     urlFrontend: '/mi-perfil',
+    requerido: true,
   },
 ] as const;
 

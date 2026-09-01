@@ -309,8 +309,7 @@ export class PostulantesService {
       .select('nombre apellidos')
       .lean();
     const carpeta =
-      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
-      userId;
+      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ?? userId;
     const key = `${carpeta}/${Date.now()}-${randomUUID()}-${this.sanitizeFileName(nombreArchivo)}`;
 
     const { url, key: s3Key } = await this.storage.putObject(
@@ -594,10 +593,14 @@ export class PostulantesService {
       label: r.label,
       urlFrontend: r.urlFrontend,
       cumplido: cumplidos.has(r.clave),
+      requerido: r.requerido,
     }));
 
-    const total = REQUISITOS_EXPEDIENTE.length;
-    const cumplidosCount = requisitos.filter((r) => r.cumplido).length;
+    // Los requisitos opcionales (ej. vacuna de fiebre amarilla) no cuentan
+    // para el % de avance ni bloquean el envío del expediente.
+    const requeridos = requisitos.filter((r) => r.requerido);
+    const total = requeridos.length;
+    const cumplidosCount = requeridos.filter((r) => r.cumplido).length;
     const porcentaje = Math.round((cumplidosCount / total) * 100);
     const estadoGuardado = postulante?.estadoExpediente ?? 'en_proceso';
     const estadoExpediente = resolverEstadoExpediente(

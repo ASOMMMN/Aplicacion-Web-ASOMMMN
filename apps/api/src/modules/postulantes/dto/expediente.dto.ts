@@ -5,6 +5,7 @@ export class RequisitoItemDto {
   @ApiProperty() label: string;
   @ApiProperty() cumplido: boolean;
   @ApiProperty() urlFrontend: string;
+  @ApiProperty() requerido: boolean;
 }
 
 export class ExpedienteProgressDto {

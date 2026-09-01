@@ -176,13 +176,18 @@ export class EvaluacionesService {
       if (tieneCV) cumplidos.add('cv');
       if (tieneVacante) cumplidos.add('vacante');
 
-      const requisitosFaltantes = REQUISITOS_EXPEDIENTE.filter(
-        (r) => !cumplidos.has(r.clave),
-      ).map((r) => r.label);
+      // Solo requisitos obligatorios cuentan para "Falta: ..." y el % de
+      // avance (ej. la vacuna de fiebre amarilla es opcional).
+      const requisitosObligatorios = REQUISITOS_EXPEDIENTE.filter(
+        (r) => r.requerido,
+      );
+      const requisitosFaltantes = requisitosObligatorios
+        .filter((r) => !cumplidos.has(r.clave))
+        .map((r) => r.label);
 
       const porcentajeExpediente = Math.round(
-        ((REQUISITOS_EXPEDIENTE.length - requisitosFaltantes.length) /
-          REQUISITOS_EXPEDIENTE.length) *
+        ((requisitosObligatorios.length - requisitosFaltantes.length) /
+          requisitosObligatorios.length) *
           100,
       );
 
@@ -265,13 +270,18 @@ export class EvaluacionesService {
     if (tieneCV) cumplidos.add('cv');
     if (tieneVacante) cumplidos.add('vacante');
 
-    const requisitosFaltantes = REQUISITOS_EXPEDIENTE.filter(
-      (r) => !cumplidos.has(r.clave),
-    ).map((r) => r.label);
+    // Solo requisitos obligatorios cuentan para "Falta: ..." y el % de
+    // avance (ej. la vacuna de fiebre amarilla es opcional).
+    const requisitosObligatorios = REQUISITOS_EXPEDIENTE.filter(
+      (r) => r.requerido,
+    );
+    const requisitosFaltantes = requisitosObligatorios
+      .filter((r) => !cumplidos.has(r.clave))
+      .map((r) => r.label);
 
     const porcentajeExpediente = Math.round(
-      ((REQUISITOS_EXPEDIENTE.length - requisitosFaltantes.length) /
-        REQUISITOS_EXPEDIENTE.length) *
+      ((requisitosObligatorios.length - requisitosFaltantes.length) /
+        requisitosObligatorios.length) *
         100,
     );
 

@@ -47,7 +47,13 @@ const TIPOS_DOC_MARITIMOS: { tipo: TipoDoc; label: string; icon: string }[] = [
 
 const TIPOS_DOC = [...TIPOS_DOC_IDENTIDAD, ...TIPOS_DOC_MARITIMOS];
 
+// visa queda fuera del checklist por completo (comportamiento existente);
+// vacuna se mantiene visible pero marcada como opcional, no bloquea el avance.
+const TIPOS_DOC_OPCIONALES: TipoDoc[] = ['vacuna_fiebre_amarilla'];
 const TIPOS_DOC_REQUERIDOS = TIPOS_DOC.filter((t) => t.tipo !== 'visa');
+const TIPOS_DOC_OBLIGATORIOS = TIPOS_DOC_REQUERIDOS.filter(
+  (t) => !TIPOS_DOC_OPCIONALES.includes(t.tipo),
+);
 
 interface DocFile {
   _id: string;
@@ -221,6 +227,11 @@ function TarjetaTipo({
           <div>
             <span className="me-2 fs-5">{info.icon}</span>
             <strong>{info.label}</strong>
+            {TIPOS_DOC_OPCIONALES.includes(info.tipo) && (
+              <span className="badge bg-secondary ms-2" style={{ fontSize: '0.65rem', fontWeight: 500 }}>
+                Opcional
+              </span>
+            )}
           </div>
           <span className={`badge badge-pill-enmv ${info.cantidad > 0 ? 'badge-estado-aprobado' : 'bg-secondary text-white'}`}>
             {info.cantidad} archivo{info.cantidad !== 1 ? 's' : ''}
@@ -353,8 +364,8 @@ export default function MisDocsPersonalesPage() {
     );
   }
 
-  const tiposReqConArchivos = (data?.tipos ?? []).filter(
-    (t) => t.tipo !== 'visa' && t.cantidad > 0,
+  const tiposObligatoriosConArchivos = (data?.tipos ?? []).filter(
+    (t) => !TIPOS_DOC_OPCIONALES.includes(t.tipo) && t.tipo !== 'visa' && t.cantidad > 0,
   ).length;
 
   return (
@@ -379,10 +390,10 @@ export default function MisDocsPersonalesPage() {
           {data && (
             <Col xs="auto">
               <span
-                className={`badge badge-pill-enmv ${tiposReqConArchivos === TIPOS_DOC_REQUERIDOS.length ? 'badge-estado-aprobado' : 'badge-estado-proceso'}`}
+                className={`badge badge-pill-enmv ${tiposObligatoriosConArchivos === TIPOS_DOC_OBLIGATORIOS.length ? 'badge-estado-aprobado' : 'badge-estado-proceso'}`}
                 style={{ fontSize: '0.9rem', padding: '0.4em 1em' }}
               >
-                {tiposReqConArchivos} / {TIPOS_DOC_REQUERIDOS.length} tipos entregados
+                {tiposObligatoriosConArchivos} / {TIPOS_DOC_OBLIGATORIOS.length} tipos entregados
               </span>
             </Col>
           )}
@@ -393,6 +404,7 @@ export default function MisDocsPersonalesPage() {
         <DocumentChecklist
           items={TIPOS_DOC_REQUERIDOS.map(({ tipo, label }) => ({
             label,
+            opcional: TIPOS_DOC_OPCIONALES.includes(tipo),
             completado: (data?.tipos.find((t) => t.tipo === tipo)?.cantidad ?? 0) > 0,
           }))}
         />
