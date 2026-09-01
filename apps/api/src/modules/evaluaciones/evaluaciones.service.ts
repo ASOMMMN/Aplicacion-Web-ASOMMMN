@@ -308,8 +308,14 @@ export class EvaluacionesService {
       })
       .select('documentoClave')
       .lean();
-    const docsEvaluados = new Set(evaluacionesDocs.map((e) => e.documentoClave))
-      .size;
+    // Defensivo: si algún registro llegara sin documentoClave (legado no
+    // migrado), no cuenta como documento evaluado. Ver mismo guard en
+    // listarCandidatos.
+    const docsEvaluados = new Set(
+      evaluacionesDocs
+        .map((e) => e.documentoClave)
+        .filter((clave): clave is string => Boolean(clave)),
+    ).size;
     const docsTotal = CLAVES_REQUISITO.length;
 
     return {
@@ -462,17 +468,35 @@ export class EvaluacionesService {
     const nombreEvaluador = `${evaluador.nombre} ${evaluador.apellidos}`.trim();
     const fechaEvaluacion = new Date();
 
-    const evaluacion = await this.evaluacionModel.create({
-      postulanteId: new Types.ObjectId(postulanteId),
-      evaluadorId: new Types.ObjectId(evaluadorUserId),
-      documentoClave: dto.documentoClave,
-      comentario: dto.comentario,
-      calificacion: dto.calificacion,
-      estadoSugerido: dto.estadoSugerido ?? 'en_proceso',
-      resultadoEvaluacion: dto.resultadoEvaluacion,
-      nombreEvaluador,
-      fechaEvaluacion,
-    });
+    // TEMP debug — quitar una vez confirmado en producción que las
+    // evaluaciones por documento persisten sin el error de índice único.
+    this.logger.debug(
+      `[TEMP] evaluarDocumento: postulanteId=${postulanteId} documentoClave=${dto.documentoClave} resultadoEvaluacion=${dto.resultadoEvaluacion}`,
+    );
+
+    let evaluacion: EvaluacionDocument;
+    try {
+      evaluacion = await this.evaluacionModel.create({
+        postulanteId: new Types.ObjectId(postulanteId),
+        evaluadorId: new Types.ObjectId(evaluadorUserId),
+        documentoClave: dto.documentoClave,
+        comentario: dto.comentario,
+        calificacion: dto.calificacion,
+        estadoSugerido: dto.estadoSugerido ?? 'en_proceso',
+        resultadoEvaluacion: dto.resultadoEvaluacion,
+        nombreEvaluador,
+        fechaEvaluacion,
+      });
+    } catch (err) {
+      this.logger.error(
+        `[TEMP] evaluarDocumento: create() falló para postulanteId=${postulanteId} documentoClave=${dto.documentoClave}: ${(err as Error).message}`,
+      );
+      throw err;
+    }
+
+    this.logger.debug(
+      `[TEMP] evaluarDocumento: guardado id=${evaluacion._id.toString()}`,
+    );
 
     await this.auditoria.registrar({
       actorId: evaluadorUserId,
