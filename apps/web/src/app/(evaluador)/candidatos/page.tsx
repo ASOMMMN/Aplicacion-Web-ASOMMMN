@@ -22,7 +22,7 @@ type Semaforo = 'verde' | 'amarillo' | 'rojo';
 type FiltroSemaforo = Semaforo | '';
 type EstadoExpediente = 'en_proceso' | 'enviado';
 
-type ResultadoEvaluacion = 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
+type EstadoEvaluacion = 'pendiente' | 'en_evaluacion' | 'evaluado';
 
 interface CandidatoItem {
   postulanteId: string;
@@ -38,20 +38,10 @@ interface CandidatoItem {
   porcentajeExpediente: number;
   requisitosFaltantes: string[];
   semaforoClave: Semaforo;
-  evaluado: boolean;
-  evaluadorNombre?: string;
-  fechaEvaluacion?: string;
-  resultadoEvaluacion?: ResultadoEvaluacion;
+  docsEvaluados: number;
+  docsTotal: number;
+  estadoEvaluacion: EstadoEvaluacion;
 }
-
-const formatFechaEvaluacion = (fecha: string) =>
-  new Date(fecha).toLocaleString('es-MX', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
 const semaforoConfig: Record<Semaforo, { color: string; label: string; bg: string }> = {
   verde:    { color: '#1D9E75', label: 'Completo',   bg: 'rgba(29,158,117,.12)' },
@@ -361,36 +351,31 @@ export default function CandidatosPage() {
                             )}
                           </td>
                           <td>
-                            {item.evaluado ? (
-                              <div>
-                                <div className="small fw-semibold text-success">
-                                  <i className="bi bi-check-circle-fill me-1" />
-                                  Evaluado
-                                </div>
-                                <div className="small">
-                                  Por: <strong>{item.evaluadorNombre}</strong>
-                                </div>
-                                {item.fechaEvaluacion && (
-                                  <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                    {formatFechaEvaluacion(item.fechaEvaluacion)}
-                                  </div>
-                                )}
-                              </div>
-                            ) : item.estadoExpediente === 'enviado' ? (
-                              <Badge bg="success" className="badge-pill-enmv">
-                                <i className="bi bi-check-lg" />
-                                Enviado
-                              </Badge>
-                            ) : (
-                              <span className="small text-muted">Pendiente</span>
-                            )}
+                            <div className="small fw-semibold">
+                              {item.estadoEvaluacion === 'evaluado' && (
+                                <i className="bi bi-check-circle-fill text-success me-1" />
+                              )}
+                              {item.estadoEvaluacion === 'en_evaluacion' && (
+                                <i className="bi bi-hourglass-split text-warning me-1" />
+                              )}
+                              {item.docsEvaluados}/{item.docsTotal} docs evaluados
+                            </div>
+                            {item.estadoEvaluacion === 'pendiente' &&
+                              (item.estadoExpediente === 'enviado' ? (
+                                <Badge bg="success" className="badge-pill-enmv">
+                                  <i className="bi bi-check-lg" />
+                                  Enviado
+                                </Badge>
+                              ) : (
+                                <span className="small text-muted">Pendiente</span>
+                              ))}
                           </td>
                           <td className="text-end">
                             <Link
                               href={`/candidato/${item.postulanteId}`}
-                              className={`btn btn-sm ${item.evaluado ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
+                              className="btn btn-sm btn-outline-primary"
                             >
-                              {item.evaluado ? 'Ver evaluación' : 'Revisar'}
+                              Revisar
                             </Link>
                           </td>
                         </tr>

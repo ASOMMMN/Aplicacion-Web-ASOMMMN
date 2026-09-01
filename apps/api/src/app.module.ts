@@ -24,6 +24,7 @@ import { AuditoriaModule } from './modules/auditoria/auditoria.module';
 import { MFAModule } from './modules/mfa/mfa.module';
 import { CursosModule } from './modules/cursos/cursos.module';
 import { BitacoraEmbarqueModule } from './modules/bitacora-embarque/bitacora-embarque.module';
+import { ExpedienteModule } from './modules/expediente/expediente.module';
 import { IngestIaModule } from './modules/ingest-ia/ingest-ia.module';
 import { EvalArchivosModule } from './modules/eval-archivos/eval-archivos.module';
 import { DocsPersonalesModule } from './modules/docs-personales/docs-personales.module';
@@ -118,6 +119,7 @@ import { HealthController } from './health.controller';
     ReportesModule,
     CursosModule,
     BitacoraEmbarqueModule,
+    ExpedienteModule,
     AuditoriaModule,
     MFAModule,
     IngestIaModule,

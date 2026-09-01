@@ -81,7 +81,11 @@ interface CandidatoDetalle {
   ciudad?: string;
   pais?: string;
   linkedinUrl?: string;
+  vacante?: string;
   estadoPostulacion: Estado;
+  docsEvaluados: number;
+  docsTotal: number;
+  estadoEvaluacion: 'pendiente' | 'en_evaluacion' | 'evaluado';
   cvActual?: {
     id: string;
     nombreOriginal: string;
@@ -97,6 +101,7 @@ type ResultadoEvaluacion = 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
 
 interface Comentario {
   id: string;
+  documentoClave: string;
   comentario: string;
   calificacion?: number;
   estadoSugerido: Estado;
@@ -105,6 +110,13 @@ interface Comentario {
   evaluadorId: string;
   evaluadorNombre: string;
   creadoEn: string;
+}
+
+interface EvaluacionDocumento {
+  documentoClave: string;
+  label: string;
+  ultimaEvaluacion: Comentario | null;
+  historial: Comentario[];
 }
 
 const resultadoLabel: Record<ResultadoEvaluacion, string> = {
@@ -216,23 +228,130 @@ const formatDateOnly = (date: string) =>
     year: 'numeric',
   });
 
+/**
+ * Panel de evaluación de un documento puntual del expediente. Nunca se
+ * deshabilita: siempre se puede evaluar o re-evaluar, sin importar si ya
+ * hay una evaluación previa (propia o de otro evaluador).
+ */
+function EvaluacionDocumentoPanel({
+  evaluacion,
+  saving,
+  onEvaluar,
+}: {
+  evaluacion: EvaluacionDocumento;
+  saving: boolean;
+  onEvaluar: (
+    documentoClave: string,
+    payload: { resultadoEvaluacion: ResultadoEvaluacion; comentario: string },
+  ) => Promise<void>;
+}) {
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [resultado, setResultado] = useState<ResultadoEvaluacion>('EN_REVISION');
+  const [comentario, setComentario] = useState('');
+
+  const ultima = evaluacion.ultimaEvaluacion;
+
+  const handleSubmit = async () => {
+    await onEvaluar(evaluacion.documentoClave, { resultadoEvaluacion: resultado, comentario });
+    setComentario('');
+    setMostrarForm(false);
+  };
+
+  return (
+    <div className="border rounded px-3 py-2 mt-2" style={{ background: '#fbfbfb' }}>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          {ultima ? (
+            <>
+              <Badge bg={resultadoColor[ultima.resultadoEvaluacion ?? 'EN_REVISION']} className="badge-pill-enmv me-2">
+                {resultadoLabel[ultima.resultadoEvaluacion ?? 'EN_REVISION']}
+              </Badge>
+              <span className="small text-muted">
+                {ultima.evaluadorNombre} · {formatDate(ultima.fechaEvaluacion ?? ultima.creadoEn)}
+              </span>
+              {ultima.comentario && <div className="small text-muted mt-1">{ultima.comentario}</div>}
+            </>
+          ) : (
+            <span className="small text-muted">Sin evaluar</span>
+          )}
+        </div>
+        <div className="d-flex gap-2 flex-shrink-0">
+          {evaluacion.historial.length > 0 && (
+            <Button size="sm" variant="link" className="p-0" onClick={() => setMostrarHistorial((v) => !v)}>
+              Historial ({evaluacion.historial.length})
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant={ultima ? 'outline-secondary' : 'outline-primary'}
+            onClick={() => setMostrarForm((v) => !v)}
+          >
+            {ultima ? 'Re-evaluar' : 'Evaluar'}
+          </Button>
+        </div>
+      </div>
+
+      {mostrarHistorial && evaluacion.historial.length > 0 && (
+        <div className="mt-2 d-flex flex-column gap-2">
+          {evaluacion.historial.map((h) => (
+            <div key={h.id} className="small border-top pt-1">
+              <Badge bg={resultadoColor[h.resultadoEvaluacion ?? 'EN_REVISION']} className="badge-pill-enmv me-2">
+                {resultadoLabel[h.resultadoEvaluacion ?? 'EN_REVISION']}
+              </Badge>
+              {h.evaluadorNombre} · {formatDate(h.fechaEvaluacion ?? h.creadoEn)}
+              {h.comentario && <div className="text-muted">{h.comentario}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {mostrarForm && (
+        <div className="mt-2 pt-2 border-top">
+          <Form.Select
+            size="sm"
+            className="mb-2"
+            value={resultado}
+            onChange={(e) => setResultado(e.target.value as ResultadoEvaluacion)}
+          >
+            <option value="APROBADO">Aprobado</option>
+            <option value="RECHAZADO">Rechazado</option>
+            <option value="EN_REVISION">En revisión</option>
+          </Form.Select>
+          <Form.Control
+            as="textarea"
+            rows={2}
+            className="mb-2"
+            maxLength={1000}
+            placeholder="Comentario (opcional)"
+            value={comentario}
+            onChange={(e) => setComentario(e.target.value)}
+          />
+          <Button size="sm" onClick={handleSubmit} disabled={saving}>
+            {saving ? 'Guardando...' : ultima ? 'Confirmar re-evaluación' : 'Confirmar evaluación'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CandidatoDetallePage() {
   const params = useParams<{ id: string }>();
   const candidatoId = useMemo(() => String(params?.id ?? ''), [params]);
 
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [detalle, setDetalle] = useState<CandidatoDetalle | null>(null);
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
+  const [evaluacionesPorDocumento, setEvaluacionesPorDocumento] = useState<EvaluacionDocumento[]>([]);
   const [mostrarHistorialComentarios, setMostrarHistorialComentarios] = useState(false);
   const [cursosData, setCursosData] = useState<CursosResponse | null>(null);
   const [docsPersonales, setDocsPersonales] = useState<DocsPersonalesResumen | null>(null);
   const [bitacoraData, setBitacoraData] = useState<BitacoraEmbarqueResponse | null>(null);
 
-  const [comentario, setComentario] = useState('');
-  const [calificacion, setCalificacion] = useState<number | ''>('');
-  const [resultadoEvaluacion, setResultadoEvaluacion] = useState<ResultadoEvaluacion>('EN_REVISION');
+  const [savingDocumento, setSavingDocumento] = useState<string | null>(null);
+  const [decidiendo, setDecidiendo] = useState(false);
 
   // ── IA ──────────────────────────────────────────────────────────────────────
   const [extraccion, setExtraccion] = useState<Extraccion | null>(null);
@@ -319,12 +438,14 @@ export default function CandidatoDetallePage() {
     try {
       setLoading(true);
       setError('');
-      const [detalleRes, comentariosRes] = await Promise.all([
+      const [detalleRes, comentariosRes, documentosRes] = await Promise.all([
         api.get<CandidatoDetalle>(`/evaluaciones/candidatos/${candidatoId}`),
         api.get<Comentario[]>(`/evaluaciones/${candidatoId}/comentarios`),
+        api.get<EvaluacionDocumento[]>(`/evaluaciones/${candidatoId}/documentos`),
       ]);
       setDetalle(detalleRes.data);
       setComentarios(comentariosRes.data ?? []);
+      setEvaluacionesPorDocumento(documentosRes.data ?? []);
 
       try {
         const cursosRes = await api.get<CursosResponse>(
@@ -378,11 +499,32 @@ export default function CandidatoDetallePage() {
     }
   }, [candidatoId, cargarExtraccion, cargarTodo]);
 
-  const submitComentario = async () => {
+  const evaluarDocumento = async (
+    documentoClave: string,
+    payload: { resultadoEvaluacion: ResultadoEvaluacion; comentario: string },
+  ) => {
+    try {
+      setSavingDocumento(documentoClave);
+      setError('');
+      await api.post(`/evaluaciones/${candidatoId}/comentarios`, {
+        documentoClave,
+        resultadoEvaluacion: payload.resultadoEvaluacion,
+        comentario: payload.comentario.trim() || undefined,
+      });
+      await cargarTodo();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: unknown } }; message?: string };
+      setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
+    } finally {
+      setSavingDocumento(null);
+    }
+  };
+
+  const decidirCandidato = async (decision: Estado) => {
     const conf = await Swal.fire({
       icon: 'warning',
-      title: '¿Confirmar evaluación?',
-      text: 'Esta acción no se puede deshacer.',
+      title: '¿Confirmar decisión final?',
+      text: `El candidato pasará a estado "${estadoLabel[decision]}" y se le notificará por correo. Esta acción se puede repetir después si cambia de opinión.`,
       showCancelButton: true,
       confirmButtonText: 'Sí, confirmar',
       cancelButtonText: 'Cancelar',
@@ -390,41 +532,21 @@ export default function CandidatoDetallePage() {
     if (!conf.isConfirmed) return;
 
     try {
-      setSaving(true);
+      setDecidiendo(true);
       setError('');
-      await api.post(`/evaluaciones/${candidatoId}/comentarios`, {
-        comentario: comentario.trim() || undefined,
-        calificacion: calificacion === '' ? undefined : Number(calificacion),
-        resultadoEvaluacion,
-      });
-
+      await api.post(`/evaluaciones/${candidatoId}/decision`, { decision });
       await Swal.fire({
         icon: 'success',
-        title: 'Evaluación registrada',
+        title: 'Decisión registrada',
         timer: 1800,
         showConfirmButton: false,
       });
-
-      setComentario('');
-      setCalificacion('');
       await cargarTodo();
     } catch (err: unknown) {
-      const axiosErr = err as {
-        response?: { status?: number; data?: { message?: unknown } };
-        message?: string;
-      };
-      if (axiosErr.response?.status === 409) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Ya evaluado',
-          text: 'Otro evaluador acaba de evaluar este expediente. Recarga la página.',
-        });
-        await cargarTodo();
-      } else {
-        setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
-      }
+      const axiosErr = err as { response?: { data?: { message?: unknown } }; message?: string };
+      setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
     } finally {
-      setSaving(false);
+      setDecidiendo(false);
     }
   };
 
@@ -434,43 +556,18 @@ export default function CandidatoDetallePage() {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const exportarResumen = async (formato: 'docx' | 'pdf') => {
+  const exportarExpediente = async (formato: 'docx' | 'pdf') => {
     if (!detalle) return;
     try {
       const res = await api.get<Blob>(
-        `/cursos/postulante/${detalle.postulanteId}/exportar-resumen-doc`,
-        { params: { formato }, responseType: 'blob' },
-      );
-      const url = window.URL.createObjectURL(res.data);
-      const link = document.createElement('a');
-      const nombreNorm = `${detalle.nombre}-${detalle.apellidos}`.replace(/\s+/g, '-');
-      link.setAttribute('download', `resumen-cursos-${nombreNorm}.${formato}`);
-      link.href = url;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo generar el archivo. Inténtalo de nuevo.',
-      });
-    }
-  };
-
-  const exportarBitacora = async (formato: 'docx' | 'pdf') => {
-    if (!detalle) return;
-    try {
-      const res = await api.get<Blob>(
-        `/bitacora-embarque/postulante/${detalle.postulanteId}/exportar-bitacora-doc`,
+        `/candidatos/${detalle.postulanteId}/expediente`,
         { params: { formato }, responseType: 'blob' },
       );
       const url = window.URL.createObjectURL(res.data);
       const link = document.createElement('a');
       const nombreNorm = `${detalle.nombre}-${detalle.apellidos}`.replace(/\s+/g, '-');
       const fechaHoy = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      link.setAttribute('download', `Bitacora-Embarque-${nombreNorm}-${fechaHoy}.${formato}`);
+      link.setAttribute('download', `Expediente_${nombreNorm}_${fechaHoy}.${formato}`);
       link.href = url;
       document.body.appendChild(link);
       link.click();
@@ -508,6 +605,10 @@ export default function CandidatoDetallePage() {
     (t) => t.tipo !== 'visa' && t.cantidad > 0,
   ).length;
 
+  const evalPorClave = new Map(
+    evaluacionesPorDocumento.map((e) => [e.documentoClave, e]),
+  );
+
   return (
     <div className="nautical-panel min-vh-100 py-4">
       <Container fluid>
@@ -524,6 +625,19 @@ export default function CandidatoDetallePage() {
                 Archivos del evaluador
               </Link>
             )}
+            <DropdownButton
+              variant="outline-primary"
+              size="sm"
+              title="Generar Expediente"
+              id="btn-generar-expediente"
+            >
+              <Dropdown.Item onClick={() => exportarExpediente('docx')}>
+                Word (.docx)
+              </Dropdown.Item>
+              <Dropdown.Item onClick={() => exportarExpediente('pdf')}>
+                PDF (.pdf)
+              </Dropdown.Item>
+            </DropdownButton>
           </Col>
         </Row>
 
@@ -557,6 +671,14 @@ export default function CandidatoDetallePage() {
                     {estadoLabel[detalle.estadoPostulacion]}
                   </Badge>
                 </p>
+                <p className="mb-0 mt-2">Vacante: {detalle.vacante || <span className="text-muted">Sin definir</span>}</p>
+                {evalPorClave.get('vacante') && (
+                  <EvaluacionDocumentoPanel
+                    evaluacion={evalPorClave.get('vacante')!}
+                    saving={savingDocumento === 'vacante'}
+                    onEvaluar={evaluarDocumento}
+                  />
+                )}
               </Card.Body>
             </Card>
 
@@ -600,6 +722,13 @@ export default function CandidatoDetallePage() {
                     <IconAncla size={16} />
                     <span>Este candidato aun no tiene CV cargado.</span>
                   </div>
+                )}
+                {evalPorClave.get('cv') && (
+                  <EvaluacionDocumentoPanel
+                    evaluacion={evalPorClave.get('cv')!}
+                    saving={savingDocumento === 'cv'}
+                    onEvaluar={evaluarDocumento}
+                  />
                 )}
               </Card.Body>
             </Card>
@@ -695,6 +824,13 @@ export default function CandidatoDetallePage() {
                               ))}
                             </div>
                           )}
+                          {tipo !== 'visa' && evalPorClave.get(tipo) && (
+                            <EvaluacionDocumentoPanel
+                              evaluacion={evalPorClave.get(tipo)!}
+                              saving={savingDocumento === tipo}
+                              onEvaluar={evaluarDocumento}
+                            />
+                          )}
                         </li>
                       );
                     })}
@@ -705,27 +841,11 @@ export default function CandidatoDetallePage() {
 
             <Card id="cursos-y-certificaciones" className="card-enmv card-enmv-top-dorado mt-4">
               <Card.Body>
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5 className="section-title mb-0">
-                    <IconTimon size={17} className="nautical-icon" />
-                    Cursos y certificaciones
-                    <span className="anchor-glyph">⚓</span>
-                  </h5>
-                  <DropdownButton
-                    variant="outline-primary"
-                    size="sm"
-                    title="Generar resumen"
-                    id="btn-generar-resumen"
-                    align="end"
-                  >
-                    <Dropdown.Item onClick={() => exportarResumen('docx')}>
-                      Word (.docx)
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => exportarResumen('pdf')}>
-                      PDF (.pdf)
-                    </Dropdown.Item>
-                  </DropdownButton>
-                </div>
+                <h5 className="section-title mb-3">
+                  <IconTimon size={17} className="nautical-icon" />
+                  Cursos y certificaciones
+                  <span className="anchor-glyph">⚓</span>
+                </h5>
 
                 {!cursosData || cursosData.total === 0 ? (
                   <div className="empty-state">
@@ -813,32 +933,11 @@ export default function CandidatoDetallePage() {
 
             <Card id="bitacora-de-embarque" className="card-enmv card-enmv-top-dorado mt-4">
               <Card.Body>
-                <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5 className="section-title mb-0">
-                    <IconBarco size={17} className="nautical-icon" />
-                    Bitácora de Embarque
-                    <span className="anchor-glyph">⚓</span>
-                  </h5>
-                  <DropdownButton
-                    variant="outline-primary"
-                    size="sm"
-                    title={
-                      bitacoraData && bitacoraData.total > 0
-                        ? 'Generar Bitácora'
-                        : 'Sin embarques registrados'
-                    }
-                    id="btn-generar-bitacora"
-                    align="end"
-                    disabled={!bitacoraData || bitacoraData.total === 0}
-                  >
-                    <Dropdown.Item onClick={() => exportarBitacora('docx')}>
-                      Word (.docx)
-                    </Dropdown.Item>
-                    <Dropdown.Item onClick={() => exportarBitacora('pdf')}>
-                      PDF (.pdf)
-                    </Dropdown.Item>
-                  </DropdownButton>
-                </div>
+                <h5 className="section-title mb-3">
+                  <IconBarco size={17} className="nautical-icon" />
+                  Bitácora de Embarque
+                  <span className="anchor-glyph">⚓</span>
+                </h5>
 
                 {!bitacoraData || bitacoraData.total === 0 ? (
                   <div className="empty-state">
@@ -862,90 +961,34 @@ export default function CandidatoDetallePage() {
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <i className="bi bi-compass nautical-icon" />
-                  {comentarios.length === 0 ? 'Registrar evaluacion' : 'Evaluación'}
+                  Decisión final del candidato
                   <span className="anchor-glyph">⚓</span>
                 </h5>
-
-                {comentarios.length > 0 ? (
-                  <div>
-                    <div className="fw-semibold text-success mb-2">
-                      <i className="bi bi-check-circle-fill me-1" />
-                      Expediente evaluado
-                    </div>
-                    <div className="mb-1">
-                      <strong>Evaluador:</strong> {comentarios[0].evaluadorNombre}
-                    </div>
-                    <div className="mb-1">
-                      <strong>Fecha:</strong>{' '}
-                      {new Date(comentarios[0].fechaEvaluacion ?? comentarios[0].creadoEn).toLocaleString(
-                        'es-MX',
-                        { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' },
-                      )}
-                    </div>
-                    <div className="mb-2">
-                      <strong>Resultado:</strong>{' '}
-                      {comentarios[0].resultadoEvaluacion ? (
-                        <Badge bg={resultadoColor[comentarios[0].resultadoEvaluacion]} className="badge-pill-enmv">
-                          {resultadoLabel[comentarios[0].resultadoEvaluacion]}
-                        </Badge>
-                      ) : (
-                        <Badge bg={estadoColor[comentarios[0].estadoSugerido]} className="badge-pill-enmv">
-                          {estadoLabel[comentarios[0].estadoSugerido]}
-                        </Badge>
-                      )}
-                    </div>
-                    <div>
-                      <strong>Comentarios:</strong> {comentarios[0].comentario || 'Sin comentarios'}
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Resultado</Form.Label>
-                      <Form.Select
-                        value={resultadoEvaluacion}
-                        onChange={(e) => setResultadoEvaluacion(e.target.value as ResultadoEvaluacion)}
-                      >
-                        <option value="APROBADO">Aprobado</option>
-                        <option value="RECHAZADO">Rechazado</option>
-                        <option value="EN_REVISION">En revisión</option>
-                      </Form.Select>
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                      <Form.Label>Comentarios (opcional)</Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={4}
-                        maxLength={1000}
-                        value={comentario}
-                        onChange={(e) => setComentario(e.target.value)}
-                        placeholder="Escribe observaciones, fortalezas y areas de mejora"
-                      />
-                      <div className="text-muted small text-end mt-1">{comentario.length}/1000</div>
-                    </Form.Group>
-
-                    <Form.Group className="mb-3">
-                      <Form.Label>Calificacion (1-10, opcional)</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={calificacion}
-                        onChange={(e) =>
-                          setCalificacion(
-                            e.target.value === '' ? '' : Math.max(1, Math.min(10, Number(e.target.value))),
-                          )
-                        }
-                        style={{ maxWidth: 160 }}
-                      />
-                    </Form.Group>
-
-                    <Button onClick={submitComentario} disabled={saving}>
-                      {saving ? 'Guardando...' : 'Confirmar evaluación'}
-                    </Button>
-                  </>
-                )}
+                <p className="small text-muted">
+                  Independiente de las evaluaciones por documento. Notifica al postulante por correo y se puede
+                  volver a cambiar más adelante.
+                </p>
+                <p className="mb-3">
+                  Estado actual:{' '}
+                  <Badge bg={estadoColor[detalle.estadoPostulacion]} className="badge-pill-enmv">
+                    <i className={`bi ${estadoIconClass[detalle.estadoPostulacion]}`} />
+                    {estadoLabel[detalle.estadoPostulacion]}
+                  </Badge>
+                </p>
+                <div className="d-flex gap-2 flex-wrap">
+                  <Button variant="success" size="sm" disabled={decidiendo} onClick={() => decidirCandidato('completado')}>
+                    <i className="bi bi-check-lg me-1" />
+                    Aprobar candidato
+                  </Button>
+                  <Button variant="danger" size="sm" disabled={decidiendo} onClick={() => decidirCandidato('rechazado')}>
+                    <i className="bi bi-x-lg me-1" />
+                    Rechazar candidato
+                  </Button>
+                  <Button variant="outline-secondary" size="sm" disabled={decidiendo} onClick={() => decidirCandidato('en_proceso')}>
+                    <i className="bi bi-clock me-1" />
+                    Marcar en proceso
+                  </Button>
+                </div>
               </Card.Body>
             </Card>
 
@@ -962,7 +1005,14 @@ export default function CandidatoDetallePage() {
                   </div>
                 ) : (
                   <div className="d-flex flex-column gap-2">
-                    <ComentarioCard item={comentarios[0]} />
+                    <ComentarioCard
+                      item={{
+                        ...comentarios[0],
+                        documentoLabel:
+                          evalPorClave.get(comentarios[0].documentoClave)?.label ??
+                          (comentarios[0].documentoClave === 'general' ? 'Evaluación general (legado)' : comentarios[0].documentoClave),
+                      }}
+                    />
 
                     {comentarios.length > 1 && (
                       <>
@@ -983,7 +1033,15 @@ export default function CandidatoDetallePage() {
                         {mostrarHistorialComentarios && (
                           <div className="d-flex flex-column gap-2">
                             {comentarios.slice(1).map((item) => (
-                              <ComentarioCard key={item.id} item={item} />
+                              <ComentarioCard
+                                key={item.id}
+                                item={{
+                                  ...item,
+                                  documentoLabel:
+                                    evalPorClave.get(item.documentoClave)?.label ??
+                                    (item.documentoClave === 'general' ? 'Evaluación general (legado)' : item.documentoClave),
+                                }}
+                              />
                             ))}
                           </div>
                         )}

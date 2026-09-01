@@ -13,9 +13,11 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { CrearEvaluacionDto } from './dto/crear-evaluacion.dto';
+import { DecidirCandidatoDto } from './dto/decidir-candidato.dto';
 import {
   CandidatoDetalleDto,
   CandidatoListaItemDto,
+  EvaluacionDocumentoDto,
   EvaluacionGlobalItemDto,
   EvaluacionItemDto,
 } from './dto/evaluaciones-response.dto';
@@ -74,19 +76,47 @@ export class EvaluacionesController {
     return this.evaluacionesService.listarComentarios(id);
   }
 
+  @Get(':id/documentos')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary: 'Listar evaluaciones agrupadas por documento del expediente',
+  })
+  @ApiResponse({ status: 200, type: [EvaluacionDocumentoDto] })
+  async listarEvaluacionesPorDocumento(
+    @Param('id') id: string,
+  ): Promise<EvaluacionDocumentoDto[]> {
+    return this.evaluacionesService.listarEvaluacionesPorDocumento(id);
+  }
+
   @Post(':id/comentarios')
   @Roles('evaluador', 'administrador')
   @ApiOperation({
-    summary: 'Registrar comentario/evaluación para un candidato',
+    summary: 'Evaluar un documento del expediente de un candidato',
   })
   @ApiResponse({ status: 201, type: EvaluacionItemDto })
-  async crearComentario(
+  async evaluarDocumento(
     @Param('id') id: string,
     @Body() dto: CrearEvaluacionDto,
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
   ): Promise<EvaluacionItemDto> {
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
-    return this.evaluacionesService.crearComentario(id, user.userId, dto, ip);
+    return this.evaluacionesService.evaluarDocumento(id, user.userId, dto, ip);
+  }
+
+  @Post(':id/decision')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary: 'Registrar la decisión final (aprobado/rechazado/en proceso) de un candidato',
+  })
+  @ApiResponse({ status: 201, type: CandidatoDetalleDto })
+  async decidirCandidato(
+    @Param('id') id: string,
+    @Body() dto: DecidirCandidatoDto,
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+  ): Promise<CandidatoDetalleDto> {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
+    return this.evaluacionesService.decidirCandidato(id, user.userId, dto, ip);
   }
 }

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -26,18 +25,32 @@ import { DocumentosService } from '../documentos/documentos.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { CrearEvaluacionDto } from './dto/crear-evaluacion.dto';
+import { DecidirCandidatoDto } from './dto/decidir-candidato.dto';
 import {
   CandidatoDetalleDto,
   CandidatoListaItemDto,
+  EvaluacionDocumentoDto,
   EvaluacionGlobalItemDto,
   EvaluacionItemDto,
 } from './dto/evaluaciones-response.dto';
 import { Evaluacion, EvaluacionDocument } from './schemas/evaluacion.schema';
 import {
+  CLAVES_REQUISITO,
   REQUISITOS_EXPEDIENTE,
   calcularSemaforo,
   resolverEstadoExpediente,
 } from '../postulantes/constants/expediente.constants';
+
+const DOCUMENTO_CLAVE_LEGADO = 'general';
+
+function calcularEstadoEvaluacion(
+  docsEvaluados: number,
+  docsTotal: number,
+): 'pendiente' | 'en_evaluacion' | 'evaluado' {
+  if (docsEvaluados === 0) return 'pendiente';
+  if (docsEvaluados >= docsTotal) return 'evaluado';
+  return 'en_evaluacion';
+}
 
 @Injectable()
 export class EvaluacionesService {
@@ -79,6 +92,7 @@ export class EvaluacionesService {
         postulanteId: String(postulante?._id ?? ''),
         postulanteName:
           `${usuario?.nombre ?? ''} ${usuario?.apellidos ?? ''}`.trim(),
+        documentoClave: item.documentoClave,
         evaluadorId: String(item.evaluadorId?._id ?? ''),
         evaluadorNombre:
           `${item.evaluadorId?.nombre ?? ''} ${item.evaluadorId?.apellidos ?? ''}`.trim(),
@@ -111,10 +125,7 @@ export class EvaluacionesService {
           .lean(),
         this.evaluacionModel
           .find({ postulanteId: { $in: postulanteIds } })
-          .select(
-            'postulanteId nombreEvaluador evaluadorId fechaEvaluacion creadoEn resultadoEvaluacion',
-          )
-          .populate('evaluadorId', 'nombre apellidos')
+          .select('postulanteId documentoClave')
           .lean(),
       ]);
 
@@ -136,12 +147,14 @@ export class EvaluacionesService {
       dpByPostulante.get(key)!.add(dp.tipo);
     }
 
-    const evalByPostulante = new Map<
-      string,
-      (typeof evaluacionesList)[number]
-    >();
+    const docsEvaluadosByPostulante = new Map<string, Set<string>>();
     for (const ev of evaluacionesList) {
-      evalByPostulante.set(String(ev.postulanteId), ev);
+      if (ev.documentoClave === DOCUMENTO_CLAVE_LEGADO) continue;
+      const key = String(ev.postulanteId);
+      if (!docsEvaluadosByPostulante.has(key)) {
+        docsEvaluadosByPostulante.set(key, new Set());
+      }
+      docsEvaluadosByPostulante.get(key)!.add(ev.documentoClave);
     }
 
     const idsACorregir: Types.ObjectId[] = [];
@@ -178,10 +191,9 @@ export class EvaluacionesService {
         idsACorregir.push((p as { _id: Types.ObjectId })._id);
       }
 
-      const evaluacion = evalByPostulante.get(String(p._id));
-      const evaluadorPopulado = evaluacion?.evaluadorId as unknown as
-        | { nombre?: string; apellidos?: string }
-        | undefined;
+      const docsEvaluados =
+        docsEvaluadosByPostulante.get(String(p._id))?.size ?? 0;
+      const docsTotal = CLAVES_REQUISITO.length;
 
       return {
         postulanteId: String(p._id),
@@ -203,14 +215,9 @@ export class EvaluacionesService {
           porcentajeExpediente,
           estadoExpediente,
         ),
-        evaluado: Boolean(evaluacion),
-        evaluadorNombre:
-          evaluacion?.nombreEvaluador ??
-          (evaluadorPopulado
-            ? `${evaluadorPopulado.nombre ?? ''} ${evaluadorPopulado.apellidos ?? ''}`.trim()
-            : undefined),
-        fechaEvaluacion: evaluacion?.fechaEvaluacion ?? evaluacion?.creadoEn,
-        resultadoEvaluacion: evaluacion?.resultadoEvaluacion,
+        docsEvaluados,
+        docsTotal,
+        estadoEvaluacion: calcularEstadoEvaluacion(docsEvaluados, docsTotal),
       };
     });
 
@@ -279,6 +286,17 @@ export class EvaluacionesService {
       );
     }
 
+    const evaluacionesDocs = await this.evaluacionModel
+      .find({
+        postulanteId: postulante._id,
+        documentoClave: { $ne: DOCUMENTO_CLAVE_LEGADO },
+      })
+      .select('documentoClave')
+      .lean();
+    const docsEvaluados = new Set(evaluacionesDocs.map((e) => e.documentoClave))
+      .size;
+    const docsTotal = CLAVES_REQUISITO.length;
+
     return {
       postulanteId: String(postulante._id),
       usuarioId: String(user?._id),
@@ -301,6 +319,9 @@ export class EvaluacionesService {
         porcentajeExpediente,
         estadoExpediente,
       ),
+      docsEvaluados,
+      docsTotal,
+      estadoEvaluacion: calcularEstadoEvaluacion(docsEvaluados, docsTotal),
       cvActual: cvActual
         ? {
             id: cvActual._id,
@@ -326,8 +347,47 @@ export class EvaluacionesService {
       .sort({ creadoEn: -1 })
       .lean();
 
-    return evaluaciones.map((item: any) => ({
+    return evaluaciones.map((item: any) => this.toEvaluacionItemDto(item));
+  }
+
+  async listarEvaluacionesPorDocumento(
+    postulanteId: string,
+  ): Promise<EvaluacionDocumentoDto[]> {
+    if (!Types.ObjectId.isValid(postulanteId)) {
+      throw new BadRequestException('ID de postulante inválido');
+    }
+
+    const evaluaciones = await this.evaluacionModel
+      .find({
+        postulanteId: new Types.ObjectId(postulanteId),
+        documentoClave: { $ne: DOCUMENTO_CLAVE_LEGADO },
+      })
+      .populate('evaluadorId', 'nombre apellidos')
+      .sort({ creadoEn: -1 })
+      .lean();
+
+    const porClave = new Map<string, EvaluacionItemDto[]>();
+    for (const item of evaluaciones as any[]) {
+      const clave = item.documentoClave;
+      if (!porClave.has(clave)) porClave.set(clave, []);
+      porClave.get(clave)!.push(this.toEvaluacionItemDto(item));
+    }
+
+    return REQUISITOS_EXPEDIENTE.map((requisito) => {
+      const historial = porClave.get(requisito.clave) ?? [];
+      return {
+        documentoClave: requisito.clave,
+        label: requisito.label,
+        ultimaEvaluacion: historial[0] ?? null,
+        historial,
+      };
+    });
+  }
+
+  private toEvaluacionItemDto(item: any): EvaluacionItemDto {
+    return {
       id: String(item._id),
+      documentoClave: item.documentoClave,
       comentario: item.comentario,
       calificacion: item.calificacion,
       estadoSugerido: item.estadoSugerido,
@@ -338,7 +398,7 @@ export class EvaluacionesService {
         item.nombreEvaluador ??
         `${item.evaluadorId?.nombre ?? ''} ${item.evaluadorId?.apellidos ?? ''}`.trim(),
       creadoEn: item.creadoEn,
-    }));
+    };
   }
 
   async listarMisComentarios(userId: string): Promise<EvaluacionItemDto[]> {
@@ -358,12 +418,78 @@ export class EvaluacionesService {
     return this.listarComentarios(String(postulante._id));
   }
 
-  async crearComentario(
+  /**
+   * Evalúa un documento puntual del expediente. Append-only y sin candado:
+   * cualquier evaluador puede evaluar o re-evaluar cualquier documento en
+   * cualquier momento; el historial completo se conserva (ver
+   * listarEvaluacionesPorDocumento). No toca estadoPostulacion — la decisión
+   * final del candidato es una acción aparte (ver decidirCandidato).
+   */
+  async evaluarDocumento(
     postulanteId: string,
     evaluadorUserId: string,
     dto: CrearEvaluacionDto,
     ipAddress?: string,
   ): Promise<EvaluacionItemDto> {
+    if (!Types.ObjectId.isValid(postulanteId)) {
+      throw new BadRequestException('ID de postulante inválido');
+    }
+    if (!CLAVES_REQUISITO.includes(dto.documentoClave as never)) {
+      throw new BadRequestException('documentoClave inválida');
+    }
+
+    const postulante = await this.postulanteModel.findById(postulanteId);
+    if (!postulante) throw new NotFoundException('Postulante no encontrado');
+
+    const evaluador = await this.usuarioModel.findById(evaluadorUserId);
+    if (!evaluador) throw new NotFoundException('Evaluador no encontrado');
+
+    const nombreEvaluador = `${evaluador.nombre} ${evaluador.apellidos}`.trim();
+    const fechaEvaluacion = new Date();
+
+    const evaluacion = await this.evaluacionModel.create({
+      postulanteId: new Types.ObjectId(postulanteId),
+      evaluadorId: new Types.ObjectId(evaluadorUserId),
+      documentoClave: dto.documentoClave,
+      comentario: dto.comentario,
+      calificacion: dto.calificacion,
+      estadoSugerido: dto.estadoSugerido ?? 'en_proceso',
+      resultadoEvaluacion: dto.resultadoEvaluacion,
+      nombreEvaluador,
+      fechaEvaluacion,
+    });
+
+    await this.auditoria.registrar({
+      actorId: evaluadorUserId,
+      actorEmail: evaluador.email,
+      accion: 'evaluaciones.documento_evaluado',
+      recurso: 'postulante',
+      recursoId: postulanteId,
+      ipAddress,
+      metadata: {
+        documentoClave: dto.documentoClave,
+        resultadoEvaluacion: dto.resultadoEvaluacion,
+        calificacion: dto.calificacion,
+      },
+    });
+
+    return this.toEvaluacionItemDto({
+      ...evaluacion.toObject(),
+      evaluadorId: { _id: evaluador._id },
+    });
+  }
+
+  /**
+   * Decisión final del candidato (aprobado/rechazado/en proceso), separada
+   * de las evaluaciones por documento. Fija estadoPostulacion y notifica al
+   * postulante por correo, igual que antes hacía crearComentario.
+   */
+  async decidirCandidato(
+    postulanteId: string,
+    evaluadorUserId: string,
+    dto: DecidirCandidatoDto,
+    ipAddress?: string,
+  ): Promise<CandidatoDetalleDto> {
     if (!Types.ObjectId.isValid(postulanteId)) {
       throw new BadRequestException('ID de postulante inválido');
     }
@@ -375,81 +501,24 @@ export class EvaluacionesService {
       }>('usuarioId', 'nombre apellidos email');
     if (!postulante) throw new NotFoundException('Postulante no encontrado');
 
-    const evaluacionExistente = await this.evaluacionModel
-      .findOne({ postulanteId: new Types.ObjectId(postulanteId) })
-      .populate<{ evaluadorId: UsuarioDocument }>(
-        'evaluadorId',
-        'nombre apellidos',
-      )
-      .sort({ creadoEn: -1 })
-      .lean();
-
-    if (evaluacionExistente) {
-      const nombreExistente =
-        evaluacionExistente.nombreEvaluador ??
-        `${evaluacionExistente.evaluadorId?.nombre ?? ''} ${evaluacionExistente.evaluadorId?.apellidos ?? ''}`.trim();
-      const fechaExistente = new Date(
-        evaluacionExistente.fechaEvaluacion ?? evaluacionExistente.creadoEn,
-      ).toLocaleString('es-MX', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      throw new ConflictException(
-        `Este expediente ya fue evaluado por ${nombreExistente || 'otro evaluador'} el ${fechaExistente}`,
-      );
-    }
-
     const evaluador = await this.usuarioModel.findById(evaluadorUserId);
     if (!evaluador) throw new NotFoundException('Evaluador no encontrado');
 
     const estadoAnterior = postulante.estadoPostulacion;
-
-    const mapaResultado: Record<
-      'APROBADO' | 'RECHAZADO' | 'EN_REVISION',
-      'en_proceso' | 'completado' | 'rechazado'
-    > = {
-      APROBADO: 'completado',
-      RECHAZADO: 'rechazado',
-      EN_REVISION: 'en_proceso',
-    };
-    const estadoSugerido = mapaResultado[dto.resultadoEvaluacion];
-    const nombreEvaluador = `${evaluador.nombre} ${evaluador.apellidos}`.trim();
-    const fechaEvaluacion = new Date();
-
-    const evaluacion = await this.evaluacionModel.create({
-      postulanteId: new Types.ObjectId(postulanteId),
-      evaluadorId: new Types.ObjectId(evaluadorUserId),
-      comentario: dto.comentario,
-      calificacion: dto.calificacion,
-      estadoSugerido,
-      resultadoEvaluacion: dto.resultadoEvaluacion,
-      nombreEvaluador,
-      fechaEvaluacion,
-    });
-
-    postulante.estadoPostulacion = estadoSugerido;
+    postulante.estadoPostulacion = dto.decision;
     await postulante.save();
 
     await this.auditoria.registrar({
       actorId: evaluadorUserId,
       actorEmail: evaluador.email,
-      accion: 'evaluaciones.comentario_creado',
+      accion: 'evaluaciones.decision_candidato',
       recurso: 'postulante',
       recursoId: postulanteId,
       ipAddress,
-      metadata: {
-        estadoAnterior,
-        estadoNuevo: estadoSugerido,
-        resultadoEvaluacion: dto.resultadoEvaluacion,
-        calificacion: dto.calificacion,
-      },
+      metadata: { estadoAnterior, estadoNuevo: dto.decision },
     });
 
     const usuarioPostulante = postulante.usuarioId;
-
     if (usuarioPostulante?.email) {
       try {
         const frontendUrl = this.config.get(
@@ -459,7 +528,7 @@ export class EvaluacionesService {
         await this.notificaciones.enviarNotificacionCambioEstado(
           usuarioPostulante.email,
           usuarioPostulante.nombre,
-          estadoSugerido,
+          dto.decision,
           `${frontendUrl}/estado`,
         );
       } catch (err) {
@@ -469,16 +538,6 @@ export class EvaluacionesService {
       }
     }
 
-    return {
-      id: String(evaluacion._id),
-      comentario: evaluacion.comentario,
-      calificacion: evaluacion.calificacion,
-      estadoSugerido: evaluacion.estadoSugerido,
-      resultadoEvaluacion: evaluacion.resultadoEvaluacion,
-      fechaEvaluacion: evaluacion.fechaEvaluacion,
-      evaluadorId: String(evaluador._id),
-      evaluadorNombre: nombreEvaluador,
-      creadoEn: evaluacion.creadoEn,
-    };
+    return this.obtenerCandidato(postulanteId);
   }
 }

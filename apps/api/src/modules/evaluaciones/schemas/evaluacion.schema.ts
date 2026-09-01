@@ -17,6 +17,12 @@ export class Evaluacion {
   @Prop({ type: Types.ObjectId, ref: 'Usuario', required: true, index: true })
   evaluadorId: Types.ObjectId;
 
+  // Clave del documento evaluado (una de CLAVES_REQUISITO en
+  // expediente.constants.ts), o 'general' para registros legados de cuando
+  // la evaluación era del expediente completo, no de un documento puntual.
+  @Prop({ type: String, required: true, trim: true, index: true })
+  documentoClave: string;
+
   @Prop({ required: true, trim: true })
   comentario: string;
 
@@ -51,17 +57,8 @@ export type EvaluacionDocument = Evaluacion & Document;
 
 EvaluacionSchema.index({ postulanteId: 1, creadoEn: -1 });
 
-// Candado real a nivel BD: un candidato no puede tener más de una evaluación
-// CON resultado final (resultadoEvaluacion seteado). Es parcial (no un índice
-// único plano) porque hay historial legado de múltiples comentarios por
-// candidato de antes de esta funcionalidad, ninguno con resultadoEvaluacion.
-EvaluacionSchema.index(
-  { postulanteId: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { resultadoEvaluacion: { $exists: true } },
-    // Nombre explícito: el índice no-único autogenerado por `index: true` en
-    // postulanteId ya ocupa el nombre por defecto "postulanteId_1".
-    name: 'postulanteId_1_evaluacion_unica',
-  },
-);
+// Historial por documento: última evaluación primero. Sin unique — un mismo
+// documento puede re-evaluarse cualquier cantidad de veces, por cualquier
+// evaluador; no hay candado a nivel BD (ver migrar-evaluaciones-documento.ts,
+// que dropea el índice único que existía antes de este cambio).
+EvaluacionSchema.index({ postulanteId: 1, documentoClave: 1, creadoEn: -1 });

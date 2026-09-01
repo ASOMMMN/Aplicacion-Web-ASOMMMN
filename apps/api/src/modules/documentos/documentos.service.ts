@@ -261,7 +261,12 @@ export class DocumentosService {
         'Este CV es de un almacenamiento anterior y ya no está disponible. Vuelve a subirlo.',
       );
     }
-    return this.storageService.getObjectBuffer(documento.cloudinaryUrl);
+    const signedUrl = await this.storageService.getSecureDownloadUrl(
+      documento.cloudinaryUrl,
+      documento.nombreOriginal,
+      documento.tipoMime,
+    );
+    return this.storageService.getObjectBuffer(signedUrl);
   }
 
   async eliminarCV(

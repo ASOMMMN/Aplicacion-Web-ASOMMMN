@@ -8,8 +8,16 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { CLAVES_REQUISITO } from '../../postulantes/constants/expediente.constants';
 
 export class CrearEvaluacionDto {
+  @ApiProperty({
+    enum: CLAVES_REQUISITO,
+    description: 'Documento del expediente que se está evaluando',
+  })
+  @IsIn(CLAVES_REQUISITO)
+  documentoClave: string;
+
   @ApiPropertyOptional({
     example: 'Buen perfil tecnico, mejorar comunicacion.',
   })

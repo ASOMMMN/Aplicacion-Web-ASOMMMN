@@ -11,6 +11,7 @@ export interface ComentarioCardItem {
   estadoSugerido: EstadoComentario;
   evaluadorNombre: string;
   creadoEn: string;
+  documentoLabel?: string;
 }
 
 const estadoLabel: Record<EstadoComentario, string> = {
@@ -45,6 +46,11 @@ export function ComentarioCard({ item }: { item: ComentarioCardItem }) {
     <div className="border rounded p-3 bg-light">
       <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap">
         <div>
+          {item.documentoLabel && (
+            <Badge bg="secondary" className="badge-pill-enmv mb-1">
+              {item.documentoLabel}
+            </Badge>
+          )}
           <div className="fw-semibold">{item.evaluadorNombre}</div>
           <div className="text-muted small">{formatFecha(item.creadoEn)}</div>
         </div>

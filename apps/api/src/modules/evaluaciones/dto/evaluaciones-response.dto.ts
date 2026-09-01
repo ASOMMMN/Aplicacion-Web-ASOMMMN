@@ -45,21 +45,21 @@ export class CandidatoListaItemDto {
   semaforoClave: 'verde' | 'amarillo' | 'rojo';
 
   @ApiProperty()
-  evaluado: boolean;
+  docsEvaluados: number;
 
-  @ApiPropertyOptional()
-  evaluadorNombre?: string;
+  @ApiProperty()
+  docsTotal: number;
 
-  @ApiPropertyOptional()
-  fechaEvaluacion?: Date;
-
-  @ApiPropertyOptional({ enum: ['APROBADO', 'RECHAZADO', 'EN_REVISION'] })
-  resultadoEvaluacion?: 'APROBADO' | 'RECHAZADO' | 'EN_REVISION';
+  @ApiProperty({ enum: ['pendiente', 'en_evaluacion', 'evaluado'] })
+  estadoEvaluacion: 'pendiente' | 'en_evaluacion' | 'evaluado';
 }
 
 export class EvaluacionItemDto {
   @ApiProperty()
   id: string;
+
+  @ApiProperty()
+  documentoClave: string;
 
   @ApiProperty()
   comentario: string;
@@ -86,6 +86,20 @@ export class EvaluacionItemDto {
   creadoEn: Date;
 }
 
+export class EvaluacionDocumentoDto {
+  @ApiProperty()
+  documentoClave: string;
+
+  @ApiProperty()
+  label: string;
+
+  @ApiPropertyOptional({ type: EvaluacionItemDto })
+  ultimaEvaluacion?: EvaluacionItemDto | null;
+
+  @ApiProperty({ type: [EvaluacionItemDto] })
+  historial: EvaluacionItemDto[];
+}
+
 export class EvaluacionGlobalItemDto {
   @ApiProperty()
   id: string;
@@ -95,6 +109,9 @@ export class EvaluacionGlobalItemDto {
 
   @ApiProperty()
   postulanteName: string;
+
+  @ApiProperty()
+  documentoClave: string;
 
   @ApiProperty()
   evaluadorId: string;
@@ -163,6 +180,15 @@ export class CandidatoDetalleDto {
 
   @ApiProperty({ enum: ['verde', 'amarillo', 'rojo'] })
   semaforoClave: 'verde' | 'amarillo' | 'rojo';
+
+  @ApiProperty()
+  docsEvaluados: number;
+
+  @ApiProperty()
+  docsTotal: number;
+
+  @ApiProperty({ enum: ['pendiente', 'en_evaluacion', 'evaluado'] })
+  estadoEvaluacion: 'pendiente' | 'en_evaluacion' | 'evaluado';
 
   @ApiPropertyOptional()
   cvActual?: {
