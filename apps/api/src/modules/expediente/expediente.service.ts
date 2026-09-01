@@ -454,6 +454,11 @@ export class ExpedienteService {
       doc.moveDown(0.5);
       this.dibujarTablaCursosPDF(doc, cursosData);
 
+      // dibujarTablaCursosPDF deja doc.x en la última columna de la tabla
+      // (cada celda se dibuja con un x explícito). Sin este reset, el
+      // título y las líneas siguientes heredan ese x y salen corridas a la
+      // derecha con el ancho de wrap achicado.
+      doc.x = doc.page.margins.left;
       doc.moveDown(1);
       doc
         .font('Helvetica-Bold')
@@ -472,43 +477,7 @@ export class ExpedienteService {
         .fillColor('#000000');
       doc.moveDown(0.6);
 
-      if (bitacoraData.embarques.length === 0) {
-        doc.font('Helvetica').fontSize(11).text('Sin embarques registrados.');
-      } else {
-        bitacoraData.embarques.forEach((embarque) => {
-          const fechaEmbarco = this.formatearFecha(embarque.fechaEmbarco);
-          const fechaDesembarco = this.formatearFecha(embarque.fechaDesembarco);
-          const duracionMeses = this.duracionEnMeses(
-            embarque.duracion.anios,
-            embarque.duracion.meses,
-          );
-
-          if (doc.y > doc.page.height - 150) doc.addPage();
-
-          doc.font('Helvetica-Bold').fontSize(11).text(embarque.nombreNave);
-          doc
-            .font('Helvetica')
-            .fontSize(10)
-            .text(`Empresa naviera: ${embarque.naviera}`);
-          doc
-            .font('Helvetica')
-            .fontSize(10)
-            .text(
-              `Tipo de buque: ${embarque.tipoNave}    País: ${embarque.bandera}`,
-            );
-          doc
-            .font('Helvetica')
-            .fontSize(10)
-            .text(`Cargo desempeñado: ${embarque.rango}`);
-          doc
-            .font('Helvetica')
-            .fontSize(10)
-            .text(
-              `${fechaEmbarco} → ${fechaDesembarco}    Duración: ${duracionMeses} meses`,
-            );
-          doc.moveDown(0.5);
-        });
-      }
+      this.dibujarTablaBitacoraPDF(doc, bitacoraData);
 
       doc.end();
     });
@@ -579,6 +548,100 @@ export class ExpedienteService {
         fechaInicio,
         fechaVencimiento,
       ]);
+    });
+  }
+
+  private dibujarTablaBitacoraPDF(
+    doc: PDFKit.PDFDocument,
+    data: BitacoraEmbarqueListResponseDto,
+  ): void {
+    const startX = 50;
+    const colWidths = [22, 85, 78, 78, 78, 92, 55];
+    const headers = [
+      '#',
+      'Buque',
+      'Empresa',
+      'Tipo / País',
+      'Cargo',
+      'Fechas',
+      'Duración',
+    ];
+    const rowHeight = 20;
+    // Margen inferior real de la página + un colchón extra para que ninguna
+    // fila quede pegada al borde ni el membrete de una página siguiente la tape.
+    const bottomLimit = () =>
+      doc.page.height - doc.page.margins.bottom - rowHeight - 10;
+
+    const dibujarFila = (
+      valores: string[],
+      opts: { bold?: boolean; bg?: string; color?: string } = {},
+    ) => {
+      const y = doc.y;
+      if (opts.bg) {
+        doc
+          .rect(
+            startX,
+            y,
+            colWidths.reduce((a, b) => a + b, 0),
+            rowHeight,
+          )
+          .fill(opts.bg);
+      }
+      doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+      doc.fillColor(opts.color ?? '#000000');
+      let x = startX;
+      valores.forEach((valor, i) => {
+        doc.text(valor, x + 4, y + 5, {
+          width: colWidths[i] - 8,
+          // height acotado a una sola línea: sin esto, ellipsis no trunca
+          // nada (solo actúa cuando el texto no entra en el height dado) y
+          // el texto largo wrapea a 2 líneas, pisando la fila siguiente.
+          height: 11,
+          ellipsis: true,
+          lineBreak: false,
+        });
+        x += colWidths[i];
+      });
+      doc.fillColor('#000000');
+      doc.y = y + rowHeight;
+    };
+
+    if (doc.y > bottomLimit()) doc.addPage();
+    dibujarFila(headers, { bold: true, bg: '#0A2240', color: '#FFFFFF' });
+
+    if (data.embarques.length === 0) {
+      dibujarFila(['', 'Sin embarques registrados.', '', '', '', '', '']);
+      return;
+    }
+
+    data.embarques.forEach((embarque, i) => {
+      // Salto de página ANTES de dibujar la fila si no entra completa —
+      // nunca a mitad de fila.
+      if (doc.y > bottomLimit()) doc.addPage();
+
+      const fechaEmbarco = this.formatearFecha(embarque.fechaEmbarco);
+      const fechaDesembarco = this.formatearFecha(embarque.fechaDesembarco);
+      const duracionMeses = this.duracionEnMeses(
+        embarque.duracion.anios,
+        embarque.duracion.meses,
+      );
+
+      dibujarFila(
+        [
+          String(i + 1),
+          embarque.nombreNave,
+          embarque.naviera,
+          `${embarque.tipoNave} / ${embarque.bandera}`,
+          embarque.rango,
+          // Guión ASCII, no flecha unicode: las fuentes estándar de pdfkit
+          // (Helvetica) no tienen ese glifo y lo renderizan roto.
+          `${fechaEmbarco} - ${fechaDesembarco}`,
+          `${duracionMeses} meses`,
+        ],
+        // Filas alternas para legibilidad, igual criterio visual que el
+        // header de la tabla de cursos (mismo navy, aquí como acento suave).
+        i % 2 === 1 ? { bg: '#EEF1F6' } : {},
+      );
     });
   }
 
