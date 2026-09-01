@@ -149,7 +149,12 @@ export class EvaluacionesService {
 
     const docsEvaluadosByPostulante = new Map<string, Set<string>>();
     for (const ev of evaluacionesList) {
-      if (ev.documentoClave === DOCUMENTO_CLAVE_LEGADO) continue;
+      // Registros legado previos a la migración de documentoClave (el campo
+      // no existía) llegan aquí con documentoClave undefined, no 'general'.
+      // Tratarlos igual: no cuentan como documento evaluado.
+      if (!ev.documentoClave || ev.documentoClave === DOCUMENTO_CLAVE_LEGADO) {
+        continue;
+      }
       const key = String(ev.postulanteId);
       if (!docsEvaluadosByPostulante.has(key)) {
         docsEvaluadosByPostulante.set(key, new Set());

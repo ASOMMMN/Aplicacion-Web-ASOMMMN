@@ -112,9 +112,16 @@ export default function CandidatosPage() {
         setLoading(true);
         setError('');
         const res = await api.get<CandidatoItem[]>('/evaluaciones/candidatos');
+        if (res.data?.[0] && res.data[0].docsEvaluados === undefined) {
+          console.warn(
+            '[candidatos] la API no devolvió docsEvaluados/docsTotal — el backend probablemente no tiene desplegado el último commit. Item recibido:',
+            res.data[0],
+          );
+        }
         setItems(res.data ?? []);
       } catch (err: unknown) {
         const axiosErr = err as { response?: { data?: { message?: unknown } }; message?: string };
+        console.error('[candidatos] fallo /evaluaciones/candidatos', err);
         setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
       } finally {
         setLoading(false);
@@ -358,7 +365,7 @@ export default function CandidatosPage() {
                               {item.estadoEvaluacion === 'en_evaluacion' && (
                                 <i className="bi bi-hourglass-split text-warning me-1" />
                               )}
-                              {item.docsEvaluados}/{item.docsTotal} docs evaluados
+                              {item.docsEvaluados ?? 0}/{item.docsTotal ?? 0} docs evaluados
                             </div>
                             {item.estadoEvaluacion === 'pendiente' &&
                               (item.estadoExpediente === 'enviado' ? (

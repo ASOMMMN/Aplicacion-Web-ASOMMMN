@@ -438,14 +438,30 @@ export default function CandidatoDetallePage() {
     try {
       setLoading(true);
       setError('');
-      const [detalleRes, comentariosRes, documentosRes] = await Promise.all([
-        api.get<CandidatoDetalle>(`/evaluaciones/candidatos/${candidatoId}`),
-        api.get<Comentario[]>(`/evaluaciones/${candidatoId}/comentarios`),
-        api.get<EvaluacionDocumento[]>(`/evaluaciones/${candidatoId}/documentos`),
-      ]);
+      const detalleRes = await api.get<CandidatoDetalle>(
+        `/evaluaciones/candidatos/${candidatoId}`,
+      );
       setDetalle(detalleRes.data);
-      setComentarios(comentariosRes.data ?? []);
-      setEvaluacionesPorDocumento(documentosRes.data ?? []);
+
+      try {
+        const comentariosRes = await api.get<Comentario[]>(
+          `/evaluaciones/${candidatoId}/comentarios`,
+        );
+        setComentarios(comentariosRes.data ?? []);
+      } catch (err) {
+        console.error('[candidato/[id]] fallo /comentarios', err);
+        setComentarios([]);
+      }
+
+      try {
+        const documentosRes = await api.get<EvaluacionDocumento[]>(
+          `/evaluaciones/${candidatoId}/documentos`,
+        );
+        setEvaluacionesPorDocumento(documentosRes.data ?? []);
+      } catch (err) {
+        console.error('[candidato/[id]] fallo /documentos', err);
+        setEvaluacionesPorDocumento([]);
+      }
 
       try {
         const cursosRes = await api.get<CursosResponse>(
@@ -474,7 +490,16 @@ export default function CandidatoDetallePage() {
         setBitacoraData(null);
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: unknown } }; message?: string };
+      const axiosErr = err as {
+        response?: { status?: number; data?: { message?: unknown } };
+        message?: string;
+      };
+      console.error(
+        '[candidato/[id]] fallo /evaluaciones/candidatos/:id — status:',
+        axiosErr.response?.status,
+        'data:',
+        axiosErr.response?.data,
+      );
       setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
     } finally {
       setLoading(false);

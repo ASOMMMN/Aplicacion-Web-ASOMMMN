@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -28,6 +37,8 @@ import { EvaluacionesService } from './evaluaciones.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('evaluaciones')
 export class EvaluacionesController {
+  private readonly logger = new Logger(EvaluacionesController.name);
+
   constructor(private readonly evaluacionesService: EvaluacionesService) {}
 
   @Get('todas')
@@ -43,7 +54,21 @@ export class EvaluacionesController {
   @ApiOperation({ summary: 'Listar candidatos para evaluación' })
   @ApiResponse({ status: 200, type: [CandidatoListaItemDto] })
   async listarCandidatos(): Promise<CandidatoListaItemDto[]> {
-    return this.evaluacionesService.listarCandidatos();
+    const resultado = await this.evaluacionesService.listarCandidatos();
+    // TEMP debug — quitar una vez confirmado el fix de docsEvaluados/docsTotal.
+    this.logger.debug(
+      `[TEMP] listarCandidatos → ${resultado.length} candidatos, primero: ${JSON.stringify(
+        resultado[0]
+          ? {
+              postulanteId: resultado[0].postulanteId,
+              docsEvaluados: resultado[0].docsEvaluados,
+              docsTotal: resultado[0].docsTotal,
+              estadoEvaluacion: resultado[0].estadoEvaluacion,
+            }
+          : null,
+      )}`,
+    );
+    return resultado;
   }
 
   @Get('candidatos/:id')
@@ -53,12 +78,26 @@ export class EvaluacionesController {
   async obtenerCandidato(
     @Param('id') id: string,
   ): Promise<CandidatoDetalleDto> {
-    return this.evaluacionesService.obtenerCandidato(id);
+    try {
+      const resultado = await this.evaluacionesService.obtenerCandidato(id);
+      // TEMP debug — quitar una vez confirmado el fix del bug "no encontrado".
+      this.logger.debug(
+        `[TEMP] obtenerCandidato(${id}) → ok, docsEvaluados=${resultado.docsEvaluados}/${resultado.docsTotal}`,
+      );
+      return resultado;
+    } catch (err) {
+      this.logger.warn(
+        `[TEMP] obtenerCandidato(${id}) → falló: ${(err as Error).message}`,
+      );
+      throw err;
+    }
   }
 
   @Get('mis-comentarios')
   @Roles('postulante')
-  @ApiOperation({ summary: 'Listar comentarios de evaluación del postulante autenticado' })
+  @ApiOperation({
+    summary: 'Listar comentarios de evaluación del postulante autenticado',
+  })
   @ApiResponse({ status: 200, type: [EvaluacionItemDto] })
   async listarMisComentarios(
     @CurrentUser() user: AuthUser,
@@ -100,14 +139,16 @@ export class EvaluacionesController {
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
   ): Promise<EvaluacionItemDto> {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
     return this.evaluacionesService.evaluarDocumento(id, user.userId, dto, ip);
   }
 
   @Post(':id/decision')
   @Roles('evaluador', 'administrador')
   @ApiOperation({
-    summary: 'Registrar la decisión final (aprobado/rechazado/en proceso) de un candidato',
+    summary:
+      'Registrar la decisión final (aprobado/rechazado/en proceso) de un candidato',
   })
   @ApiResponse({ status: 201, type: CandidatoDetalleDto })
   async decidirCandidato(
@@ -116,7 +157,8 @@ export class EvaluacionesController {
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
   ): Promise<CandidatoDetalleDto> {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
     return this.evaluacionesService.decidirCandidato(id, user.userId, dto, ip);
   }
 }
