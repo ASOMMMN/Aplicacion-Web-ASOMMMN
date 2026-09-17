@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -94,5 +95,17 @@ export class UsuariosController {
     const ip =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
     return this.usuariosService.restablecerContrasenaPorAdmin(id, admin, ip);
+  }
+
+  @Delete(':id')
+  @Roles('administrador')
+  @ApiOperation({ summary: 'Eliminar usuario (solo admin)' })
+  eliminar(
+    @Param('id') id: string,
+    @CurrentUser() admin: AuthUser,
+    @Req() req: Request,
+  ) {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
+    return this.usuariosService.eliminarUsuario(id, admin, ip);
   }
 }

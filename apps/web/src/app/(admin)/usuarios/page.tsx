@@ -234,6 +234,42 @@ export default function UsuariosPage() {
     }
   };
 
+  const eliminarUsuario = async (item: UsuarioItem) => {
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar usuario?',
+      text: `Esta acción eliminará permanentemente a ${item.email}.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    const confirmFinal = await Swal.fire({
+      icon: 'error',
+      title: 'Esta acción es permanente y no se puede deshacer.',
+      showCancelButton: true,
+      confirmButtonText: 'Confirmar eliminación',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc3545',
+    });
+
+    if (!confirmFinal.isConfirmed) return;
+
+    try {
+      setActionId(item._id);
+      await api.delete(`/usuarios/${item._id}`);
+      await loadUsers();
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: unknown } }; message?: string };
+      setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
+    } finally {
+      setActionId('');
+    }
+  };
+
   if (loading) {
     return (
       <Container className="d-flex justify-content-center align-items-center min-vh-100">
@@ -538,6 +574,14 @@ export default function UsuariosPage() {
                                     Bloquear
                                   </Button>
                                 )}
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  disabled={actionId === item._id}
+                                  onClick={() => void eliminarUsuario(item)}
+                                >
+                                  Eliminar
+                                </Button>
                               </div>
                             </td>
                           </tr>

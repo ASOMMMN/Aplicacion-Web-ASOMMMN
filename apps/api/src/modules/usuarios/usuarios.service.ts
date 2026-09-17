@@ -149,6 +149,29 @@ export class UsuariosService implements OnModuleInit {
     return user;
   }
 
+  async eliminarUsuario(id: string, actor: AuthUser, ipAddress?: string) {
+    const user = await this.usuarioModel
+      .findByIdAndDelete(id)
+      .select('-passwordHash');
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    await this.refreshTokenModel.deleteMany({
+      userId: new Types.ObjectId(id),
+    });
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'usuarios.eliminar',
+      recurso: 'usuario',
+      recursoId: id,
+      ipAddress,
+      metadata: { objetivoEmail: user.email, objetivoRol: user.rol },
+    });
+
+    return user;
+  }
+
   async restablecerContrasenaPorAdmin(
     targetUserId: string,
     admin: AuthUser,
