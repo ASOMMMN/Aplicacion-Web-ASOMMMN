@@ -28,6 +28,7 @@ import { ExpedienteModule } from './modules/expediente/expediente.module';
 import { IngestIaModule } from './modules/ingest-ia/ingest-ia.module';
 import { EvalArchivosModule } from './modules/eval-archivos/eval-archivos.module';
 import { DocsPersonalesModule } from './modules/docs-personales/docs-personales.module';
+import { ResumenFechasModule } from './modules/resumen-fechas/resumen-fechas.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { MiNubeModule } from './modules/mi-nube/mi-nube.module';
 import { AlertasVencimientoModule } from './modules/alertas-vencimiento/alertas-vencimiento.module';
@@ -125,6 +126,7 @@ import { HealthController } from './health.controller';
     IngestIaModule,
     EvalArchivosModule,
     DocsPersonalesModule,
+    ResumenFechasModule,
     ChatbotModule,
     MiNubeModule,
     AlertasVencimientoModule,
