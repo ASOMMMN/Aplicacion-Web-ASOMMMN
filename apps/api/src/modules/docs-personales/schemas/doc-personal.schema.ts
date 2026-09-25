@@ -20,12 +20,7 @@ export class DocPersonal {
   @Prop({ type: Types.ObjectId, ref: 'Usuario', required: true })
   usuarioId: Types.ObjectId;
 
-  @Prop({
-    type: String,
-    enum: TIPOS_DOC_PERSONAL,
-    required: true,
-    index: true,
-  })
+  @Prop({ type: String, enum: TIPOS_DOC_PERSONAL, required: true, index: true })
   tipo: TipoDocPersonal;
 
   @Prop({ required: true })
@@ -55,33 +50,12 @@ export class DocPersonal {
   @Prop({ default: () => new Date() })
   subidasEn: Date;
 
-  // ─────────────────────────────────────────────────────────────
-  // Fechas extraídas mediante IA
-  // ─────────────────────────────────────────────────────────────
-
-  /**
-   * Fecha de inicio de vigencia del documento.
-   *
-   * Solo se guarda cuando la fecha aparece explícitamente
-   * en el documento.
-   */
   @Prop()
   fechaInicio?: Date;
 
-  /**
-   * Fecha de vencimiento o expiración del documento.
-   *
-   * Solo se guarda cuando la fecha aparece explícitamente
-   * en el documento.
-   */
   @Prop()
   fechaVencimiento?: Date;
 
-  /**
-   * Fecha de emisión, expedición o expedición del documento.
-   *
-   * Puede ser diferente a la fecha de inicio de vigencia.
-   */
   @Prop()
   fechaEmision?: Date;
 }

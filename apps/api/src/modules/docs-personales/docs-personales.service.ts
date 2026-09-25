@@ -86,6 +86,72 @@ REGLAS OBLIGATORIAS:
 14. No incluyas explicaciones fuera del JSON.
 `;
 
+/** Reglas adicionales según el tipo de documento. */
+const construirReglasPorTipo = (tipoDocumento: string): string => {
+  switch (tipoDocumento) {
+    case 'INE':
+      return `
+DOCUMENTO INE:
+- Busca principalmente la fecha de vigencia que aparece en la credencial.
+- Si aparece una fecha de emisión o expedición explícita, extráela como fechaEmision.
+- NO confundas la fecha de nacimiento con la fecha de emisión.
+- NO uses el año o número de vigencia para inventar una fecha.
+- Si solo aparece una vigencia expresada de forma no convertible con seguridad, devuelve null.
+`;
+
+    case 'visa':
+      return `
+DOCUMENTO VISA:
+- Busca Date of Issue / Issued / Fecha de expedición como fechaEmision.
+- Busca Expiration Date / Expires / Fecha de vencimiento como fechaVencimiento.
+- No confundas la fecha de nacimiento con la fecha de emisión.
+- Si la visa muestra una fecha de inicio y otra de vencimiento, usa ambas explícitamente.
+`;
+
+    case 'pasaporte':
+      return `
+DOCUMENTO PASAPORTE:
+- Busca Date of Issue / Date of Expiry / Fecha de expedición / Fecha de vencimiento.
+- La fecha de nacimiento NO es fechaEmision.
+- La fecha de expiración debe salir literalmente del documento.
+`;
+
+    case 'libreta_identidad_maritima':
+      return `
+LIBRETA DE IDENTIDAD MARÍTIMA:
+- Revisa portada, página de datos y páginas donde aparezcan fechas de expedición, vigencia o expiración.
+- Busca expresiones como Fecha de expedición, Fecha de emisión, Válida hasta, Fecha de vencimiento,
+  Date of Issue, Date of Expiry, Valid Until.
+- No confundas fecha de nacimiento, fecha de firma, fecha de impresión o fecha de renovación.
+- Si hay inicio y fin de vigencia explícitos, extrae ambos.
+`;
+
+    case 'constancia_participacion':
+      return `
+CONSTANCIA DE PARTICIPACIÓN:
+- Busca la fecha en que fue emitida o expedida la constancia.
+- Si el documento indica explícitamente periodo, inicio o término de participación, extráelos.
+- No conviertas automáticamente la fecha del evento en fecha de emisión.
+- No inventes vigencia si la constancia no la establece.
+`;
+
+    case 'certificado_medico':
+      return `
+CERTIFICADO MÉDICO:
+- Busca fecha de expedición/emisión del certificado.
+- Busca expresiones de vigencia como Válido hasta, Vigente hasta, Expira, Expiration Date.
+- Si indica explícitamente inicio de vigencia, extráelo.
+- No calcules una vigencia médica a partir de la fecha de emisión.
+`;
+
+    default:
+      return `
+DOCUMENTO NO ESPECIALIZADO:
+- Extrae únicamente las fechas acompañadas de etiquetas que permitan determinar su significado.
+`;
+  }
+};
+
 /**
  * Construye el prompt específico para cada documento.
  */
@@ -97,6 +163,9 @@ Analiza el siguiente documento personal.
 
 TIPO DE DOCUMENTO:
 ${tipoDocumento}
+
+REGLAS ESPECÍFICAS DEL DOCUMENTO:
+${construirReglasPorTipo(tipoDocumento)}
 
 DOCUMENTO:
 --- INICIO ---
@@ -247,6 +316,9 @@ Analiza visualmente la imagen del siguiente documento personal.
 
 TIPO DE DOCUMENTO:
 ${tipoDocumento}
+
+REGLAS ESPECÍFICAS DEL DOCUMENTO:
+${construirReglasPorTipo(tipoDocumento)}
 
 Tu tarea es identificar ÚNICAMENTE fechas que aparezcan
 visualmente de forma explícita en el documento.
@@ -551,18 +623,164 @@ export class DocsPersonalesService {
         const textoPdf = pdfResult.text?.trim() ?? '';
 
         if (textoPdf.length < 20) {
-          return {
-            fechaInicio: null,
-            fechaVencimiento: null,
-            fechaEmision: null,
-            confianza: {
-              fechaInicio: 'baja',
-              fechaVencimiento: 'baja',
-              fechaEmision: 'baja',
+          // PDF escaneado: se envía el PDF directamente como archivo visual
+          // a la Responses API. Esto evita depender de que pdf-parse pueda
+          // extraer texto de un documento que realmente es una imagen.
+          const base64Pdf = fileBuffer.toString('base64');
+          const promptPdfEscaneado = `
+Analiza visualmente el PDF completo del documento personal.
+
+TIPO DE DOCUMENTO:
+${tipoDocumento}
+
+REGLAS ESPECÍFICAS:
+${construirReglasPorTipo(tipoDocumento)}
+
+${construirPromptDocPersonal('', tipoDocumento)}
+
+IMPORTANTE PARA PDF ESCANEADO:
+- Lee visualmente todas las páginas necesarias del PDF.
+- No dependas únicamente de texto extraído por software.
+- Identifica las etiquetas junto a las fechas.
+- Si una fecha no puede leerse con seguridad, devuelve null.
+`;
+
+          const response = await fetch('https://api.openai.com/v1/responses', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              model: modelo,
+              input: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'input_file',
+                      filename: 'documento.pdf',
+                      file_data: `data:application/pdf;base64,${base64Pdf}`,
+                    },
+                    {
+                      type: 'input_text',
+                      text: `${SYSTEM_PROMPT_DOC_PERSONAL}\n${promptPdfEscaneado}`,
+                    },
+                  ],
+                },
+              ],
+              temperature: 0,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw Object.assign(
+              new Error(`OpenAI Responses API: ${errorText}`),
+              { status: response.status },
+            );
+          }
+
+          const responseJson = (await response.json()) as {
+            output_text?: string;
+            output?: Array<{
+              content?: Array<{ text?: string }>;
+            }>;
+          };
+
+          const rawResponse =
+            responseJson.output_text ??
+            responseJson.output
+              ?.flatMap((item) => item.content ?? [])
+              .map((item) => item.text ?? '')
+              .filter(Boolean)
+              .join('\n') ??
+            '{}';
+
+          const rawJson = rawResponse
+            .replace(/^```json\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+          let parsedPdf: {
+            fechaInicio?: unknown;
+            fechaVencimiento?: unknown;
+            fechaEmision?: unknown;
+            confianza?: {
+              fechaInicio?: unknown;
+              fechaVencimiento?: unknown;
+              fechaEmision?: unknown;
+            };
+          };
+
+          try {
+            parsedPdf = JSON.parse(rawJson);
+          } catch {
+            this.logger.error(
+              `La IA devolvió JSON inválido para PDF escaneado ${tipoDocumento}.`,
+            );
+
+            return {
+              fechaInicio: null,
+              fechaVencimiento: null,
+              fechaEmision: null,
+              confianza: {
+                fechaInicio: 'baja',
+                fechaVencimiento: 'baja',
+                fechaEmision: 'baja',
+              },
+              iaDisponible: true,
+              errorMensaje:
+                'La IA pudo abrir el PDF, pero no devolvió una respuesta interpretable.',
+            };
+          }
+
+          const fechaInicio = this.normalizarFechaIa(
+            parsedPdf.fechaInicio,
+          );
+          const fechaVencimiento = this.normalizarFechaIa(
+            parsedPdf.fechaVencimiento,
+          );
+          const fechaEmision = this.normalizarFechaIa(
+            parsedPdf.fechaEmision,
+          );
+
+          const confianza = {
+            fechaInicio: this.normalizarConfianza(
+              parsedPdf.confianza?.fechaInicio,
+            ),
+            fechaVencimiento: this.normalizarConfianza(
+              parsedPdf.confianza?.fechaVencimiento,
+            ),
+            fechaEmision: this.normalizarConfianza(
+              parsedPdf.confianza?.fechaEmision,
+            ),
+          };
+
+          await this.auditoria.registrar({
+            actorId: userId,
+            actorEmail: userId,
+            accion: 'doc_personal_extraccion_ia',
+            recurso: 'DocPersonal',
+            recursoId: 'extraer-ia',
+            metadata: {
+              modelo,
+              tipoDocumento,
+              mimeType,
+              origen: 'pdf-visual',
+              fechaInicioExtraida: fechaInicio,
+              fechaVencimientoExtraida: fechaVencimiento,
+              fechaEmisionExtraida: fechaEmision,
+              confianza,
+            },
+          });
+
+          return {
+            fechaInicio,
+            fechaVencimiento,
+            fechaEmision,
+            confianza,
             iaDisponible: true,
-            errorMensaje:
-              'El PDF no contiene texto legible. Si es un documento escaneado, será necesario aplicar OCR.',
           };
         }
 
@@ -828,6 +1046,39 @@ export class DocsPersonalesService {
       subidasPor: new Types.ObjectId(actor.userId),
       subidasEn: new Date(),
     });
+
+    // Extrae automáticamente las fechas al subir el documento.
+    // Si la IA falla, NO se cancela la subida: el documento permanece guardado.
+    try {
+      const ia = await this.extraerDatosDocPersonalIa(
+        file.buffer,
+        actor.userId,
+        tipo,
+        file.mimetype,
+      );
+
+      if (ia.iaDisponible) {
+        doc.fechaInicio = ia.fechaInicio
+          ? new Date(`${ia.fechaInicio}T00:00:00.000Z`)
+          : undefined;
+
+        doc.fechaVencimiento = ia.fechaVencimiento
+          ? new Date(`${ia.fechaVencimiento}T00:00:00.000Z`)
+          : undefined;
+
+        doc.fechaEmision = ia.fechaEmision
+          ? new Date(`${ia.fechaEmision}T00:00:00.000Z`)
+          : undefined;
+
+        await doc.save();
+      }
+    } catch (error) {
+      this.logger.warn(
+        `No se pudieron extraer las fechas del documento ${doc._id}: ${
+          error instanceof Error ? error.message : 'error desconocido'
+        }`,
+      );
+    }
 
     await this.auditoria.registrar({
       actorId: actor.userId,
