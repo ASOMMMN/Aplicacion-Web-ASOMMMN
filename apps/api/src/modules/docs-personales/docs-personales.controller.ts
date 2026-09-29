@@ -11,6 +11,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
 import {
   ApiBearerAuth,
@@ -23,6 +24,7 @@ import {
 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
@@ -51,6 +53,8 @@ export class DocsPersonalesController {
 
   @Post('extraer-ia')
   @Roles('postulante')
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 20, ttl: 3_600_000 } }) // 20 análisis/hora por usuario
   @UseInterceptors(
     FileInterceptor('archivo', {
       storage: memoryStorage(),
@@ -184,6 +188,9 @@ export class DocsPersonalesController {
 
   @Post('subir')
   @Roles('postulante')
+  // La subida dispara extracción IA automática
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 30, ttl: 3_600_000 } }) // 30 subidas/hora por usuario
   @UseInterceptors(
     FileInterceptor('archivo', {
       storage: memoryStorage(),
