@@ -21,6 +21,8 @@ const curso = (
 ): ItemBase => ({
   tipo: 'Curso',
   nombre,
+  detalle: null,
+  aplicaVencimiento: true,
   institucion,
   fechaInicio: fechas.fechaInicio ?? null,
   fechaEmision: fechas.fechaEmision ?? null,

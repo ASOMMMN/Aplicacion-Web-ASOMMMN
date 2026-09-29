@@ -5,7 +5,16 @@
  * fecha de vencimiento contra la fecha actual en la zona horaria de México.
  */
 
-export type EstadoVigencia = 'vencido' | 'por_vencer' | 'vigente' | 'sin_fecha';
+/**
+ * sin_fecha: el tipo sí vence pero no se detectó la fecha (dato faltante).
+ * no_aplica: el tipo no tiene vencimiento (CURP, acta de nacimiento…).
+ */
+export type EstadoVigencia =
+  | 'vencido'
+  | 'por_vencer'
+  | 'vigente'
+  | 'sin_fecha'
+  | 'no_aplica';
 
 /** Meses antes del vencimiento a partir de los cuales se marca "por vencer". */
 export const UMBRAL_POR_VENCER_MESES = 6;
@@ -19,6 +28,7 @@ export const ORDEN_ESTADO_VIGENCIA: Record<EstadoVigencia, number> = {
   por_vencer: 1,
   vigente: 2,
   sin_fecha: 3,
+  no_aplica: 4,
 };
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000;

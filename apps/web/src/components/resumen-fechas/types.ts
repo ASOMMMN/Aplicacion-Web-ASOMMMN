@@ -1,6 +1,7 @@
 /** Tipos de GET /resumen-fechas/postulante/:postulanteId */
 
-export type EstadoVigencia = 'vencido' | 'por_vencer' | 'vigente' | 'sin_fecha';
+/** sin_fecha = vence pero falta la fecha; no_aplica = el tipo no vence. */
+export type EstadoVigencia = 'vencido' | 'por_vencer' | 'vigente' | 'sin_fecha' | 'no_aplica';
 
 export type ConfianzaIa = 'alta' | 'media' | 'baja';
 
@@ -8,7 +9,11 @@ export type OrigenResumen ='subido' | 'cv' | 'subido_y_cv' | 'doc_personal';
 
 export interface ResumenFechaItem {
   tipo: 'Curso' | 'Documento personal';
+  /** Cursos: nombre del curso. Documentos personales: etiqueta del tipo. */
   nombre: string;
+  /** Documentos personales: nombre del archivo usado (el más reciente). */
+  detalle: string | null;
+  aplicaVencimiento: boolean;
   institucion: string | null;
   /** null = el origen no la indica (nunca se infiere). */
   fechaInicio: string | null;

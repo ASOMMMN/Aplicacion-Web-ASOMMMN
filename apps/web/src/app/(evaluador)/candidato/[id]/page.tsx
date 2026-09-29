@@ -1387,7 +1387,7 @@ function ExtraccionVistaLectura({
       )}
 
       <div className="col-12">
-        <strong className="small text-muted d-block mb-1">Cursos y certificaciones</strong>
+        <strong className="small text-muted d-block mb-1">Cursos, certificaciones y documentos personales</strong>
         {/* Unificación y semáforo se calculan en el backend (/resumen-fechas) */}
         <ResumenFechasTabla postulanteId={postulanteId} recargarKey={recargarKey} />
       </div>

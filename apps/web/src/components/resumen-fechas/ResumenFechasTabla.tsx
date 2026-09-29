@@ -21,13 +21,15 @@ const ESTADOS: Record<
   por_vencer: { label: 'Por vencer', plural: 'por vencer', className: 'bg-warning text-dark', icon: 'bi-exclamation-triangle-fill' },
   vigente: { label: 'Vigente', plural: 'vigentes', className: 'bg-success', icon: 'bi-check-circle-fill' },
   sin_fecha: { label: 'Sin fecha', plural: 'sin fecha', className: 'bg-secondary', icon: 'bi-dash-circle' },
+  no_aplica: { label: 'No aplica', plural: 'no vencen', className: 'bg-light text-secondary border', icon: 'bi-infinity' },
 };
 
 const ORIGENES: Record<OrigenResumen, { label: string; className: string }> = {
   cv: { label: 'Detectado en CV', className: 'badge-estado-proceso' },
   subido: { label: 'Subido por postulante', className: 'badge-estado-aprobado' },
   subido_y_cv: { label: 'Subido + en CV', className: 'badge-estado-aprobado' },
-  doc_personal: { label: 'Documento personal', className: 'badge-estado-aprobado' },
+  // Neutro: el verde de "Subido" se confundiría con el badge "Vigente".
+  doc_personal: { label: 'Documento personal', className: 'bg-primary-subtle text-primary-emphasis border' },
 };
 
 const formatearFecha = (iso: string) => formatearFechaCalendario(iso);
@@ -71,6 +73,7 @@ function CeldaFecha({
 }
 
 function tituloVigencia(item: ResumenFechaItem): string | undefined {
+  if (item.estadoVigencia === 'no_aplica') return 'Este tipo de documento no vence';
   const dias = item.diasParaVencer;
   if (dias === null) return 'No se detectó fecha de vencimiento';
   if (dias < 0) return `Venció hace ${-dias} día(s)`;
@@ -81,11 +84,12 @@ function tituloVigencia(item: ResumenFechaItem): string | undefined {
 export function ResumenFechasTabla({
   postulanteId,
   recargarKey,
-  tipos = ['Curso'],
+  tipos,
 }: {
   postulanteId: string;
   /** Cambiarlo fuerza a recargar (p. ej. al confirmar una extracción). */
   recargarKey?: string;
+  /** Filtra por tipo; por defecto muestra cursos y documentos personales. */
   tipos?: ResumenFechaItem['tipo'][];
 }) {
   const [resumen, setResumen] = useState<ResumenFechasResponse | null>(null);
@@ -118,13 +122,13 @@ export function ResumenFechasTabla({
     );
   }
 
-  const items = resumen.items.filter((i) => tipos.includes(i.tipo));
+  const items = tipos ? resumen.items.filter((i) => tipos.includes(i.tipo)) : resumen.items;
   if (items.length === 0) return <span className="text-muted small">—</span>;
 
   // El backend ya ordena (vencidos primero); aquí solo se cuenta lo visible.
   const conteo = items.reduce<Record<EstadoVigencia, number>>(
     (acc, i) => ({ ...acc, [i.estadoVigencia]: acc[i.estadoVigencia] + 1 }),
-    { vencido: 0, por_vencer: 0, vigente: 0, sin_fecha: 0 },
+    { vencido: 0, por_vencer: 0, vigente: 0, sin_fecha: 0, no_aplica: 0 },
   );
   const partesResumen = (Object.keys(ESTADOS) as EstadoVigencia[])
     .filter((e) => conteo[e] > 0)
@@ -145,7 +149,7 @@ export function ResumenFechasTabla({
       <Table size="sm" responsive hover className="mb-0">
         <thead>
           <tr>
-            <th>Curso</th>
+            <th>Curso / documento</th>
             <th>Institución</th>
             <th>Inicio / emisión</th>
             <th>Fecha vence</th>
@@ -162,6 +166,11 @@ export function ResumenFechasTabla({
               <tr key={`${c.nombre}-${idx}`}>
                 <td title={c.nombreEnCV && c.nombreEnCV !== c.nombre ? `En el CV: ${c.nombreEnCV}` : undefined}>
                   {c.nombre}
+                  {c.detalle && (
+                    <div className="text-muted text-truncate" style={{ fontSize: '0.7rem', maxWidth: 260 }} title={c.detalle}>
+                      {c.detalle}
+                    </div>
+                  )}
                 </td>
                 <td className="text-muted">{c.institucion ?? '—'}</td>
                 <td className="text-muted small">

@@ -18,7 +18,12 @@ export interface DiscrepanciaVencimiento {
 
 export interface ResumenFechaItem {
   tipo: 'Curso' | 'Documento personal';
+  /** Cursos: nombre del curso. Documentos personales: etiqueta del tipo. */
   nombre: string;
+  /** Documentos personales: nombre del archivo usado (el más reciente). */
+  detalle: string | null;
+  /** false = el tipo no vence (estado "no_aplica"). */
+  aplicaVencimiento: boolean;
   institucion: string | null;
   /** null = el origen no la indica (nunca se infiere). */
   fechaInicio: string | null;

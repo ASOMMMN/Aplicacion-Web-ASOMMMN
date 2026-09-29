@@ -1240,6 +1240,31 @@ IMPORTANTE PARA PDF ESCANEADO:
     });
   }
 
+  // ── Resumen de fechas: datos mínimos, sin firmar URLs ─────────────────────
+
+  /** Todos los documentos del postulante, del más reciente al más antiguo. */
+  async listarFechasPorPostulante(postulanteId: string): Promise<
+    Array<
+      Pick<
+        DocPersonal,
+        | 'tipo'
+        | 'nombreOriginal'
+        | 'subidasEn'
+        | 'fechaInicio'
+        | 'fechaEmision'
+        | 'fechaVencimiento'
+      >
+    >
+  > {
+    return this.docModel
+      .find({ postulanteId: new Types.ObjectId(postulanteId) })
+      .select(
+        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento',
+      )
+      .sort({ subidasEn: -1 })
+      .lean();
+  }
+
   // ── Evaluador / Admin: listar por postulanteId ───────────────────────────
 
   async listarPorPostulante(

@@ -13,6 +13,22 @@ export const TIPOS_DOC_PERSONAL = [
 
 export type TipoDocPersonal = (typeof TIPOS_DOC_PERSONAL)[number];
 
+/**
+ * Tipos que no tienen vencimiento: en el resumen de fechas se muestran como
+ * "No aplica". Cualquier tipo que NO esté aquí y no tenga fecha se muestra
+ * como "Sin fecha" (dato faltante), nunca como "No aplica".
+ *
+ * - CURP y acta de nacimiento: no vencen.
+ * - Vacuna de fiebre amarilla: desde 2016 la OMS considera el certificado
+ *   válido de por vida, aunque uno antiguo indique vencimiento.
+ * - constancia_participacion queda fuera a propósito (dudoso → "Sin fecha").
+ */
+export const TIPOS_DOC_SIN_VENCIMIENTO: readonly TipoDocPersonal[] = [
+  'CURP',
+  'acta_nacimiento',
+  'vacuna_fiebre_amarilla',
+];
+
 export const LABEL_TIPO_DOC: Record<TipoDocPersonal, string> = {
   CURP: 'CURP',
   INE: 'INE',

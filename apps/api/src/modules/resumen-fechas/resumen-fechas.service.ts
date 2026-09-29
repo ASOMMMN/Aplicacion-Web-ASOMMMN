@@ -21,7 +21,8 @@ import {
   UMBRAL_POR_VENCER_MESES,
 } from './vigencia.util';
 
-import { normalizarNombreCurso, unificarCursos } from './cursos-match.util';
+import { unificarCursos } from './cursos-match.util';
+import { resumenDocumentosPersonales } from './docs-personales-resumen.util';
 import type {
   ConteoVigencia,
   ItemBase,
@@ -36,7 +37,6 @@ export type {
 
 const FUENTE_SUBIDO = 'Cursos registrados';
 const FUENTE_CV = 'CV';
-const FUENTE_DOC_PERSONAL = 'Documentos personales';
 
 @Injectable()
 export class ResumenFechasService {
@@ -111,6 +111,8 @@ export class ResumenFechasService {
         fechaEmision: null,
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
         fechaVencimientoEstimada: c.fechaVencimientoEstimada,
+        detalle: null,
+        aplicaVencimiento: true,
         confianzaCV: null,
         nombreEnCV: null,
         discrepancia: null,
@@ -143,6 +145,8 @@ export class ResumenFechasService {
         fechaEmision: this.normalizarFecha(c.fechaEmision),
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
         fechaVencimientoEstimada: Boolean(c.fechaVencimientoEstimada),
+        detalle: null,
+        aplicaVencimiento: true,
         confianzaCV: c.confianza ?? null,
         nombreEnCV: null,
         discrepancia: null,
@@ -151,49 +155,13 @@ export class ResumenFechasService {
       }));
   }
 
+  /** Una fila por tipo (archivo más reciente); ver docs-personales-resumen.util. */
   private async obtenerDocumentosPersonales(
     postulanteId: string,
   ): Promise<ItemBase[]> {
-    const { tipos } =
-      await this.docsPersonalesService.listarPorPostulante(postulanteId);
-
-    return tipos.flatMap((t) =>
-      t.archivos.map((a) => ({
-        tipo: 'Documento personal' as const,
-        nombre: a.nombreOriginal,
-        institucion: null,
-        fechaInicio: this.normalizarFecha(a.fechaInicio),
-        fechaEmision: this.normalizarFecha(a.fechaEmision),
-        fechaVencimiento: this.normalizarFecha(a.fechaVencimiento),
-        fechaVencimientoEstimada: false,
-        confianzaCV: null,
-        nombreEnCV: null,
-        discrepancia: null,
-        origen: 'doc_personal' as const,
-        fuente: [FUENTE_DOC_PERSONAL],
-      })),
-    );
-  }
-
-  // ── Unificación ───────────────────────────────────────────────────────────
-  // Cursos: ver cursos-match.util.ts
-
-  /** Documentos personales duplicados (mismo nombre): se completan fechas. */
-  private unificarDocumentosPersonales(documentos: ItemBase[]): ItemBase[] {
-    const mapa = new Map<string, ItemBase>();
-    for (const doc of documentos) {
-      const clave = normalizarNombreCurso(doc.nombre).clave;
-      if (!clave) continue;
-      const existente = mapa.get(clave);
-      if (!existente) {
-        mapa.set(clave, { ...doc });
-        continue;
-      }
-      existente.fechaInicio ??= doc.fechaInicio;
-      existente.fechaEmision ??= doc.fechaEmision;
-      existente.fechaVencimiento ??= doc.fechaVencimiento;
-    }
-    return [...mapa.values()];
+    const docs =
+      await this.docsPersonalesService.listarFechasPorPostulante(postulanteId);
+    return resumenDocumentosPersonales(docs);
   }
 
   // ── Resumen ───────────────────────────────────────────────────────────────
@@ -217,18 +185,21 @@ export class ResumenFechasService {
       por_vencer: 0,
       vigente: 0,
       sin_fecha: 0,
+      no_aplica: 0,
     };
 
     const items: ResumenFechaItem[] = [
       ...unificarCursos(registrados, cv),
-      ...this.unificarDocumentosPersonales(documentos),
+      ...documentos,
     ].map((item) => {
-      const vigencia = calcularEstadoVigencia(item.fechaVencimiento, hoy);
+      const vigencia = item.aplicaVencimiento
+        ? calcularEstadoVigencia(item.fechaVencimiento, hoy)
+        : { estadoVigencia: 'no_aplica' as const, diasParaVencer: null };
       conteo[vigencia.estadoVigencia]++;
       return { ...item, ...vigencia };
     });
 
-    // Vencidos primero; luego por vencer, vigentes y sin fecha.
+    // Vencidos primero; luego por vencer, vigentes, sin fecha y no aplica.
     // Dentro de cada estado: el que vence antes primero, después por nombre.
     items.sort(
       (a, b) =>
