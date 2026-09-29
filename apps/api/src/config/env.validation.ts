@@ -87,6 +87,23 @@ class EnvironmentVariables {
   @IsString()
   OPENAI_MODEL: string = 'gpt-4o-mini';
 
+  // Lectura de documentos para la IA (ver docs-personales/ia/lectura-documento.ts)
+  @IsOptional()
+  @IsString()
+  IA_DOCS_UMBRAL_TEXTO: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_DOCS_MAX_PAGINAS: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_DOCS_ANCHO_PX: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_DOCS_MAX_CARACTERES_TEXTO: string = '';
+
   @IsOptional()
   @IsString()
   CHATBOT_WHATSAPP_NUMERO: string = '';

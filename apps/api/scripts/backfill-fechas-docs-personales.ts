@@ -33,8 +33,8 @@
  *   --precio-salida <usd>   USD por 1M tokens de salida. Sin precios se
  *                           imprimen solo tokens (consulta la página de
  *                           precios de OpenAI para OPENAI_MODEL).
- *   --tokens-imagen <n>     Supuesto de tokens por imagen (5000).
- *   --tokens-pdf-visual <n> Supuesto de tokens por PDF escaneado (8000).
+ *   --tokens-imagen <n>     Supuesto de tokens por imagen o página renderizada
+ *                           (5000). Páginas por PDF: IA_DOCS_MAX_PAGINAS.
  */
 import { readFileSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -46,14 +46,15 @@ import type { Document, WithId } from 'mongodb';
 import {
   construirPromptDocPersonal,
   construirPromptImagenDocPersonal,
-  construirPromptPdfEscaneado,
   extraerFechasDocPersonal,
-  extraerTextoPdf,
-  MAX_CARACTERES_PDF_TEXTO,
   MIMES_EXTRACCION_IA,
-  MIN_CARACTERES_PDF_TEXTO,
   SYSTEM_PROMPT_DOC_PERSONAL,
 } from '../src/modules/docs-personales/ia/extraer-fechas-doc-personal';
+import {
+  configLecturaDesdeEnv,
+  leerDocumento,
+  ModoLectura,
+} from '../src/modules/docs-personales/ia/lectura-documento';
 import type { TipoDocPersonal } from '../src/modules/docs-personales/constants/tipos-doc-personal';
 import {
   conectar,
@@ -70,7 +71,7 @@ const USO = `Uso:
 const CARACTERES_POR_TOKEN = 4; // aproximación para español/inglés
 const TOKENS_SALIDA_POR_DOC = 150; // JSON de 3 fechas + confianza
 
-type Categoria = 'pdf' | 'pdf-texto' | 'pdf-visual' | 'imagen';
+type Categoria = 'pdf' | ModoLectura;
 
 interface DocPendiente extends WithId<Document> {
   tipo: TipoDocPersonal;
@@ -130,7 +131,6 @@ async function main() {
     ? numeroFlag(flags, 'precio-salida', 0)
     : null;
   const tokensImagen = numeroFlag(flags, 'tokens-imagen', 5000);
-  const tokensPdfVisual = numeroFlag(flags, 'tokens-pdf-visual', 8000);
   const analizarPdf = flags.has('analizar-pdf');
 
   const env = leerEntorno();
@@ -198,6 +198,7 @@ async function main() {
     },
   });
 
+  const cfgLectura = configLecturaDesdeEnv((k) => process.env[k]);
   const porCategoria = new Map<Categoria, number>();
   let tokensEntrada = 0;
   for (const d of pendientes) {
@@ -211,38 +212,38 @@ async function main() {
         ) + tokensImagen;
     } else if (analizarPdf) {
       try {
-        const texto = await extraerTextoPdf(
+        // Renderiza igual que la app, pero NO llama a OpenAI.
+        const leido = await leerDocumento(
           await descargar(s3, bucket, d.cloudinaryPublicId!),
+          d.tipoMime,
+          cfgLectura,
         );
-        if (texto.length < MIN_CARACTERES_PDF_TEXTO) {
-          categoria = 'pdf-visual';
-          entrada =
-            tokens(
-              SYSTEM_PROMPT_DOC_PERSONAL + construirPromptPdfEscaneado(d.tipo),
-            ) + tokensPdfVisual;
-        } else {
-          categoria = 'pdf-texto';
-          entrada = tokens(
+        categoria = leido.modo;
+        entrada =
+          tokens(
             SYSTEM_PROMPT_DOC_PERSONAL +
-              construirPromptDocPersonal(
-                texto.slice(0, MAX_CARACTERES_PDF_TEXTO),
-                d.tipo,
-              ),
-          );
-        }
+              (leido.texto
+                ? construirPromptDocPersonal(leido.texto, d.tipo)
+                : construirPromptImagenDocPersonal(d.tipo)),
+          ) +
+          leido.imagenes.length * tokensImagen +
+          (leido.modo === 'pdf-crudo'
+            ? cfgLectura.maxPaginas * tokensImagen
+            : 0);
       } catch (err) {
         console.warn(
-          `  ! No se pudo descargar ${String(d._id)}: ${(err as Error).message}`,
+          `  ! No se pudo descargar/leer ${String(d._id)}: ${(err as Error).message}`,
         );
         continue;
       }
     } else {
-      // Sin analizar: se asume el peor caso (escaneado).
+      // Sin analizar: peor caso, escaneado con el máximo de páginas.
       categoria = 'pdf';
       entrada =
         tokens(
-          SYSTEM_PROMPT_DOC_PERSONAL + construirPromptPdfEscaneado(d.tipo),
-        ) + tokensPdfVisual;
+          SYSTEM_PROMPT_DOC_PERSONAL + construirPromptImagenDocPersonal(d.tipo),
+        ) +
+        cfgLectura.maxPaginas * tokensImagen;
     }
     porCategoria.set(categoria, (porCategoria.get(categoria) ?? 0) + 1);
     tokensEntrada += entrada;
@@ -253,7 +254,7 @@ async function main() {
   for (const [cat, n] of porCategoria) {
     const nota =
       cat === 'pdf'
-        ? ' (sin --analizar-pdf: se estima como escaneado, peor caso)'
+        ? ' (sin --analizar-pdf: se estima como escaneado con el máximo de páginas)'
         : '';
     console.log(`  ${cat.padEnd(12)} ${n}${nota}`);
   }
@@ -261,7 +262,7 @@ async function main() {
     `\nEstimado: ~${tokensEntrada.toLocaleString('es-MX')} tokens de entrada · ~${tokensSalida.toLocaleString('es-MX')} de salida`,
   );
   console.log(
-    `  (supuestos: ${CARACTERES_POR_TOKEN} caracteres/token, ${tokensImagen} tokens/imagen, ${tokensPdfVisual} tokens/PDF escaneado)`,
+    `  (supuestos: ${CARACTERES_POR_TOKEN} caracteres/token, ${tokensImagen} tokens por imagen o página renderizada, hasta ${configLecturaDesdeEnv((k) => process.env[k]).maxPaginas} páginas por PDF)`,
   );
   if (precioEntrada !== null && precioSalida !== null) {
     const costo =
@@ -342,6 +343,7 @@ async function main() {
         apiKey: env.OPENAI_API_KEY,
         modelo,
         openai,
+        lectura: cfgLectura,
         onError: (m) => console.error(`    ${m}`),
       });
 

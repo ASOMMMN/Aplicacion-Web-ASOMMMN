@@ -13,6 +13,7 @@ import {
   ExtraerDocPersonalIaResponse,
   extraerFechasDocPersonal,
 } from './ia/extraer-fechas-doc-personal';
+import { configLecturaDesdeEnv } from './ia/lectura-documento';
 
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -178,6 +179,7 @@ export class DocsPersonalesService {
       apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
       modelo,
       openai: this.openai,
+      lectura: configLecturaDesdeEnv((k) => this.configService.get<string>(k)),
       onError: (m) => this.logger.error(m),
     });
 

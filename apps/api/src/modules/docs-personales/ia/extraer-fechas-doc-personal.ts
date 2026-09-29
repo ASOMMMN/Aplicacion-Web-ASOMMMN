@@ -6,7 +6,12 @@
  * la aplicación. No escribe en BD ni en auditoría: eso lo hace quien llama.
  */
 import OpenAI from 'openai';
-import { PDFParse } from 'pdf-parse';
+import {
+  ConfiguracionLectura,
+  DocumentoLeido,
+  leerDocumento,
+  ModoLectura,
+} from './lectura-documento';
 
 import type { TipoDocPersonal } from '../constants/tipos-doc-personal';
 
@@ -16,12 +21,6 @@ export const MIMES_EXTRACCION_IA = [
   'image/jpeg',
   'image/png',
 ];
-
-/** Caracteres mínimos de texto para tratar un PDF como "con texto". */
-export const MIN_CARACTERES_PDF_TEXTO = 20;
-
-/** Máximo de texto del PDF que se envía al modelo. */
-export const MAX_CARACTERES_PDF_TEXTO = 8000;
 
 /**
  * Respuesta de la extracción IA de documentos personales.
@@ -461,14 +460,20 @@ function quitarCercoJson(texto: string): string {
 
 // ── Extracción ─────────────────────────────────────────────────────────────
 
-/** Cómo se analizó el archivo (útil para auditoría y estimación de costo). */
-export type OrigenExtraccion = 'pdf-texto' | 'pdf-visual' | 'imagen';
+/** Cómo se leyó el archivo (útil para auditoría y estimación de costo). */
+export type OrigenExtraccion = ModoLectura;
 
 export interface ResultadoExtraccionFechas {
   resultado: ExtraerDocPersonalIaResponse;
   /** undefined si no se llegó a llamar al modelo. */
   origen?: OrigenExtraccion;
   modelo: string;
+  paginasTotales?: number;
+  paginasLeidas?: number;
+  /** Respuesta cruda del modelo (para auditoría y diagnóstico). */
+  respuestaCruda?: string;
+  /** Aviso no fatal de la lectura (p. ej. no se pudo renderizar). */
+  aviso?: string;
 }
 
 export interface OpcionesExtraccionFechas {
@@ -479,19 +484,106 @@ export interface OpcionesExtraccionFechas {
   modelo: string;
   /** Cliente reutilizable; si no se pasa, se crea uno con apiKey. */
   openai?: OpenAI;
+  /** Umbral de texto, páginas y resolución (por defecto, CONFIG_LECTURA_POR_DEFECTO). */
+  lectura?: ConfiguracionLectura;
   /** Para registrar errores (por defecto, console.error). */
   onError?: (mensaje: string) => void;
 }
 
-/** Texto de un PDF (vacío si es escaneado). */
-export async function extraerTextoPdf(buffer: Buffer): Promise<string> {
-  const parser = new PDFParse({ data: buffer });
-  try {
-    const r = await parser.getText();
-    return r.text?.trim() ?? '';
-  } finally {
-    await parser.destroy();
+/** Envía texto y/o imágenes de páginas al modelo de visión. */
+async function llamarVision(
+  openai: OpenAI,
+  modelo: string,
+  tipo: TipoDocPersonal,
+  doc: DocumentoLeido,
+): Promise<string> {
+  const nota =
+    doc.imagenes.length === 0
+      ? ''
+      : doc.texto
+        ? '\n\nSe adjunta además la imagen de la primera página: úsala para confirmar qué etiqueta acompaña a cada fecha.'
+        : `\n\nSe adjuntan ${doc.imagenes.length} página(s) del documento como imágenes: revísalas todas.`;
+  const prompt = doc.texto
+    ? construirPromptDocPersonal(doc.texto, tipo)
+    : construirPromptImagenDocPersonal(tipo);
+
+  const completion = await openai.chat.completions.create({
+    model: modelo,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT_DOC_PERSONAL },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: `${prompt}${nota}` },
+          ...doc.imagenes.map((url) => ({
+            type: 'image_url' as const,
+            image_url: { url, detail: 'high' as const },
+          })),
+        ],
+      },
+    ],
+    temperature: 0,
+    max_tokens: 800,
+  });
+  return completion.choices[0]?.message?.content ?? '{}';
+}
+
+/** Respaldo cuando no se pudo renderizar: el PDF completo a la Responses API. */
+async function llamarResponsesConPdf(
+  apiKey: string,
+  modelo: string,
+  tipo: TipoDocPersonal,
+  buffer: Buffer,
+): Promise<string> {
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: modelo,
+      input: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_file',
+              filename: 'documento.pdf',
+              file_data: `data:application/pdf;base64,${buffer.toString('base64')}`,
+            },
+            {
+              type: 'input_text',
+              text: `${SYSTEM_PROMPT_DOC_PERSONAL}\n${construirPromptPdfEscaneado(tipo)}`,
+            },
+          ],
+        },
+      ],
+      temperature: 0,
+    }),
+  });
+
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(`OpenAI Responses API: ${await response.text()}`),
+      { status: response.status },
+    );
   }
+
+  const json = (await response.json()) as {
+    output_text?: string;
+    output?: Array<{ content?: Array<{ text?: string }> }>;
+  };
+  return quitarCercoJson(
+    json.output_text ??
+      json.output
+        ?.flatMap((item) => item.content ?? [])
+        .map((item) => item.text ?? '')
+        .filter(Boolean)
+        .join('\n') ??
+      '{}',
+  );
 }
 
 /**
@@ -528,132 +620,30 @@ export async function extraerFechasDocPersonal(
 
   const openai = opciones.openai ?? new OpenAI({ apiKey });
 
+  let doc: DocumentoLeido;
   try {
-    let origen: OrigenExtraccion;
-    let raw: string;
+    doc = await leerDocumento(buffer, mimeType, opciones.lectura);
+  } catch (err) {
+    const msg = `No se pudo leer el archivo: ${(err as Error).message}`;
+    onError(msg);
+    return { resultado: sinFechas(true, msg), modelo };
+  }
+  if (doc.aviso) onError(doc.aviso);
 
-    if (mimeType === 'application/pdf') {
-      const textoPdf = await extraerTextoPdf(buffer);
+  const meta = {
+    origen: doc.modo,
+    modelo,
+    paginasTotales: doc.paginasTotales,
+    paginasLeidas: doc.paginasLeidas,
+    aviso: doc.aviso,
+  };
 
-      if (textoPdf.length < MIN_CARACTERES_PDF_TEXTO) {
-        // PDF escaneado: se envía el PDF completo a la Responses API para que
-        // el modelo lo lea visualmente (pdf-parse no extrae texto de imágenes).
-        origen = 'pdf-visual';
-        const response = await fetch('https://api.openai.com/v1/responses', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: modelo,
-            input: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'input_file',
-                    filename: 'documento.pdf',
-                    file_data: `data:application/pdf;base64,${buffer.toString('base64')}`,
-                  },
-                  {
-                    type: 'input_text',
-                    text: `${SYSTEM_PROMPT_DOC_PERSONAL}\n${construirPromptPdfEscaneado(tipo)}`,
-                  },
-                ],
-              },
-            ],
-            temperature: 0,
-          }),
-        });
-
-        if (!response.ok) {
-          throw Object.assign(
-            new Error(`OpenAI Responses API: ${await response.text()}`),
-            { status: response.status },
-          );
-        }
-
-        const json = (await response.json()) as {
-          output_text?: string;
-          output?: Array<{ content?: Array<{ text?: string }> }>;
-        };
-        raw = quitarCercoJson(
-          json.output_text ??
-            json.output
-              ?.flatMap((item) => item.content ?? [])
-              .map((item) => item.text ?? '')
-              .filter(Boolean)
-              .join('\n') ??
-            '{}',
-        );
-      } else {
-        origen = 'pdf-texto';
-        const completion = await openai.chat.completions.create({
-          model: modelo,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT_DOC_PERSONAL },
-            {
-              role: 'user',
-              content: construirPromptDocPersonal(
-                textoPdf.slice(0, MAX_CARACTERES_PDF_TEXTO),
-                tipo,
-              ),
-            },
-          ],
-          temperature: 0,
-          max_tokens: 500,
-        });
-        raw = completion.choices[0]?.message?.content ?? '{}';
-      }
-    } else {
-      origen = 'imagen';
-      const completion = await openai.chat.completions.create({
-        model: modelo,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT_DOC_PERSONAL },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: construirPromptImagenDocPersonal(tipo) },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${buffer.toString('base64')}`,
-                  detail: 'high',
-                },
-              },
-            ],
-          },
-        ],
-        temperature: 0,
-        max_tokens: 500,
-      });
-      raw = completion.choices[0]?.message?.content ?? '{}';
-    }
-
-    let parsed: RespuestaModelo;
-    try {
-      parsed = JSON.parse(raw) as RespuestaModelo;
-    } catch {
-      onError(
-        `La IA devolvió JSON inválido (${origen}) para documento ${tipo}.`,
-      );
-      return {
-        resultado: sinFechas(
-          true,
-          origen === 'pdf-visual'
-            ? 'La IA pudo abrir el PDF, pero no devolvió una respuesta interpretable.'
-            : 'La IA devolvió una respuesta que no pudo interpretarse.',
-        ),
-        origen,
-        modelo,
-      };
-    }
-
-    return { resultado: normalizarRespuesta(parsed), origen, modelo };
+  let raw: string;
+  try {
+    raw =
+      doc.modo === 'pdf-crudo'
+        ? await llamarResponsesConPdf(apiKey, modelo, tipo, buffer)
+        : await llamarVision(openai, modelo, tipo, doc);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error desconocido';
     const status =
@@ -662,6 +652,7 @@ export async function extraerFechasDocPersonal(
       0;
     onError(`extraerFechasDocPersonal falló — HTTP ${status} — ${msg}`);
     return {
+      ...meta,
       resultado: sinFechas(
         true,
         status === 401
@@ -670,7 +661,29 @@ export async function extraerFechasDocPersonal(
             ? 'Sin crédito o cuota de OpenAI agotada. Contacta al administrador.'
             : `No se pudo analizar el documento con IA: ${msg}`,
       ),
-      modelo,
     };
   }
+
+  let parsed: RespuestaModelo;
+  try {
+    parsed = JSON.parse(quitarCercoJson(raw)) as RespuestaModelo;
+  } catch {
+    onError(
+      `La IA devolvió JSON inválido (${doc.modo}) para documento ${tipo}.`,
+    );
+    return {
+      ...meta,
+      respuestaCruda: raw,
+      resultado: sinFechas(
+        true,
+        'La IA devolvió una respuesta que no pudo interpretarse.',
+      ),
+    };
+  }
+
+  return {
+    ...meta,
+    respuestaCruda: raw,
+    resultado: normalizarRespuesta(parsed),
+  };
 }
