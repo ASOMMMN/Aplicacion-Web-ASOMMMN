@@ -16,6 +16,7 @@ import api from '@/lib/api/client';
 import { IconTimon, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
 import { formatearFechaCalendario } from '@/lib/fechas';
+import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ type CursoItem = {
   fechaCurso: string;
   fechaInicio?: string;
   fechaVencimiento?: string;
+  /** Calculado por la API con la misma regla que /resumen-fechas. */
+  estadoVigencia: EstadoVigencia;
   tieneDocumentoExtra: boolean;
   documentoExtra?: {
     nombreOriginal: string;
@@ -483,9 +486,8 @@ export default function MisCursosPage() {
                       </thead>
                       <tbody>
                         {data.cursos.map((curso) => {
-                          const vencido =
-                            curso.fechaVencimiento &&
-                            new Date(curso.fechaVencimiento) < new Date();
+                          // Misma regla y "hoy" (México) que ve el evaluador.
+                          const vencido = curso.estadoVigencia === 'vencido';
                           return (
                             <tr key={curso._id}>
                               <td>
