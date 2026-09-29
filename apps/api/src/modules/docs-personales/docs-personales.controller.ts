@@ -25,6 +25,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 
 import {
@@ -334,7 +335,7 @@ export class DocsPersonalesController {
     type: MisDocsResponseDto,
   })
   listarPorPostulante(
-    @Param('postulanteId') postulanteId: string,
+    @Param('postulanteId', ParseObjectIdPipe) postulanteId: string,
   ): Promise<MisDocsResponseDto> {
     return this.svc.listarPorPostulante(postulanteId);
   }
