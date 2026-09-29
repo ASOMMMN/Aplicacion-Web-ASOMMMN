@@ -5,6 +5,7 @@ import { Alert, Table } from 'react-bootstrap';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import type {
+  ConfianzaIa,
   EstadoVigencia,
   OrigenResumen,
   ResumenFechaItem,
@@ -33,6 +34,44 @@ const formatearFecha = (iso: string) => {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
 };
+
+/**
+ * Celda de fecha. Si falta y el dato viene solo del CV, lo dice explícitamente
+ * ("No indicada en CV") para no confundirlo con un dato pendiente de capturar.
+ */
+function CeldaFecha({
+  fecha,
+  etiqueta,
+  soloCV,
+  confianza,
+}: {
+  fecha: string | null;
+  etiqueta?: string;
+  soloCV: boolean;
+  confianza?: ConfianzaIa;
+}) {
+  if (!fecha) {
+    return soloCV ? (
+      <span className="text-secondary fst-italic" style={{ fontSize: '0.8rem' }}>
+        No indicada en CV
+      </span>
+    ) : (
+      <>—</>
+    );
+  }
+  return (
+    <>
+      {formatearFecha(fecha)}
+      {etiqueta && <span className="text-muted ms-1" style={{ fontSize: '0.7rem' }}>({etiqueta})</span>}
+      {confianza === 'baja' && (
+        <i
+          className="bi bi-question-circle text-warning ms-1"
+          title="La IA tiene confianza baja en esta fecha; verifícala contra el documento"
+        />
+      )}
+    </>
+  );
+}
 
 function tituloVigencia(item: ResumenFechaItem): string | undefined {
   const dias = item.diasParaVencer;
@@ -111,7 +150,7 @@ export function ResumenFechasTabla({
           <tr>
             <th>Curso</th>
             <th>Institución</th>
-            <th>Fecha inicio</th>
+            <th>Inicio / emisión</th>
             <th>Fecha vence</th>
             <th>Vigencia</th>
             <th>Origen</th>
@@ -121,12 +160,26 @@ export function ResumenFechasTabla({
           {items.map((c, idx) => {
             const estado = ESTADOS[c.estadoVigencia];
             const origen = ORIGENES[c.origen];
+            const soloCV = c.origen === 'cv';
             return (
               <tr key={`${c.nombre}-${idx}`}>
                 <td>{c.nombre}</td>
                 <td className="text-muted">{c.institucion ?? '—'}</td>
-                <td className="text-muted small">{c.fechaInicio ? formatearFecha(c.fechaInicio) : '—'}</td>
-                <td className="text-muted small">{c.fechaVencimiento ? formatearFecha(c.fechaVencimiento) : '—'}</td>
+                <td className="text-muted small">
+                  <CeldaFecha
+                    fecha={c.fechaInicio ?? c.fechaEmision}
+                    etiqueta={!c.fechaInicio && c.fechaEmision ? 'emisión' : undefined}
+                    soloCV={soloCV}
+                    confianza={c.fechaInicio ? c.confianzaCV?.fechaInicio : c.confianzaCV?.fechaEmision}
+                  />
+                </td>
+                <td className="text-muted small">
+                  <CeldaFecha
+                    fecha={c.fechaVencimiento}
+                    soloCV={soloCV}
+                    confianza={c.confianzaCV?.fechaVencimiento}
+                  />
+                </td>
                 <td>
                   <span className={`badge ${estado.className}`} title={tituloVigencia(c)}>
                     <i className={`bi ${estado.icon} me-1`} />

@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
 import {
+  CursoCV,
   Extraccion,
   ExtraccionDocument,
 } from '../ingest-ia/schemas/extraccion.schema';
@@ -35,8 +36,12 @@ export interface ResumenFechaItem {
   tipo: 'Curso' | 'Documento personal';
   nombre: string;
   institucion: string | null;
+  /** null = el origen no la indica (nunca se infiere). */
   fechaInicio: string | null;
+  fechaEmision: string | null;
   fechaVencimiento: string | null;
+  /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
+  confianzaCV: CursoCV['confianza'] | null;
   origen: OrigenResumen;
   /** Calculado al responder; no se guarda en BD. */
   estadoVigencia: EstadoVigencia;
@@ -144,8 +149,12 @@ export class ResumenFechasService {
         tipo: 'Curso' as const,
         nombre: c.nombreCurso.trim(),
         institucion: this.texto(c.institucion),
-        fechaInicio: this.normalizarFecha(c.fechaInicio ?? c.fechaCurso),
+        // Sin fallback a fechaCurso: cuando el postulante no da fecha, el
+        // frontend guarda ahí el día de la subida, no una fecha del curso.
+        fechaInicio: this.normalizarFecha(c.fechaInicio),
+        fechaEmision: null,
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
+        confianzaCV: null,
         origen: 'subido' as const,
         fuente: [FUENTE_SUBIDO],
       }));
@@ -172,7 +181,9 @@ export class ResumenFechasService {
         nombre: c.nombre!.trim(),
         institucion: this.texto(c.institucion),
         fechaInicio: this.normalizarFecha(c.fechaInicio),
+        fechaEmision: this.normalizarFecha(c.fechaEmision),
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
+        confianzaCV: c.confianza ?? null,
         origen: 'cv' as const,
         fuente: [FUENTE_CV],
       }));
@@ -189,8 +200,10 @@ export class ResumenFechasService {
         tipo: 'Documento personal' as const,
         nombre: a.nombreOriginal,
         institucion: null,
-        fechaInicio: this.normalizarFecha(a.fechaInicio ?? a.fechaEmision),
+        fechaInicio: this.normalizarFecha(a.fechaInicio),
+        fechaEmision: this.normalizarFecha(a.fechaEmision),
         fechaVencimiento: this.normalizarFecha(a.fechaVencimiento),
+        confianzaCV: null,
         origen: 'doc_personal' as const,
         fuente: [FUENTE_DOC_PERSONAL],
       })),
@@ -224,7 +237,9 @@ export class ResumenFechasService {
 
       existente.institucion ??= curso.institucion;
       existente.fechaInicio ??= curso.fechaInicio;
+      existente.fechaEmision ??= curso.fechaEmision;
       existente.fechaVencimiento ??= curso.fechaVencimiento;
+      existente.confianzaCV = curso.confianzaCV;
       existente.origen = 'subido_y_cv';
       existente.fuente = [...new Set([...existente.fuente, ...curso.fuente])];
     }
@@ -244,6 +259,7 @@ export class ResumenFechasService {
         continue;
       }
       existente.fechaInicio ??= doc.fechaInicio;
+      existente.fechaEmision ??= doc.fechaEmision;
       existente.fechaVencimiento ??= doc.fechaVencimiento;
     }
     return [...mapa.values()];
@@ -316,6 +332,7 @@ export class ResumenFechasService {
         tipo: item.tipo,
         nombre: item.nombre,
         fechaInicio: this.formatearFechaReporte(item.fechaInicio),
+        fechaEmision: this.formatearFechaReporte(item.fechaEmision),
         fechaVencimiento: this.formatearFechaReporte(item.fechaVencimiento),
         estadoVigencia: item.estadoVigencia,
         fuente: item.fuente,

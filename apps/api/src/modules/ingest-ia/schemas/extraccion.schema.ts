@@ -3,6 +3,26 @@ import { Document, Types } from 'mongoose';
 
 export type EstadoExtraccion = 'propuesto' | 'confirmado' | 'rechazado';
 
+export type ConfianzaIa = 'alta' | 'media' | 'baja';
+
+/**
+ * Curso detectado en el CV. Las fechas son null cuando el CV no las indica
+ * (nunca se infieren). `confianza` solo existe en extracciones hechas después
+ * de agregar el campo; las antiguas no lo traen.
+ */
+export interface CursoCV {
+  nombre?: string;
+  institucion?: string | null;
+  fechaInicio?: string | null;
+  fechaEmision?: string | null;
+  fechaVencimiento?: string | null;
+  confianza?: {
+    fechaInicio?: ConfianzaIa;
+    fechaEmision?: ConfianzaIa;
+    fechaVencimiento?: ConfianzaIa;
+  };
+}
+
 export interface DatosCV {
   nombre?: string | null;
   apellidos?: string | null;
@@ -23,12 +43,7 @@ export interface DatosCV {
     fin?: string;
     descripcion?: string;
   }>;
-  cursos?: Array<{
-    nombre?: string;
-    institucion?: string;
-    fechaInicio?: string | null;
-    fechaVencimiento?: string | null;
-  }>;
+  cursos?: Array<CursoCV>;
   habilidades?: string[];
   idiomas?: Array<{ idioma?: string; nivel?: string }>;
 }

@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { PDFParse } from 'pdf-parse';
-import type { DatosCV } from './schemas/extraccion.schema';
+import type {
+  ConfianzaIa,
+  CursoCV,
+  DatosCV,
+} from './schemas/extraccion.schema';
 
 const SYSTEM_PROMPT = `Eres un asistente especializado en extracción de datos curriculares.
 Analiza el texto del CV y devuelve ÚNICAMENTE un objeto JSON válido con esta estructura exacta.
@@ -24,13 +28,28 @@ Para cada elemento del array "cursos" (cursos, certificaciones o diplomados menc
   - Busca frases como: "expedido por", "emitido por", "otorgado por", "issued by", "certified by", "awarded by",
     o el nombre de la organización que aparece junto al curso (ej. "Cisco", "Cisco Networking Academy", "Google", "Coursera", "Universidad Cristóbal Colón").
   - null si no se menciona explícitamente la institución para ese curso.
-- fechaInicio: fecha de inicio EXPLÍCITA en formato YYYY-MM-DD.
-  - SOLO si el texto dice "Fecha de inicio", "Start date", "Inicio:" o equivalente.
-  - null si no hay fecha de inicio explícita en el texto.
-- fechaVencimiento: fecha de vencimiento o expiración en formato YYYY-MM-DD.
-  - SOLO si el texto dice "Válido hasta", "Expira:", "Expiry date", "Valid until" o equivalente.
-  - null si no hay fecha de vencimiento explícita (la mayoría de certificados no vencen).
-  - Normaliza cualquier formato o idioma al extraer: "04 Feb 2026" → "2026-02-04", "15 de marzo de 2024" → "2024-03-15".
+REGLAS DE FECHAS DE CURSOS (obligatorias):
+- Toda fecha debe aparecer LITERALMENTE en el CV. Si no aparece, devuelve null.
+- NUNCA infieras, estimes ni calcules una fecha (por ejemplo, no sumes años de
+  vigencia a una fecha de emisión, ni uses el año de un empleo o estudio).
+- Normaliza al formato YYYY-MM-DD: "04 Feb 2026" → "2026-02-04", "15 de marzo de 2024" → "2024-03-15".
+- Si solo aparece mes y año, o solo año, devuelve null (no inventes el día).
+
+- fechaInicio: inicio EXPLÍCITO del curso o de la vigencia.
+  - SOLO con etiquetas como "Fecha de inicio", "Inicio:", "Del ... al ...", "Start date", "Valid from".
+- fechaEmision: fecha en que se expidió el certificado.
+  - Etiquetas: "Expedido", "Expedición", "Emitido", "Emisión", "Fecha de expedición", "Issued", "Date of issue".
+- fechaVencimiento: fin de la vigencia del certificado.
+  - Etiquetas: "Vigencia", "Vigente hasta", "Vence", "Vencimiento", "Válido hasta", "Expira", "Expiry date", "Valid until".
+  - La mayoría de los cursos no indican vencimiento: en ese caso null.
+- Si el curso tiene UNA sola fecha, clasifícala por la palabra que la acompaña:
+  - "vigencia", "vence", "válido hasta", "expira" → fechaVencimiento
+  - "expedido", "emitido", "expedición", "emisión" → fechaEmision
+  - "inicio", "desde" → fechaInicio
+  - Si no la acompaña ninguna palabra que indique qué es, devuelve las tres en null
+    (una fecha sin contexto no se puede clasificar con seguridad).
+- confianza: para cada una de las tres fechas, "alta" si la etiqueta es explícita,
+  "media" si la interpretaste por contexto cercano, "baja" si es null o dudosa.
 
 Devuelve este JSON (y solo este JSON):
 {
@@ -41,7 +60,7 @@ Devuelve este JSON (y solo este JSON):
   "resumen": "string o null",
   "estudios": [{ "institucion": "string", "grado": "string", "area": "string o null", "inicio": "string o null", "fin": "string o null" }],
   "experienciaLaboral": [{ "empresa": "string", "puesto": "string", "inicio": "string o null", "fin": "string o null", "descripcion": "string o null" }],
-  "cursos": [{ "nombre": "string", "institucion": "string o null", "fechaInicio": "YYYY-MM-DD o null", "fechaVencimiento": "YYYY-MM-DD o null" }],
+  "cursos": [{ "nombre": "string", "institucion": "string o null", "fechaInicio": "YYYY-MM-DD o null", "fechaEmision": "YYYY-MM-DD o null", "fechaVencimiento": "YYYY-MM-DD o null", "confianza": { "fechaInicio": "alta|media|baja", "fechaEmision": "alta|media|baja", "fechaVencimiento": "alta|media|baja" } }],
   "habilidades": ["string"],
   "idiomas": [{ "idioma": "string", "nivel": "string o null" }]
 }`;
@@ -81,11 +100,64 @@ export class OpenAiIaService {
     const raw = response.choices[0]?.message?.content ?? '{}';
     this.logger.debug(`OpenAI response: ${raw.slice(0, 200)}`);
 
+    let datos: DatosCV;
     try {
-      return JSON.parse(raw) as DatosCV;
+      datos = JSON.parse(raw) as DatosCV;
     } catch {
       this.logger.warn('No se pudo parsear la respuesta de OpenAI como JSON');
       return {};
     }
+
+    if (Array.isArray(datos.cursos)) {
+      datos.cursos = datos.cursos.map((c) => sanitizarCursoCV(c));
+    }
+    return datos;
   }
+}
+
+/** YYYY-MM-DD de calendario válido; cualquier otra cosa → null. */
+function fechaValida(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(valor.trim());
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] &&
+    d.getUTCMonth() === +m[2] - 1 &&
+    d.getUTCDate() === +m[3]
+    ? m[0]
+    : null;
+}
+
+function confianzaValida(valor: unknown): ConfianzaIa | undefined {
+  return valor === 'alta' || valor === 'media' || valor === 'baja'
+    ? valor
+    : undefined;
+}
+
+/**
+ * Defensa ante respuestas del modelo que no respetan el formato: una fecha
+ * mal formada se descarta (null) en lugar de guardarse.
+ */
+export function sanitizarCursoCV(curso: CursoCV): CursoCV {
+  const fechaInicio = fechaValida(curso?.fechaInicio);
+  const fechaEmision = fechaValida(curso?.fechaEmision);
+  const fechaVencimiento = fechaValida(curso?.fechaVencimiento);
+  return {
+    ...curso,
+    fechaInicio,
+    fechaEmision,
+    fechaVencimiento,
+    confianza: {
+      // Sin fecha, la confianza no aporta: se fija en baja.
+      fechaInicio: fechaInicio
+        ? confianzaValida(curso?.confianza?.fechaInicio)
+        : 'baja',
+      fechaEmision: fechaEmision
+        ? confianzaValida(curso?.confianza?.fechaEmision)
+        : 'baja',
+      fechaVencimiento: fechaVencimiento
+        ? confianzaValida(curso?.confianza?.fechaVencimiento)
+        : 'baja',
+    },
+  };
 }
