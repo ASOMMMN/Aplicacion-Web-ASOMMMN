@@ -1,14 +1,18 @@
 /**
  * Marca como estimados los vencimientos que el sistema calculaba como
- * fechaInicio + 5 años (regla eliminada). NO borra ni cambia fechas: solo
- * agrega fechaVencimientoEstimada = true para que el resumen muestre
- * el badge "Estimada" y una fecha real (subida o del CV) tenga prioridad.
+ * fechaInicio + 5 años (regla eliminada). NO borra ni cambia fechas de
+ * cursos: solo agrega fechaVencimientoEstimada = true para que el resumen
+ * muestre el badge "Estimada" y una fecha real (subida o del CV) tenga
+ * prioridad.
  *
  * Colecciones:
  *   - cursos: campo fechaVencimientoEstimada del documento.
  *   - extracciones_ia: cursos[i].fechaVencimientoEstimada dentro de
  *     datosExtraidos y datosConfirmados (la extracción del CV también
  *     aplicaba la regla).
+ *   - notificaciones: BORRA las alertas "curso por vencer" creadas a partir
+ *     de un vencimiento estimado (curso marcado y misma fecha). Es lo único
+ *     que se borra; en --dry-run solo se cuentan.
  *
  * Limitación: si un postulante capturó a mano un vencimiento que es
  * exactamente inicio + 5 años (vigencia real de 5 años), también se marca;
@@ -37,6 +41,14 @@ interface CursoCV {
   fechaInicio?: string | null;
   fechaVencimiento?: string | null;
   fechaVencimientoEstimada?: boolean;
+}
+
+function porBloques<T>(items: T[], tamanio: number): T[][] {
+  const bloques: T[][] = [];
+  for (let i = 0; i < items.length; i += tamanio) {
+    bloques.push(items.slice(i, i + tamanio));
+  }
+  return bloques;
 }
 
 /** Devuelve el arreglo con las marcas aplicadas, o null si no cambió nada. */
@@ -143,13 +155,46 @@ async function main() {
     `extracciones_ia: ${cursosCVMarcados} curso(s) del CV a marcar en ${opsExt.length} de ${extracciones.length} extracción(es).`,
   );
 
+  // ── notificaciones ────────────────────────────────────────────────────────
+  // Alertas "curso por vencer" creadas a partir de un vencimiento estimado:
+  // de cursos ya marcados en corridas anteriores y de los que se marcan en
+  // esta. Solo cuenta/borra si la fecha de la notificación es la misma fecha
+  // estimada del curso (una alerta de una fecha real posterior se conserva).
+  const notifCol = db.collection('notificaciones');
+  const yaMarcados = await cursosCol
+    .find(
+      { fechaVencimientoEstimada: true },
+      { projection: { fechaVencimiento: 1 } },
+    )
+    .toArray();
+  const condicionesNotif = [...yaMarcados, ...cursosAMarcar]
+    .filter((c) => c.fechaVencimiento instanceof Date)
+    .map((c) => ({
+      cursoId: c._id,
+      fechaVencimiento: c.fechaVencimiento as Date,
+    }));
+  const filtrosNotif = porBloques(condicionesNotif, 500).map((bloque) => ({
+    tipo: 'curso_por_vencer',
+    $or: bloque,
+  }));
+
+  let notifABorrar = 0;
+  let notifNoLeidas = 0;
+  for (const filtro of filtrosNotif) {
+    notifABorrar += await notifCol.countDocuments(filtro);
+    notifNoLeidas += await notifCol.countDocuments({ ...filtro, leida: false });
+  }
+  console.log(
+    `notificaciones: ${notifABorrar} alerta(s) de vencimiento basadas en fechas estimadas (${notifNoLeidas} sin leer)${ejecutar ? '' : ' — se borrarían con --ejecutar'}.`,
+  );
+
   if (!ejecutar) {
     console.log('\nDRY-RUN: no se escribió nada. Usa --ejecutar para aplicar.');
     await desconectar();
     return;
   }
-  if (cursosAMarcar.length === 0 && opsExt.length === 0) {
-    console.log('\nNada que marcar.');
+  if (cursosAMarcar.length === 0 && opsExt.length === 0 && notifABorrar === 0) {
+    console.log('\nNada que marcar ni borrar.');
     await desconectar();
     return;
   }
@@ -166,6 +211,13 @@ async function main() {
   if (opsExt.length > 0) {
     const r = await extCol.bulkWrite(opsExt);
     console.log(`extracciones_ia: ${r.modifiedCount} actualizada(s).`);
+  }
+  if (notifABorrar > 0) {
+    let borradas = 0;
+    for (const filtro of filtrosNotif) {
+      borradas += (await notifCol.deleteMany(filtro)).deletedCount;
+    }
+    console.log(`notificaciones: ${borradas} borrada(s).`);
   }
 
   await desconectar();
