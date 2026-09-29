@@ -21,6 +21,13 @@ export interface ResumenFechaItem {
     fechaVencimiento?: ConfianzaIa;
   } | null;
   origen: OrigenResumen;
+  /** Nombre tal como aparece en el CV, cuando se unió con un curso subido. */
+  nombreEnCV: string | null;
+  /** El CV y el documento subido dicen vencimientos distintos. */
+  discrepancia: {
+    fechaVencimientoSubido: string;
+    fechaVencimientoCV: string;
+  } | null;
   estadoVigencia: EstadoVigencia;
   diasParaVencer: number | null;
   fuente: string[];

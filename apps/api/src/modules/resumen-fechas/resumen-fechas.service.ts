@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
 import {
-  CursoCV,
   Extraccion,
   ExtraccionDocument,
 } from '../ingest-ia/schemas/extraccion.schema';
@@ -17,53 +16,23 @@ import { DocsPersonalesService } from '../docs-personales/docs-personales.servic
 
 import {
   calcularEstadoVigencia,
-  EstadoVigencia,
   hoyISO,
   ORDEN_ESTADO_VIGENCIA,
   UMBRAL_POR_VENCER_MESES,
 } from './vigencia.util';
 
-/**
- * Origen del dato:
- * - subido: curso registrado por el postulante con su documento
- * - cv: curso detectado en el CV por la IA
- * - subido_y_cv: el mismo curso aparece en ambos (prevalecen los datos subidos)
- * - doc_personal: documento personal (pasaporte, libreta de mar, etc.)
- */
-export type OrigenResumen = 'subido' | 'cv' | 'subido_y_cv' | 'doc_personal';
+import { normalizarNombreCurso, unificarCursos } from './cursos-match.util';
+import type {
+  ConteoVigencia,
+  ItemBase,
+  ResumenFechaItem,
+  ResumenFechasResponse,
+} from './resumen-fechas.types';
 
-export interface ResumenFechaItem {
-  tipo: 'Curso' | 'Documento personal';
-  nombre: string;
-  institucion: string | null;
-  /** null = el origen no la indica (nunca se infiere). */
-  fechaInicio: string | null;
-  fechaEmision: string | null;
-  fechaVencimiento: string | null;
-  /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
-  confianzaCV: CursoCV['confianza'] | null;
-  origen: OrigenResumen;
-  /** Calculado al responder; no se guarda en BD. */
-  estadoVigencia: EstadoVigencia;
-  diasParaVencer: number | null;
-  fuente: string[];
-}
-
-export type ConteoVigencia = Record<EstadoVigencia, number>;
-
-export interface ResumenFechasResponse {
-  titulo: string;
-  postulante: string;
-  fechaGeneracion: string;
-  /** Fecha (México) contra la que se calculó el semáforo. */
-  fechaReferencia: string;
-  umbralPorVencerMeses: number;
-  conteo: ConteoVigencia;
-  items: ResumenFechaItem[];
-}
-
-/** Ítem antes de calcular la vigencia. */
-type ItemBase = Omit<ResumenFechaItem, 'estadoVigencia' | 'diasParaVencer'>;
+export type {
+  ResumenFechaItem,
+  ResumenFechasResponse,
+} from './resumen-fechas.types';
 
 const FUENTE_SUBIDO = 'Cursos registrados';
 const FUENTE_CV = 'CV';
@@ -85,19 +54,6 @@ export class ResumenFechasService {
   ) {}
 
   // ── Normalización ─────────────────────────────────────────────────────────
-
-  /** Clave para detectar duplicados: sin acentos, extensión ni puntuación. */
-  private normalizarNombre(valor: unknown): string {
-    if (typeof valor !== 'string' || !valor.trim()) return '';
-    return valor
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .toLowerCase()
-      .replace(/\.(pdf|jpg|jpeg|png|doc|docx)$/i, '')
-      .replace(/[^a-z0-9]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
 
   /** Convierte a YYYY-MM-DD sin calcular nada; null si no hay fecha válida. */
   private normalizarFecha(valor: unknown): string | null {
@@ -155,6 +111,8 @@ export class ResumenFechasService {
         fechaEmision: null,
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
         confianzaCV: null,
+        nombreEnCV: null,
+        discrepancia: null,
         origen: 'subido' as const,
         fuente: [FUENTE_SUBIDO],
       }));
@@ -184,6 +142,8 @@ export class ResumenFechasService {
         fechaEmision: this.normalizarFecha(c.fechaEmision),
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
         confianzaCV: c.confianza ?? null,
+        nombreEnCV: null,
+        discrepancia: null,
         origen: 'cv' as const,
         fuente: [FUENTE_CV],
       }));
@@ -204,6 +164,8 @@ export class ResumenFechasService {
         fechaEmision: this.normalizarFecha(a.fechaEmision),
         fechaVencimiento: this.normalizarFecha(a.fechaVencimiento),
         confianzaCV: null,
+        nombreEnCV: null,
+        discrepancia: null,
         origen: 'doc_personal' as const,
         fuente: [FUENTE_DOC_PERSONAL],
       })),
@@ -211,47 +173,13 @@ export class ResumenFechasService {
   }
 
   // ── Unificación ───────────────────────────────────────────────────────────
-
-  /**
-   * Une cursos registrados y del CV por nombre normalizado.
-   * Los datos registrados prevalecen; el CV solo completa campos vacíos.
-   */
-  private unificarCursos(registrados: ItemBase[], cv: ItemBase[]): ItemBase[] {
-    const mapa = new Map<string, ItemBase>();
-
-    for (const curso of registrados) {
-      const clave = this.normalizarNombre(curso.nombre);
-      if (clave) mapa.set(clave, { ...curso, fuente: [...curso.fuente] });
-    }
-
-    for (const curso of cv) {
-      const clave = this.normalizarNombre(curso.nombre);
-      if (!clave) continue;
-
-      const existente = mapa.get(clave);
-      if (!existente) {
-        mapa.set(clave, { ...curso });
-        continue;
-      }
-      if (existente.origen === 'cv') continue; // duplicado dentro del CV
-
-      existente.institucion ??= curso.institucion;
-      existente.fechaInicio ??= curso.fechaInicio;
-      existente.fechaEmision ??= curso.fechaEmision;
-      existente.fechaVencimiento ??= curso.fechaVencimiento;
-      existente.confianzaCV = curso.confianzaCV;
-      existente.origen = 'subido_y_cv';
-      existente.fuente = [...new Set([...existente.fuente, ...curso.fuente])];
-    }
-
-    return [...mapa.values()];
-  }
+  // Cursos: ver cursos-match.util.ts
 
   /** Documentos personales duplicados (mismo nombre): se completan fechas. */
   private unificarDocumentosPersonales(documentos: ItemBase[]): ItemBase[] {
     const mapa = new Map<string, ItemBase>();
     for (const doc of documentos) {
-      const clave = this.normalizarNombre(doc.nombre);
+      const clave = normalizarNombreCurso(doc.nombre).clave;
       if (!clave) continue;
       const existente = mapa.get(clave);
       if (!existente) {
@@ -289,7 +217,7 @@ export class ResumenFechasService {
     };
 
     const items: ResumenFechaItem[] = [
-      ...this.unificarCursos(registrados, cv),
+      ...unificarCursos(registrados, cv),
       ...this.unificarDocumentosPersonales(documentos),
     ].map((item) => {
       const vigencia = calcularEstadoVigencia(item.fechaVencimiento, hoy);

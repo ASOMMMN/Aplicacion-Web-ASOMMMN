@@ -163,7 +163,9 @@ export function ResumenFechasTabla({
             const soloCV = c.origen === 'cv';
             return (
               <tr key={`${c.nombre}-${idx}`}>
-                <td>{c.nombre}</td>
+                <td title={c.nombreEnCV && c.nombreEnCV !== c.nombre ? `En el CV: ${c.nombreEnCV}` : undefined}>
+                  {c.nombre}
+                </td>
                 <td className="text-muted">{c.institucion ?? '—'}</td>
                 <td className="text-muted small">
                   <CeldaFecha
@@ -188,6 +190,15 @@ export function ResumenFechasTabla({
                 </td>
                 <td>
                   <span className={`badge badge-pill-enmv ${origen.className}`}>{origen.label}</span>
+                  {c.discrepancia && (
+                    <span
+                      className="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle ms-1"
+                      title={`Vencimiento en documento subido: ${formatearFecha(c.discrepancia.fechaVencimientoSubido)} · en CV: ${formatearFecha(c.discrepancia.fechaVencimientoCV)}. Se usa el del documento subido.`}
+                    >
+                      <i className="bi bi-exclamation-diamond me-1" />
+                      Discrepancia
+                    </span>
+                  )}
                 </td>
               </tr>
             );
