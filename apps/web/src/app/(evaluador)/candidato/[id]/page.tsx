@@ -25,6 +25,7 @@ import { ComentarioCard } from '@/components/ComentarioCard';
 import { TiempoTotalCard } from '@/components/bitacora-embarque/TiempoTotalCard';
 import { EmbarqueTimeline } from '@/components/bitacora-embarque/EmbarqueTimeline';
 import type { BitacoraEmbarqueResponse } from '@/components/bitacora-embarque/types';
+import { ResumenFechasTabla } from '@/components/resumen-fechas/ResumenFechasTabla';
 
 type Estado = 'en_proceso' | 'completado' | 'rechazado';
 
@@ -1187,7 +1188,8 @@ export default function CandidatoDetallePage() {
                     ) : (
                       <ExtraccionVistaLectura
                         datos={extraccion.estado === 'confirmado' ? (extraccion.datosConfirmados ?? extraccion.datosExtraidos ?? {}) : (extraccion.datosExtraidos ?? {})}
-                        cursosReales={cursosData?.cursos ?? []}
+                        postulanteId={candidatoId}
+                        recargarKey={`${extraccion._id}-${extraccion.estado}-${extraccion.confirmadoEn ?? ''}`}
                       />
                     )}
                   </>
@@ -1202,14 +1204,6 @@ export default function CandidatoDetallePage() {
 }
 
 // ── Subcomponentes ────────────────────────────────────────────────────────────
-
-type CursoUnificado = {
-  nombre: string;
-  institucion?: string | null;
-  fechaInicio?: string | null;
-  fechaVencimiento?: string | null;
-  origen: 'ia' | 'postulante';
-};
 
 const quitarAcentos = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -1269,28 +1263,13 @@ function LineaTiempoItem({ isLast, children }: { isLast: boolean; children: Reac
 
 function ExtraccionVistaLectura({
   datos,
-  cursosReales,
+  postulanteId,
+  recargarKey,
 }: {
   datos: DatosCV;
-  cursosReales: CursoItem[];
+  postulanteId: string;
+  recargarKey: string;
 }) {
-  const cursosUnificados: CursoUnificado[] = [
-    ...(datos.cursos ?? []).map((c) => ({
-      nombre: c.nombre ?? '—',
-      institucion: c.institucion,
-      fechaInicio: c.fechaInicio,
-      fechaVencimiento: c.fechaVencimiento,
-      origen: 'ia' as const,
-    })),
-    ...cursosReales.map((c) => ({
-      nombre: c.nombreCurso,
-      institucion: c.institucion,
-      fechaInicio: c.fechaInicio,
-      fechaVencimiento: c.fechaVencimiento,
-      origen: 'postulante' as const,
-    })),
-  ];
-
   return (
     <div className="row g-3">
       <div className="col-md-6">
@@ -1410,29 +1389,11 @@ function ExtraccionVistaLectura({
         </div>
       )}
 
-      {cursosUnificados.length > 0 && (
-        <div className="col-12">
-          <strong className="small text-muted d-block mb-1">Cursos y certificaciones</strong>
-          <Table size="sm" responsive hover className="mb-0">
-            <thead><tr><th>Curso</th><th>Institución</th><th>Fecha inicio</th><th>Fecha vence</th><th>Origen</th></tr></thead>
-            <tbody>
-              {cursosUnificados.map((c, idx) => (
-                <tr key={idx}>
-                  <td>{c.nombre}</td>
-                  <td className="text-muted">{c.institucion ?? '—'}</td>
-                  <td className="text-muted small">{c.fechaInicio ? formatDateOnly(c.fechaInicio) : '—'}</td>
-                  <td className="text-muted small">{c.fechaVencimiento ? formatDateOnly(c.fechaVencimiento) : '—'}</td>
-                  <td>
-                    <span className={`badge badge-pill-enmv ${c.origen === 'ia' ? 'badge-estado-proceso' : 'badge-estado-aprobado'}`}>
-                      {c.origen === 'ia' ? 'Detectado en CV' : 'Subido por postulante'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </div>
-      )}
+      <div className="col-12">
+        <strong className="small text-muted d-block mb-1">Cursos y certificaciones</strong>
+        {/* Unificación y semáforo se calculan en el backend (/resumen-fechas) */}
+        <ResumenFechasTabla postulanteId={postulanteId} recargarKey={recargarKey} />
+      </div>
     </div>
   );
 }
