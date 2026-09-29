@@ -38,6 +38,10 @@ import {
   ExtraerIaResponseDto,
 } from './dto/curso-response.dto';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import {
+  calcularEstadoVigencia,
+  hoyISO,
+} from '../resumen-fechas/vigencia.util';
 
 const SYSTEM_PROMPT_CURSO = `Eres un extractor experto de datos de certificados académicos y diplomas de cursos.
 Analiza únicamente el contenido del texto del documento (nunca el nombre del archivo).
@@ -214,6 +218,7 @@ export class CursosService {
       .sort({ fechaCurso: -1, creadoEn: -1 })
       .lean();
 
+    const hoy = hoyISO(); // México, igual que /resumen-fechas
     const mapped = await Promise.all(
       cursos.map(async (curso) => {
         let documentoExtra:
@@ -256,6 +261,12 @@ export class CursosService {
             ? new Date(curso.fechaVencimiento).toISOString()
             : undefined,
           fechaVencimientoEstimada: Boolean(curso.fechaVencimientoEstimada),
+          ...calcularEstadoVigencia(
+            curso.fechaVencimiento
+              ? new Date(curso.fechaVencimiento).toISOString().slice(0, 10)
+              : null,
+            hoy,
+          ),
           apareceEnCV: Boolean(curso.apareceEnCV),
           tieneDocumentoExtra: Boolean(curso.documentoExtra),
           documentoExtra,
@@ -290,6 +301,7 @@ export class CursosService {
       .sort({ fechaCurso: -1, creadoEn: -1 })
       .lean();
 
+    const hoy = hoyISO(); // México, igual que /resumen-fechas
     const mapped = await Promise.all(
       cursos.map(async (curso) => {
         let documentoExtra:
@@ -332,6 +344,12 @@ export class CursosService {
             ? new Date(curso.fechaVencimiento).toISOString()
             : undefined,
           fechaVencimientoEstimada: Boolean(curso.fechaVencimientoEstimada),
+          ...calcularEstadoVigencia(
+            curso.fechaVencimiento
+              ? new Date(curso.fechaVencimiento).toISOString().slice(0, 10)
+              : null,
+            hoy,
+          ),
           apareceEnCV: Boolean(curso.apareceEnCV),
           tieneDocumentoExtra: Boolean(curso.documentoExtra),
           documentoExtra,

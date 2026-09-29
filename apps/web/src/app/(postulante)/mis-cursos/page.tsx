@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { IconTimon, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { formatearFechaCalendario } from '@/lib/fechas';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,9 +63,9 @@ function toErrorMessage(msg: unknown): string {
   return String(msg ?? 'Error inesperado');
 }
 
+// Fechas de calendario (inicio/vencimiento): sin new Date() para no correr un día.
 function formatDate(iso: string | undefined) {
-  if (!iso) return '—';
-  try { return new Date(iso).toLocaleDateString('es-MX'); } catch { return iso; }
+  return formatearFechaCalendario(iso);
 }
 
 function formatSize(bytes: number) {

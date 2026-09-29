@@ -26,6 +26,7 @@ import { TiempoTotalCard } from '@/components/bitacora-embarque/TiempoTotalCard'
 import { EmbarqueTimeline } from '@/components/bitacora-embarque/EmbarqueTimeline';
 import type { BitacoraEmbarqueResponse } from '@/components/bitacora-embarque/types';
 import { ResumenFechasTabla } from '@/components/resumen-fechas/ResumenFechasTabla';
+import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 import { formatearFechaCalendario } from '@/lib/fechas';
 
 type Estado = 'en_proceso' | 'completado' | 'rechazado';
@@ -143,6 +144,8 @@ interface CursoItem {
   fechaCurso: string;
   fechaInicio?: string;
   fechaVencimiento?: string;
+  /** Calculado por la API con la misma regla que /resumen-fechas. */
+  estadoVigencia: EstadoVigencia;
   apareceEnCV: boolean;
   tieneDocumentoExtra: boolean;
   documentoExtra?: {
@@ -895,9 +898,8 @@ export default function CandidatoDetallePage() {
                     </thead>
                     <tbody>
                       {cursosData.cursos.map((curso) => {
-                        const vencido =
-                          curso.fechaVencimiento &&
-                          new Date(curso.fechaVencimiento) < new Date();
+                        // Misma regla y "hoy" (México) que el semáforo del backend.
+                        const vencido = curso.estadoVigencia === 'vencido';
                         return (
                           <tr key={curso._id}>
                             <td>

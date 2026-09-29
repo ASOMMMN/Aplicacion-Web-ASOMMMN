@@ -1,11 +1,9 @@
+import { formatearFechaCalendarioMesCorto } from '@/lib/fechas';
 import type { DuracionEmbarque, TiempoTotalMar } from './types';
 
+// Fechas de embarco/desembarco (calendario): sin corrimiento de zona horaria.
 export function formatFechaCorta(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-MX', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return formatearFechaCalendarioMesCorto(iso);
 }
 
 export function formatDuracion(d: DuracionEmbarque): string {

@@ -1,3 +1,5 @@
+import type { EstadoVigencia } from '../../resumen-fechas/vigencia.util';
+
 export class CursoItemResponseDto {
   _id: string;
   nombreCurso: string;
@@ -7,6 +9,9 @@ export class CursoItemResponseDto {
   fechaVencimiento?: string;
   /** El vencimiento lo calculó el sistema (inicio + 5 años), no el postulante. */
   fechaVencimientoEstimada: boolean;
+  /** Misma regla y misma fecha de "hoy" (México) que /resumen-fechas. */
+  estadoVigencia: EstadoVigencia;
+  diasParaVencer: number | null;
   apareceEnCV: boolean;
   tieneDocumentoExtra: boolean;
   documentoExtra?: {

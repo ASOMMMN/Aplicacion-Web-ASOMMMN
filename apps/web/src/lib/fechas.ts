@@ -17,3 +17,21 @@ export function formatearFechaCalendario(
   const m = valor ? /^(\d{4})-(\d{2})-(\d{2})/.exec(valor) : null;
   return m ? `${m[3]}/${m[2]}/${m[1]}` : vacio;
 }
+
+/**
+ * Igual que formatearFechaCalendario pero con mes abreviado: "15 mar 2024".
+ * Se formatea en UTC para que la fecha no se corra por la zona del navegador.
+ */
+export function formatearFechaCalendarioMesCorto(
+  valor: string | null | undefined,
+  vacio = '—',
+): string {
+  const m = valor ? /^(\d{4})-(\d{2})-(\d{2})/.exec(valor) : null;
+  if (!m) return vacio;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toLocaleDateString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}

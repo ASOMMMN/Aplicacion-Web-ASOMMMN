@@ -4,15 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge, Dropdown } from 'react-bootstrap';
 import { notificacionesApi, NotificacionItem } from '@/lib/api/notificaciones';
+import { formatearFechaCalendarioMesCorto } from '@/lib/fechas';
 
 const INTERVALO_REFRESCO_MS = 60_000;
 
+// Fecha de calendario: sin new Date() local para no mostrar el día anterior.
 function formatFechaVencimiento(fecha: string) {
-  return new Date(fecha).toLocaleDateString('es-MX', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return formatearFechaCalendarioMesCorto(fecha);
 }
 
 function mensajeDiasRestantes(dias: number) {
