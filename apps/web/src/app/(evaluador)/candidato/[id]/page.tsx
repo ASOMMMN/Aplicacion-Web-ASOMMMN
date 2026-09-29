@@ -1086,6 +1086,29 @@ export default function CandidatoDetallePage() {
 
         <div className="horizonte-divider" />
 
+        {/* ── Resumen de fechas (no depende de que exista extracción del CV) ── */}
+        <Row className="mt-4">
+          <Col>
+            <Card id="resumen-de-fechas" className="card-enmv card-enmv-top-azul">
+              <Card.Body className="p-4">
+                <h5 className="section-title mb-1">
+                  <IconAncla size={17} className="nautical-icon" />
+                  Resumen de fechas
+                  <span className="anchor-glyph">⚓</span>
+                </h5>
+                <p className="small text-muted mb-3">
+                  Cursos, certificaciones y documentos personales con su vigencia.
+                </p>
+                {/* Unificación y semáforo se calculan en el backend (/resumen-fechas) */}
+                <ResumenFechasTabla
+                  postulanteId={candidatoId}
+                  recargarKey={`${extraccion?._id ?? ''}-${extraccion?.estado ?? ''}-${extraccion?.confirmadoEn ?? ''}`}
+                />
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+
         {/* ── Panel Extracción IA ──────────────────────────────────────────── */}
         <Row className="mt-4">
           <Col>
@@ -1185,8 +1208,6 @@ export default function CandidatoDetallePage() {
                     ) : (
                       <ExtraccionVistaLectura
                         datos={extraccion.estado === 'confirmado' ? (extraccion.datosConfirmados ?? extraccion.datosExtraidos ?? {}) : (extraccion.datosExtraidos ?? {})}
-                        postulanteId={candidatoId}
-                        recargarKey={`${extraccion._id}-${extraccion.estado}-${extraccion.confirmadoEn ?? ''}`}
                       />
                     )}
                   </>
@@ -1258,15 +1279,7 @@ function LineaTiempoItem({ isLast, children }: { isLast: boolean; children: Reac
   );
 }
 
-function ExtraccionVistaLectura({
-  datos,
-  postulanteId,
-  recargarKey,
-}: {
-  datos: DatosCV;
-  postulanteId: string;
-  recargarKey: string;
-}) {
+function ExtraccionVistaLectura({ datos }: { datos: DatosCV }) {
   return (
     <div className="row g-3">
       <div className="col-md-6">
@@ -1386,10 +1399,10 @@ function ExtraccionVistaLectura({
         </div>
       )}
 
-      <div className="col-12">
-        <strong className="small text-muted d-block mb-1">Cursos, certificaciones y documentos personales</strong>
-        {/* Unificación y semáforo se calculan en el backend (/resumen-fechas) */}
-        <ResumenFechasTabla postulanteId={postulanteId} recargarKey={recargarKey} />
+      <div className="col-12 small text-muted">
+        <i className="bi bi-calendar-check me-1" />
+        Los cursos del CV, con su vigencia, están en{' '}
+        <a href="#resumen-de-fechas">Resumen de fechas</a>.
       </div>
     </div>
   );
