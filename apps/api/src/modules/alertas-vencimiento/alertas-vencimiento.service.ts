@@ -35,8 +35,13 @@ export class AlertasVencimientoService {
   async revisarVencimientos(): Promise<{ creadas: number }> {
     const ahora = new Date();
 
+    // Se excluyen vencimientos estimados por el sistema (inicio + 5 años):
+    // no vienen de un documento y alertarían de fechas que nadie capturó.
     const cursos = await this.cursoModel
-      .find({ fechaVencimiento: { $ne: null, $exists: true } })
+      .find({
+        fechaVencimiento: { $ne: null, $exists: true },
+        fechaVencimientoEstimada: { $ne: true },
+      })
       .populate({
         path: 'postulanteId',
         populate: { path: 'usuarioId', select: 'nombre apellidos' },
