@@ -26,6 +26,7 @@ import { TiempoTotalCard } from '@/components/bitacora-embarque/TiempoTotalCard'
 import { EmbarqueTimeline } from '@/components/bitacora-embarque/EmbarqueTimeline';
 import type { BitacoraEmbarqueResponse } from '@/components/bitacora-embarque/types';
 import { ResumenFechasTabla } from '@/components/resumen-fechas/ResumenFechasTabla';
+import { formatearFechaCalendario } from '@/lib/fechas';
 
 type Estado = 'en_proceso' | 'completado' | 'rechazado';
 
@@ -225,12 +226,8 @@ const formatDate = (date: string) =>
     minute: '2-digit',
   });
 
-const formatDateOnly = (date: string) =>
-  new Date(date).toLocaleDateString('es-ES', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+// Fechas de calendario (inicio/vencimiento): sin new Date() para no correr un día.
+const formatDateOnly = (date: string) => formatearFechaCalendario(date);
 
 /**
  * Panel de evaluación de un documento puntual del expediente. Nunca se

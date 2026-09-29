@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Table } from 'react-bootstrap';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
+import { formatearFechaCalendario } from '@/lib/fechas';
 import type {
   ConfianzaIa,
   EstadoVigencia,
@@ -29,11 +30,7 @@ const ORIGENES: Record<OrigenResumen, { label: string; className: string }> = {
   doc_personal: { label: 'Documento personal', className: 'badge-estado-aprobado' },
 };
 
-/** YYYY-MM-DD → DD/MM/YYYY sin pasar por Date (evita el desfase de zona horaria). */
-const formatearFecha = (iso: string) => {
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-};
+const formatearFecha = (iso: string) => formatearFechaCalendario(iso);
 
 /**
  * Celda de fecha. Si falta y el dato viene solo del CV, lo dice explícitamente
