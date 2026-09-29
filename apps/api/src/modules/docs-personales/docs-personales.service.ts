@@ -549,6 +549,7 @@ export class DocsPersonalesService {
     userId: string,
     tipoDocumento: TipoDocPersonal,
     mimeType: string,
+    actorEmail: string,
   ): Promise<ExtraerDocPersonalIaResponse> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY', '');
 
@@ -759,7 +760,7 @@ IMPORTANTE PARA PDF ESCANEADO:
 
           await this.auditoria.registrar({
             actorId: userId,
-            actorEmail: userId,
+            actorEmail,
             accion: 'doc_personal_extraccion_ia',
             recurso: 'DocPersonal',
             recursoId: 'extraer-ia',
@@ -921,7 +922,7 @@ IMPORTANTE PARA PDF ESCANEADO:
 
       await this.auditoria.registrar({
         actorId: userId,
-        actorEmail: userId,
+        actorEmail,
         accion: 'doc_personal_extraccion_ia',
         recurso: 'DocPersonal',
         recursoId: 'extraer-ia',
@@ -1055,6 +1056,7 @@ IMPORTANTE PARA PDF ESCANEADO:
         actor.userId,
         tipo,
         file.mimetype,
+        actor.email,
       );
 
       if (ia.iaDisponible) {

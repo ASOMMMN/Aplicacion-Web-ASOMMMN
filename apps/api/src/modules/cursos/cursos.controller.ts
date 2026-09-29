@@ -76,7 +76,11 @@ export class CursosController {
         errorMensaje: 'No se recibió archivo.',
       };
     }
-    return this.cursosService.extraerDatosCursoIa(file.buffer, user.userId);
+    return this.cursosService.extraerDatosCursoIa(
+      file.buffer,
+      user.userId,
+      user.email,
+    );
   }
 
   @Post()
@@ -140,6 +144,7 @@ export class CursosController {
       user.userId,
       cursoId,
       dto.nombreCurso,
+      user.email,
     );
   }
 

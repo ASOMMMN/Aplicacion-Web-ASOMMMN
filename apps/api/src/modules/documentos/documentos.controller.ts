@@ -111,7 +111,7 @@ export class DocumentosController {
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
   ): Promise<{ message: string }> {
-    return this.documentosService.eliminarCV(user.userId, id);
+    return this.documentosService.eliminarCV(user.userId, id, user.email);
   }
 
   @Patch(':id/renombrar')
@@ -129,6 +129,7 @@ export class DocumentosController {
       user.userId,
       id,
       body.nombreOriginal,
+      user.email,
     );
   }
 }

@@ -181,6 +181,7 @@ export class DocsPersonalesController {
       user.userId,
       body.tipo,
       file.mimetype,
+      user.email,
     );
   }
 

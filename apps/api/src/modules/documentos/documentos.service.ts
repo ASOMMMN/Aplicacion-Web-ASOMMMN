@@ -272,6 +272,7 @@ export class DocumentosService {
   async eliminarCV(
     userId: string,
     docId: string,
+    actorEmail: string,
   ): Promise<{ message: string }> {
     const doc = await this.documentoModel.findById(docId);
     if (!doc) throw new NotFoundException('Documento no encontrado');
@@ -297,10 +298,9 @@ export class DocumentosService {
       }
     }
 
-    const postulante = await this.postulanteModel.findById(postulanteId).lean();
     await this.auditoriaService.registrar({
       actorId: userId,
-      actorEmail: postulante?.usuarioId?.toString() ?? userId,
+      actorEmail,
       accion: 'cv_eliminar',
       recurso: 'Documento',
       recursoId: docId,
@@ -314,6 +314,7 @@ export class DocumentosService {
     userId: string,
     docId: string,
     nombreOriginal: string,
+    actorEmail: string,
   ): Promise<{ message: string }> {
     const doc = await this.documentoModel.findById(docId);
     if (!doc) throw new NotFoundException('Documento no encontrado');
@@ -327,7 +328,7 @@ export class DocumentosService {
 
     await this.auditoriaService.registrar({
       actorId: userId,
-      actorEmail: userId,
+      actorEmail,
       accion: 'cv_renombrar',
       recurso: 'Documento',
       recursoId: docId,

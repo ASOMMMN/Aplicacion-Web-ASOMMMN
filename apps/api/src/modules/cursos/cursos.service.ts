@@ -385,6 +385,7 @@ export class CursosService {
     userId: string,
     cursoId: string,
     nombreCurso: string,
+    actorEmail: string,
   ): Promise<{ message: string }> {
     const curso = await this.cursoModel.findById(cursoId);
     if (!curso)
@@ -401,7 +402,7 @@ export class CursosService {
 
     await this.auditoriaService.registrar({
       actorId: userId,
-      actorEmail: userId,
+      actorEmail,
       accion: 'curso_renombrar',
       recurso: 'Curso',
       recursoId: cursoId,
@@ -414,6 +415,7 @@ export class CursosService {
   async extraerDatosCursoIa(
     fileBuffer: Buffer,
     userId: string,
+    actorEmail: string,
   ): Promise<ExtraerIaResponseDto> {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY', '');
     if (!apiKey) {
@@ -484,7 +486,7 @@ export class CursosService {
 
       await this.auditoriaService.registrar({
         actorId: userId,
-        actorEmail: userId,
+        actorEmail,
         accion: 'curso_extraccion_ia',
         recurso: 'Curso',
         recursoId: 'extraer-ia',
