@@ -169,9 +169,15 @@ export interface ResultadoComparacion {
   similitud: number;
 }
 
+interface CursoComparable {
+  nombre: string;
+  fechaVencimiento: string | null;
+  fechaVencimientoEstimada?: boolean;
+}
+
 export function compararCursos(
-  a: { nombre: string; fechaVencimiento: string | null },
-  b: { nombre: string; fechaVencimiento: string | null },
+  a: CursoComparable,
+  b: CursoComparable,
 ): ResultadoComparacion {
   const na = normalizarNombreCurso(a.nombre);
   const nb = normalizarNombreCurso(b.nombre);
@@ -194,12 +200,31 @@ export function compararCursos(
   if (similitud >= UMBRAL_SIMILITUD_NOMBRE) {
     return { mismoCurso: true, similitud };
   }
-  const mismoVencimiento =
-    !!a.fechaVencimiento && a.fechaVencimiento === b.fechaVencimiento;
+  // Una fecha estimada no es evidencia de que sean el mismo curso.
+  const vencA = vencimientoReal(a);
+  const mismoVencimiento = !!vencA && vencA === vencimientoReal(b);
   if (mismoVencimiento && similitud >= UMBRAL_SIMILITUD_CON_VENCIMIENTO) {
     return { mismoCurso: true, similitud };
   }
   return no;
+}
+
+/** Vencimiento que vino del documento o del CV (no uno estimado por el sistema). */
+function vencimientoReal(item: {
+  fechaVencimiento: string | null;
+  fechaVencimientoEstimada?: boolean;
+}): string | null {
+  return item.fechaVencimientoEstimada ? null : item.fechaVencimiento;
+}
+
+/** Para elegir entre dos subidas del mismo curso: real > estimada > ninguna; luego la más reciente. */
+function prioridadVencimiento(item: ItemBase): string {
+  const nivel = !item.fechaVencimiento
+    ? '0'
+    : item.fechaVencimientoEstimada
+      ? '1'
+      : '2';
+  return `${nivel}${item.fechaVencimiento ?? ''}`;
 }
 
 /**
@@ -207,10 +232,11 @@ export function compararCursos(
  *
  * - Los subidos no se unen entre sí salvo que el nombre normalizado sea
  *   idéntico (renovación del mismo certificado): se conserva el de
- *   vencimiento más reciente.
+ *   vencimiento real más reciente.
  * - Cada curso del CV se une al subido más parecido que cumpla el criterio.
- *   Los datos subidos prevalecen; el CV solo completa campos vacíos.
- * - Si ambos tienen vencimiento y no coinciden, se marca discrepancia.
+ *   Los datos subidos prevalecen; el CV solo completa campos vacíos. Un
+ *   vencimiento estimado cede ante uno real del CV.
+ * - Si ambos tienen vencimiento real y no coinciden, se marca discrepancia.
  */
 export function unificarCursos(
   subidos: ItemBase[],
@@ -223,7 +249,7 @@ export function unificarCursos(
     const clave = normalizarNombreCurso(curso.nombre).clave;
     const previo = clave ? porClave.get(clave) : undefined;
     if (previo) {
-      if ((curso.fechaVencimiento ?? '') > (previo.fechaVencimiento ?? '')) {
+      if (prioridadVencimiento(curso) > prioridadVencimiento(previo)) {
         Object.assign(previo, { ...curso, fuente: [...curso.fuente] });
       }
       continue;
@@ -254,20 +280,23 @@ export function unificarCursos(
     }
 
     const destino = mejor.item;
+    const vencSubido = vencimientoReal(destino);
+    const vencCV = vencimientoReal(curso);
+    // Solo hay discrepancia entre dos fechas reales; una estimada no cuenta.
     const discrepancia: DiscrepanciaVencimiento | null =
-      destino.fechaVencimiento &&
-      curso.fechaVencimiento &&
-      destino.fechaVencimiento !== curso.fechaVencimiento
-        ? {
-            fechaVencimientoSubido: destino.fechaVencimiento,
-            fechaVencimientoCV: curso.fechaVencimiento,
-          }
+      vencSubido && vencCV && vencSubido !== vencCV
+        ? { fechaVencimientoSubido: vencSubido, fechaVencimientoCV: vencCV }
         : null;
 
     destino.institucion ??= curso.institucion;
     destino.fechaInicio ??= curso.fechaInicio;
     destino.fechaEmision ??= curso.fechaEmision;
-    destino.fechaVencimiento ??= curso.fechaVencimiento;
+    if (!vencSubido && (vencCV || !destino.fechaVencimiento)) {
+      // El subido no trae vencimiento real: una fecha real del CV lo
+      // reemplaza; si no, se toma la del CV (con su marca de estimada).
+      destino.fechaVencimiento = curso.fechaVencimiento;
+      destino.fechaVencimientoEstimada = curso.fechaVencimientoEstimada;
+    }
     destino.confianzaCV = curso.confianzaCV;
     destino.nombreEnCV ??= curso.nombre;
     destino.discrepancia ??= discrepancia;

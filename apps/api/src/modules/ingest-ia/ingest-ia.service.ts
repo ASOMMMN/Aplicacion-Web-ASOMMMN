@@ -104,8 +104,8 @@ export class IngestIaService {
         throw new Error('El PDF no contiene suficiente texto legible.');
       }
 
+      // Las fechas que no aparecen en el CV quedan en null (no se estiman).
       const datosExtraidos = await this.openAiIa.extraerDatosCV(texto);
-      this.aplicarVencimientoPorDefecto(datosExtraidos);
 
       await this.extraccionModel.findByIdAndUpdate(extraccion._id, {
         datosExtraidos,
@@ -122,20 +122,6 @@ export class IngestIaService {
         estado: 'rechazado',
       });
       this.logger.warn(`Extracción fallida: ${msg}`);
-    }
-  }
-
-  private aplicarVencimientoPorDefecto(datos: DatosCV): void {
-    if (!datos.cursos?.length) return;
-    for (const curso of datos.cursos) {
-      if (curso.fechaInicio && !curso.fechaVencimiento) {
-        const inicio = new Date(curso.fechaInicio);
-        if (!isNaN(inicio.getTime())) {
-          const vencimiento = new Date(inicio);
-          vencimiento.setFullYear(vencimiento.getFullYear() + 5);
-          curso.fechaVencimiento = vencimiento.toISOString().slice(0, 10);
-        }
-      }
     }
   }
 

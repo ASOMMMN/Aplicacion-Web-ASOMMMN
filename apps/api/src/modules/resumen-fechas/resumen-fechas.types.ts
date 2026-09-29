@@ -24,6 +24,11 @@ export interface ResumenFechaItem {
   fechaInicio: string | null;
   fechaEmision: string | null;
   fechaVencimiento: string | null;
+  /**
+   * true = el vencimiento no lo dio el postulante ni el CV: lo calculó el
+   * sistema (inicio + 5 años). Si hay una fecha real, esta la reemplaza.
+   */
+  fechaVencimientoEstimada: boolean;
   /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
   confianzaCV: CursoCV['confianza'] | null;
   origen: OrigenResumen;

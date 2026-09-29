@@ -169,13 +169,10 @@ export class CursosService {
       const fechaInicio = dto.fechaInicio
         ? new Date(dto.fechaInicio)
         : undefined;
-      let fechaVencimiento = dto.fechaVencimiento
+      // Si el postulante no indica vencimiento, queda vacío: no se estima.
+      const fechaVencimiento = dto.fechaVencimiento
         ? new Date(dto.fechaVencimiento)
         : undefined;
-      if (fechaInicio && !fechaVencimiento) {
-        fechaVencimiento = new Date(fechaInicio);
-        fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 5);
-      }
 
       const curso = await this.cursoModel.create({
         postulanteId: postulante._id,
@@ -258,6 +255,7 @@ export class CursosService {
           fechaVencimiento: curso.fechaVencimiento
             ? new Date(curso.fechaVencimiento).toISOString()
             : undefined,
+          fechaVencimientoEstimada: Boolean(curso.fechaVencimientoEstimada),
           apareceEnCV: Boolean(curso.apareceEnCV),
           tieneDocumentoExtra: Boolean(curso.documentoExtra),
           documentoExtra,
@@ -333,6 +331,7 @@ export class CursosService {
           fechaVencimiento: curso.fechaVencimiento
             ? new Date(curso.fechaVencimiento).toISOString()
             : undefined,
+          fechaVencimientoEstimada: Boolean(curso.fechaVencimientoEstimada),
           apareceEnCV: Boolean(curso.apareceEnCV),
           tieneDocumentoExtra: Boolean(curso.documentoExtra),
           documentoExtra,
@@ -498,27 +497,17 @@ export class CursosService {
         },
       });
 
-      let fechaVencSugerida: string | null = parsed.fechaVencimiento ?? null;
-      let confianzaVenc = parsed.confianza?.fechaVencimiento ?? 'baja';
-      if (parsed.fechaInicio && !parsed.fechaVencimiento) {
-        const inicio = new Date(parsed.fechaInicio);
-        if (!isNaN(inicio.getTime())) {
-          const venc = new Date(inicio);
-          venc.setFullYear(venc.getFullYear() + 5);
-          fechaVencSugerida = venc.toISOString().slice(0, 10);
-          confianzaVenc = 'media';
-        }
-      }
-
+      // Sin vencimiento explícito en el documento no se sugiere uno: el
+      // postulante lo aceptaría en el formulario como si fuera real.
       return {
         nombreCurso: parsed.nombreCurso ?? null,
         fechaInicio: parsed.fechaInicio ?? null,
-        fechaVencimiento: fechaVencSugerida,
+        fechaVencimiento: parsed.fechaVencimiento ?? null,
         fechaEmision: parsed.fechaEmision ?? null,
         confianza: {
           nombreCurso: parsed.confianza?.nombreCurso ?? 'baja',
           fechaInicio: parsed.confianza?.fechaInicio ?? 'baja',
-          fechaVencimiento: confianzaVenc,
+          fechaVencimiento: parsed.confianza?.fechaVencimiento ?? 'baja',
         },
         iaDisponible: true,
       };

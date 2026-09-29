@@ -59,6 +59,14 @@ export class Curso {
   @Prop()
   fechaVencimiento?: Date;
 
+  /**
+   * true = fechaVencimiento no la dio el postulante: la calculaba el sistema
+   * (fechaInicio + 5 años) antes de quitar esa regla. La marca el script
+   * scripts/marcar-vencimientos-estimados.ts; no se borra la fecha.
+   */
+  @Prop({ default: false })
+  fechaVencimientoEstimada?: boolean;
+
   @Prop()
   creadoEn: Date;
 

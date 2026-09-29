@@ -16,6 +16,8 @@ export interface CursoCV {
   fechaInicio?: string | null;
   fechaEmision?: string | null;
   fechaVencimiento?: string | null;
+  /** true = la calculó el sistema (inicio + 5 años), no venía en el CV. */
+  fechaVencimientoEstimada?: boolean;
   confianza?: {
     fechaInicio?: ConfianzaIa;
     fechaEmision?: ConfianzaIa;

@@ -14,6 +14,8 @@ export interface ResumenFechaItem {
   fechaInicio: string | null;
   fechaEmision: string | null;
   fechaVencimiento: string | null;
+  /** El vencimiento lo calculó el sistema (inicio + 5 años), no viene de un documento. */
+  fechaVencimientoEstimada: boolean;
   /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
   confianzaCV: {
     fechaInicio?: ConfianzaIa;

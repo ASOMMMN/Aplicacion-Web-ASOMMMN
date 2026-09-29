@@ -9,7 +9,13 @@ const curso = (
   origen: 'subido' | 'cv',
   nombre: string,
   fechas: Partial<
-    Pick<ItemBase, 'fechaInicio' | 'fechaEmision' | 'fechaVencimiento'>
+    Pick<
+      ItemBase,
+      | 'fechaInicio'
+      | 'fechaEmision'
+      | 'fechaVencimiento'
+      | 'fechaVencimientoEstimada'
+    >
   > = {},
   institucion: string | null = null,
 ): ItemBase => ({
@@ -19,6 +25,7 @@ const curso = (
   fechaInicio: fechas.fechaInicio ?? null,
   fechaEmision: fechas.fechaEmision ?? null,
   fechaVencimiento: fechas.fechaVencimiento ?? null,
+  fechaVencimientoEstimada: fechas.fechaVencimientoEstimada ?? false,
   confianzaCV: null,
   origen,
   nombreEnCV: null,
@@ -153,6 +160,10 @@ describe('compararCursos', () => {
     expect(
       compararCursos(a, { ...b, fechaVencimiento: '2030-01-01' }).mismoCurso,
     ).toBe(false);
+    // Una fecha estimada no cuenta como coincidencia de vencimiento
+    expect(
+      compararCursos(a, { ...b, fechaVencimientoEstimada: true }).mismoCurso,
+    ).toBe(false);
   });
 });
 
@@ -195,6 +206,52 @@ describe('unificarCursos', () => {
       fechaVencimientoSubido: '2029-03-01',
       fechaVencimientoCV: '2027-03-01',
     });
+  });
+
+  it('un vencimiento estimado del subido cede ante el real del CV, sin discrepancia', () => {
+    const [r] = unificarCursos(
+      [
+        curso('subido', BOTES_SUBIDO, {
+          fechaInicio: '2024-03-01',
+          fechaVencimiento: '2029-03-01',
+          fechaVencimientoEstimada: true,
+        }),
+      ],
+      [curso('cv', BOTES_CV, { fechaVencimiento: '2027-03-01' })],
+    );
+    expect(r.fechaVencimiento).toBe('2027-03-01');
+    expect(r.fechaVencimientoEstimada).toBe(false);
+    expect(r.discrepancia).toBeNull();
+  });
+
+  it('si nadie trae fecha real, conserva la estimada marcada como tal', () => {
+    const [r] = unificarCursos(
+      [
+        curso('subido', BOTES_SUBIDO, {
+          fechaVencimiento: '2029-03-01',
+          fechaVencimientoEstimada: true,
+        }),
+      ],
+      [curso('cv', BOTES_CV)],
+    );
+    expect(r.fechaVencimiento).toBe('2029-03-01');
+    expect(r.fechaVencimientoEstimada).toBe(true);
+  });
+
+  it('renovación: una subida con fecha real gana a otra con fecha estimada', () => {
+    const r = unificarCursos(
+      [
+        curso('subido', 'Radar ARPA', {
+          fechaVencimiento: '2031-01-01',
+          fechaVencimientoEstimada: true,
+        }),
+        curso('subido', 'Radar ARPA', { fechaVencimiento: '2028-06-01' }),
+      ],
+      [],
+    );
+    expect(r).toHaveLength(1);
+    expect(r[0].fechaVencimiento).toBe('2028-06-01');
+    expect(r[0].fechaVencimientoEstimada).toBe(false);
   });
 
   it('deja por separado los cursos del CV sin equivalente subido', () => {

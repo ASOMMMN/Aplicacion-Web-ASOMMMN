@@ -178,6 +178,14 @@ export function ResumenFechasTabla({
                     soloCV={soloCV}
                     confianza={c.confianzaCV?.fechaVencimiento}
                   />
+                  {c.fechaVencimiento && c.fechaVencimientoEstimada && (
+                    <span
+                      className="badge bg-light text-secondary border ms-1"
+                      title="No viene de un documento: el sistema la calculaba como inicio + 5 años. Verifícala contra el certificado."
+                    >
+                      Estimada
+                    </span>
+                  )}
                 </td>
                 <td>
                   <span className={`badge ${estado.className}`} title={tituloVigencia(c)}>

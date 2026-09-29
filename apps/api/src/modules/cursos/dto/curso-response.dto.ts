@@ -5,6 +5,8 @@ export class CursoItemResponseDto {
   fechaCurso: string;
   fechaInicio?: string;
   fechaVencimiento?: string;
+  /** El vencimiento lo calculó el sistema (inicio + 5 años), no el postulante. */
+  fechaVencimientoEstimada: boolean;
   apareceEnCV: boolean;
   tieneDocumentoExtra: boolean;
   documentoExtra?: {
