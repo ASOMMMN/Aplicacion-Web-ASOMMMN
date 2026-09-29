@@ -29,6 +29,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { TIPOS_DOC_PERSONAL } from './constants/tipos-doc-personal';
 
 import {
   DocsPersonalesService,
@@ -77,18 +78,7 @@ export class DocsPersonalesController {
       properties: {
         tipo: {
           type: 'string',
-          enum: [
-            'CURP',
-            'INE',
-            'acta_nacimiento',
-            'visa',
-            'pasaporte',
-            'vacuna_fiebre_amarilla',
-            'constancia_participacion',
-            'certificado_medico',
-            'libreta_identidad_maritima',
-            'certificado_competencia',
-          ],
+          enum: [...TIPOS_DOC_PERSONAL],
           description: 'Tipo de documento personal',
         },
         archivo: {
@@ -153,8 +143,7 @@ export class DocsPersonalesController {
   })
   @ApiResponse({
     status: 400,
-    description:
-      'Archivo inexistente, tipo inválido o archivo no compatible',
+    description: 'Archivo inexistente, tipo inválido o archivo no compatible',
   })
   async extraerIa(
     @Body() body: SubirDocPersonalDto,
@@ -211,18 +200,7 @@ export class DocsPersonalesController {
       properties: {
         tipo: {
           type: 'string',
-          enum: [
-            'CURP',
-            'INE',
-            'acta_nacimiento',
-            'visa',
-            'pasaporte',
-            'vacuna_fiebre_amarilla',
-            'constancia_participacion',
-            'certificado_medico',
-            'libreta_identidad_maritima',
-            'certificado_competencia',
-          ],
+          enum: [...TIPOS_DOC_PERSONAL],
         },
         archivo: {
           type: 'string',
@@ -248,16 +226,13 @@ export class DocsPersonalesController {
   @Get('mis-docs')
   @Roles('postulante')
   @ApiOperation({
-    summary:
-      'Postulante: lista sus documentos personales agrupados por tipo',
+    summary: 'Postulante: lista sus documentos personales agrupados por tipo',
   })
   @ApiResponse({
     status: 200,
     type: MisDocsResponseDto,
   })
-  misDocs(
-    @CurrentUser() user: AuthUser,
-  ): Promise<MisDocsResponseDto> {
+  misDocs(@CurrentUser() user: AuthUser): Promise<MisDocsResponseDto> {
     return this.svc.listarMios(user);
   }
 
@@ -266,8 +241,7 @@ export class DocsPersonalesController {
   @Get(':id/url')
   @Roles('postulante', 'evaluador', 'administrador')
   @ApiOperation({
-    summary:
-      'Obtiene la URL de descarga de un documento personal',
+    summary: 'Obtiene la URL de descarga de un documento personal',
   })
   @ApiResponse({
     status: 200,
@@ -307,8 +281,7 @@ export class DocsPersonalesController {
   @Patch(':id/renombrar')
   @Roles('postulante')
   @ApiOperation({
-    summary:
-      'Postulante: renombra el nombre visible de un documento personal',
+    summary: 'Postulante: renombra el nombre visible de un documento personal',
   })
   @ApiResponse({
     status: 200,
@@ -319,11 +292,7 @@ export class DocsPersonalesController {
     @Body() body: RenombrarDocPersonalDto,
     @CurrentUser() user: AuthUser,
   ): Promise<{ ok: boolean }> {
-    await this.svc.renombrar(
-      user,
-      id,
-      body.nombreOriginal,
-    );
+    await this.svc.renombrar(user, id, body.nombreOriginal);
 
     return {
       ok: true,
@@ -335,8 +304,7 @@ export class DocsPersonalesController {
   @Get('postulante/:postulanteId')
   @Roles('evaluador', 'administrador')
   @ApiOperation({
-    summary:
-      'Evaluador/Admin: lista documentos personales de un postulante',
+    summary: 'Evaluador/Admin: lista documentos personales de un postulante',
   })
   @ApiResponse({
     status: 200,

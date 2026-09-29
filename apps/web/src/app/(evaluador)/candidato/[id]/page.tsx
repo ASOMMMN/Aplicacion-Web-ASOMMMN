@@ -41,7 +41,8 @@ type TipoDocPersonal =
   | 'constancia_participacion'
   | 'certificado_medico'
   | 'libreta_identidad_maritima'
-  | 'certificado_competencia';
+  | 'certificado_competencia'
+  | 'refrendo';
 
 const TIPOS_DOC_PERSONAL: { tipo: TipoDocPersonal; label: string }[] = [
   { tipo: 'CURP',                      label: 'CURP' },
@@ -54,9 +55,10 @@ const TIPOS_DOC_PERSONAL: { tipo: TipoDocPersonal; label: string }[] = [
   { tipo: 'certificado_medico',        label: 'Certificado médico' },
   { tipo: 'libreta_identidad_maritima',label: 'Libreta de identidad marítima' },
   { tipo: 'certificado_competencia',   label: 'Certificado de competencia' },
+  { tipo: 'refrendo',                  label: 'Refrendo' },
 ];
 
-const TIPOS_DOC_OPCIONALES: TipoDocPersonal[] = ['visa', 'vacuna_fiebre_amarilla'];
+const TIPOS_DOC_OPCIONALES: TipoDocPersonal[] = ['visa', 'vacuna_fiebre_amarilla', 'refrendo'];
 const TIPOS_DOC_PERSONAL_REQUERIDOS = TIPOS_DOC_PERSONAL.filter(
   (t) => !TIPOS_DOC_OPCIONALES.includes(t.tipo),
 );

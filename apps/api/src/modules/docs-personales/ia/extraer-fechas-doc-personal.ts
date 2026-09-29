@@ -14,6 +14,19 @@ import {
 } from './lectura-documento';
 
 import type { TipoDocPersonal } from '../constants/tipos-doc-personal';
+import {
+  construirPromptDocPersonal,
+  construirPromptImagenDocPersonal,
+  construirPromptPdfEscaneado,
+  SYSTEM_PROMPT_DOC_PERSONAL,
+} from './prompts-doc-personal';
+
+export {
+  construirPromptDocPersonal,
+  construirPromptImagenDocPersonal,
+  construirPromptPdfEscaneado,
+  SYSTEM_PROMPT_DOC_PERSONAL,
+} from './prompts-doc-personal';
 
 /** Formatos que la extracción IA sabe leer. */
 export const MIMES_EXTRACCION_IA = [
@@ -22,370 +35,50 @@ export const MIMES_EXTRACCION_IA = [
   'image/png',
 ];
 
+export type Confianza = 'alta' | 'media' | 'baja';
+
+/** "anio": el documento solo da el año (INE); la fecha es 31/12 de ese año. */
+export type PrecisionFecha = 'dia' | 'anio';
+
+export type CampoFecha = 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento';
+export const CAMPOS_FECHA: CampoFecha[] = [
+  'fechaEmision',
+  'fechaInicio',
+  'fechaVencimiento',
+];
+
+/** Una fecha tal como la reportó el modelo (con su evidencia). */
+export interface FechaDetectada {
+  valor: string | null;
+  /** Fragmento literal del documento donde aparece la fecha. */
+  textoLiteral: string | null;
+  /** Etiqueta que acompaña a la fecha ("Date of expiry", "VIGENCIA"…). */
+  etiqueta: string | null;
+  confianza: Confianza;
+  precision: PrecisionFecha;
+}
+
 /**
  * Respuesta de la extracción IA de documentos personales.
+ * Los campos planos (fechaInicio, confianza…) se conservan por
+ * compatibilidad con POST /docs-personales/extraer-ia.
  */
 export interface ExtraerDocPersonalIaResponse {
   fechaInicio: string | null;
   fechaVencimiento: string | null;
   fechaEmision: string | null;
-  confianza: {
-    fechaInicio: 'alta' | 'media' | 'baja';
-    fechaVencimiento: 'alta' | 'media' | 'baja';
-    fechaEmision: 'alta' | 'media' | 'baja';
-  };
+  confianza: Record<CampoFecha, Confianza>;
+  /** Evidencia por fecha: texto literal, etiqueta, confianza y precisión. */
+  detalle?: Record<CampoFecha, FechaDetectada>;
+  /** Tipo que el modelo reconoce en el contenido (puede diferir del elegido). */
+  tipoDetectado?: string | null;
+  /** Formato declarado en el documento ("dd/mm/aaaa"…), si lo hay. */
+  formatoFechaIndicado?: string | null;
   iaDisponible: boolean;
   errorMensaje?: string;
 }
 
-/**
- * Prompt base para documentos personales.
- */
-export const SYSTEM_PROMPT_DOC_PERSONAL = `
-Eres un extractor experto de información de documentos oficiales
-utilizados en procesos de evaluación curricular de personal marítimo.
-
-Tu tarea es EXTRAER INFORMACIÓN ÚNICAMENTE DEL CONTENIDO DEL DOCUMENTO.
-
-REGLAS OBLIGATORIAS:
-
-1. Nunca utilices el nombre del archivo como fuente de información.
-2. Nunca inventes fechas.
-3. Nunca calcules una fecha de vencimiento.
-4. Nunca asumas que un documento tiene una vigencia determinada.
-5. Si una fecha no aparece explícitamente en el documento, devuelve null.
-6. Respeta exactamente las fechas que aparecen en el documento.
-7. Convierte las fechas al formato YYYY-MM-DD.
-8. Si una fecha es ambigua o no puede determinarse con seguridad, devuelve null.
-9. Diferencia entre fecha de emisión y fecha de inicio de vigencia.
-10. Si la fecha de emisión también representa el inicio de vigencia, puedes devolverla
-    en ambos campos únicamente cuando el documento indique explícitamente que ambas
-    fechas corresponden al mismo momento.
-11. No confundas fechas de nacimiento, fechas de captura, fechas de impresión,
-    fechas de renovación o fechas de modificación con fechas de vigencia.
-12. Devuelve ÚNICAMENTE JSON válido.
-13. No incluyas markdown.
-14. No incluyas explicaciones fuera del JSON.
-`;
-
-/** Reglas adicionales según el tipo de documento. */
-const construirReglasPorTipo = (tipoDocumento: string): string => {
-  switch (tipoDocumento) {
-    case 'INE':
-      return `
-DOCUMENTO INE:
-- Busca principalmente la fecha de vigencia que aparece en la credencial.
-- Si aparece una fecha de emisión o expedición explícita, extráela como fechaEmision.
-- NO confundas la fecha de nacimiento con la fecha de emisión.
-- NO uses el año o número de vigencia para inventar una fecha.
-- Si solo aparece una vigencia expresada de forma no convertible con seguridad, devuelve null.
-`;
-
-    case 'visa':
-      return `
-DOCUMENTO VISA:
-- Busca Date of Issue / Issued / Fecha de expedición como fechaEmision.
-- Busca Expiration Date / Expires / Fecha de vencimiento como fechaVencimiento.
-- No confundas la fecha de nacimiento con la fecha de emisión.
-- Si la visa muestra una fecha de inicio y otra de vencimiento, usa ambas explícitamente.
-`;
-
-    case 'pasaporte':
-      return `
-DOCUMENTO PASAPORTE:
-- Busca Date of Issue / Date of Expiry / Fecha de expedición / Fecha de vencimiento.
-- La fecha de nacimiento NO es fechaEmision.
-- La fecha de expiración debe salir literalmente del documento.
-`;
-
-    case 'libreta_identidad_maritima':
-      return `
-LIBRETA DE IDENTIDAD MARÍTIMA:
-- Revisa portada, página de datos y páginas donde aparezcan fechas de expedición, vigencia o expiración.
-- Busca expresiones como Fecha de expedición, Fecha de emisión, Válida hasta, Fecha de vencimiento,
-  Date of Issue, Date of Expiry, Valid Until.
-- No confundas fecha de nacimiento, fecha de firma, fecha de impresión o fecha de renovación.
-- Si hay inicio y fin de vigencia explícitos, extrae ambos.
-`;
-
-    case 'constancia_participacion':
-      return `
-CONSTANCIA DE PARTICIPACIÓN:
-- Busca la fecha en que fue emitida o expedida la constancia.
-- Si el documento indica explícitamente periodo, inicio o término de participación, extráelos.
-- No conviertas automáticamente la fecha del evento en fecha de emisión.
-- No inventes vigencia si la constancia no la establece.
-`;
-
-    case 'certificado_medico':
-      return `
-CERTIFICADO MÉDICO:
-- Busca fecha de expedición/emisión del certificado.
-- Busca expresiones de vigencia como Válido hasta, Vigente hasta, Expira, Expiration Date.
-- Si indica explícitamente inicio de vigencia, extráelo.
-- No calcules una vigencia médica a partir de la fecha de emisión.
-`;
-
-    default:
-      return `
-DOCUMENTO NO ESPECIALIZADO:
-- Extrae únicamente las fechas acompañadas de etiquetas que permitan determinar su significado.
-`;
-  }
-};
-
-/**
- * Construye el prompt específico para cada documento.
- */
-export const construirPromptDocPersonal = (
-  texto: string,
-  tipoDocumento: string,
-): string => `
-Analiza el siguiente documento personal.
-
-TIPO DE DOCUMENTO:
-${tipoDocumento}
-
-REGLAS ESPECÍFICAS DEL DOCUMENTO:
-${construirReglasPorTipo(tipoDocumento)}
-
-DOCUMENTO:
---- INICIO ---
-${texto}
---- FIN ---
-
-Extrae exactamente estos campos:
-
-1. fechaEmision
-
-Representa la fecha en que el documento fue emitido, expedido,
-expedido por la autoridad o generado oficialmente.
-
-Busca expresiones como:
-
-- Fecha de emisión
-- Fecha de expedición
-- Fecha de expedición:
-- Fecha de expedición del documento
-- Date of issue
-- Issue date
-- Issued
-- Issued on
-- Date issued
-- Expedido el
-- Expedición
-
-NO confundas esta fecha con:
-- fecha de nacimiento
-- fecha de impresión
-- fecha de captura
-- fecha de renovación
-- fecha de vencimiento
-
-Si no existe explícitamente, devuelve null.
-
-2. fechaInicio
-
-Representa el inicio EXPLÍCITO de la vigencia del documento.
-
-Busca expresiones como:
-
-- Fecha de inicio
-- Inicio de vigencia
-- Vigente desde
-- Válido desde
-- Validez desde
-- Fecha inicial
-- Start date
-- Valid from
-- Effective date
-- Effective from
-- Validity from
-
-IMPORTANTE:
-Si únicamente existe una fecha de emisión pero el documento NO indica
-que esa fecha sea el inicio de vigencia, NO la copies automáticamente
-a fechaInicio.
-
-Si no existe explícitamente, devuelve null.
-
-3. fechaVencimiento
-
-Representa la fecha EXPLÍCITA en que termina la vigencia del documento.
-
-Busca expresiones como:
-
-- Fecha de vencimiento
-- Fecha de expiración
-- Válido hasta
-- Vigente hasta
-- Expira
-- Expiración
-- Expiry date
-- Expiration date
-- Valid until
-- Valid through
-- Date of expiry
-- Date of expiration
-
-Si no existe explícitamente, devuelve null.
-
-NO calcules fechas de vencimiento.
-
-Ejemplos:
-
-Si aparece:
-"Fecha de expedición: 15/03/2024"
-y
-"Fecha de vencimiento: 15/03/2034"
-
-devuelve:
-
-{
-  "fechaEmision": "2024-03-15",
-  "fechaInicio": null,
-  "fechaVencimiento": "2034-03-15"
-}
-
-Si aparece:
-
-"Válido desde: 01/01/2026"
-"Válido hasta: 31/12/2026"
-
-devuelve:
-
-{
-  "fechaEmision": null,
-  "fechaInicio": "2026-01-01",
-  "fechaVencimiento": "2026-12-31"
-}
-
-Si aparece:
-
-"Fecha de emisión: 10/06/2023"
-"Vigente desde: 10/06/2023"
-"Válido hasta: 10/06/2033"
-
-devuelve:
-
-{
-  "fechaEmision": "2023-06-10",
-  "fechaInicio": "2023-06-10",
-  "fechaVencimiento": "2033-06-10"
-}
-
-La respuesta DEBE tener exactamente esta estructura:
-
-{
-  "fechaInicio": "YYYY-MM-DD o null",
-  "fechaVencimiento": "YYYY-MM-DD o null",
-  "fechaEmision": "YYYY-MM-DD o null",
-  "confianza": {
-    "fechaInicio": "alta|media|baja",
-    "fechaVencimiento": "alta|media|baja",
-    "fechaEmision": "alta|media|baja"
-  }
-}
-`;
-
-/**
- * Prompt utilizado cuando el archivo es una imagen.
- */
-export const construirPromptImagenDocPersonal = (
-  tipoDocumento: string,
-): string => `
-Analiza visualmente la imagen del siguiente documento personal.
-
-TIPO DE DOCUMENTO:
-${tipoDocumento}
-
-REGLAS ESPECÍFICAS DEL DOCUMENTO:
-${construirReglasPorTipo(tipoDocumento)}
-
-Tu tarea es identificar ÚNICAMENTE fechas que aparezcan
-visualmente de forma explícita en el documento.
-
-Reglas:
-
-1. Nunca inventes fechas.
-2. Nunca calcules una fecha de vencimiento.
-3. Si una fecha no aparece claramente, devuelve null.
-4. No confundas fecha de nacimiento con fecha de emisión.
-5. No confundas fecha de impresión con fecha de emisión.
-6. No confundas fecha de renovación con fecha de vencimiento.
-7. Identifica la etiqueta que acompaña a cada fecha.
-8. Convierte todas las fechas válidas a YYYY-MM-DD.
-9. Si la fecha es ilegible o ambigua, devuelve null.
-10. Devuelve únicamente JSON válido.
-11. No uses markdown.
-12. No agregues explicaciones.
-
-Busca especialmente:
-
-FECHA DE EMISIÓN:
-- Fecha de emisión
-- Fecha de expedición
-- Date of issue
-- Issue date
-- Issued on
-- Issued
-
-FECHA DE INICIO:
-- Fecha de inicio
-- Inicio de vigencia
-- Vigente desde
-- Válido desde
-- Valid from
-- Effective from
-- Start date
-
-FECHA DE VENCIMIENTO:
-- Fecha de vencimiento
-- Fecha de expiración
-- Válido hasta
-- Vigente hasta
-- Expira
-- Expiry date
-- Expiration date
-- Valid until
-- Valid through
-
-Devuelve exactamente:
-
-{
-  "fechaInicio": "YYYY-MM-DD o null",
-  "fechaVencimiento": "YYYY-MM-DD o null",
-  "fechaEmision": "YYYY-MM-DD o null",
-  "confianza": {
-    "fechaInicio": "alta|media|baja",
-    "fechaVencimiento": "alta|media|baja",
-    "fechaEmision": "alta|media|baja"
-  }
-}
-`;
-
-/** Prompt para PDF escaneado (sin texto extraíble): se envía el PDF completo. */
-export const construirPromptPdfEscaneado = (tipoDocumento: string): string => `
-Analiza visualmente el PDF completo del documento personal.
-
-TIPO DE DOCUMENTO:
-${tipoDocumento}
-
-REGLAS ESPECÍFICAS:
-${construirReglasPorTipo(tipoDocumento)}
-
-${construirPromptDocPersonal('', tipoDocumento)}
-
-IMPORTANTE PARA PDF ESCANEADO:
-- Lee visualmente todas las páginas necesarias del PDF.
-- No dependas únicamente de texto extraído por software.
-- Identifica las etiquetas junto a las fechas.
-- Si una fecha no puede leerse con seguridad, devuelve null.
-`;
-
 // ── Normalización de la respuesta ──────────────────────────────────────────
-
-type Confianza = 'alta' | 'media' | 'baja';
 
 /** YYYY-MM-DD de calendario válido; cualquier otra cosa → null. */
 export function normalizarFechaIa(value: unknown): string | null {
@@ -407,18 +100,43 @@ export function normalizarConfianza(value: unknown): Confianza {
     : 'baja';
 }
 
-interface RespuestaModelo {
-  fechaInicio?: unknown;
-  fechaVencimiento?: unknown;
-  fechaEmision?: unknown;
-  confianza?: {
-    fechaInicio?: unknown;
-    fechaVencimiento?: unknown;
-    fechaEmision?: unknown;
+const texto = (v: unknown): string | null =>
+  typeof v === 'string' && v.trim() ? v.trim().slice(0, 300) : null;
+
+/**
+ * Acepta el formato nuevo ({ valor, textoLiteral, etiqueta, confianza,
+ * precision }) y el anterior (fecha como string + confianza aparte).
+ */
+export function normalizarFechaDetectada(
+  crudo: unknown,
+  confianzaPlana?: unknown,
+): FechaDetectada {
+  if (crudo && typeof crudo === 'object') {
+    const o = crudo as Record<string, unknown>;
+    const valor = normalizarFechaIa(o.valor);
+    return {
+      valor,
+      textoLiteral: texto(o.textoLiteral),
+      etiqueta: texto(o.etiqueta),
+      confianza: valor ? normalizarConfianza(o.confianza) : 'baja',
+      precision: o.precision === 'anio' ? 'anio' : 'dia',
+    };
+  }
+  const valor = normalizarFechaIa(crudo);
+  return {
+    valor,
+    textoLiteral: typeof crudo === 'string' ? texto(crudo) : null,
+    etiqueta: null,
+    confianza: valor ? normalizarConfianza(confianzaPlana) : 'baja',
+    precision: 'dia',
   };
 }
 
-const sinFechas = (
+type RespuestaModelo = Record<string, unknown> & {
+  confianza?: Record<string, unknown>;
+};
+
+export const sinFechas = (
   iaDisponible: boolean,
   errorMensaje: string,
 ): ExtraerDocPersonalIaResponse => ({
@@ -434,20 +152,42 @@ const sinFechas = (
   errorMensaje,
 });
 
-function normalizarRespuesta(
-  parsed: RespuestaModelo,
+/** Arma la respuesta plana a partir del detalle por fecha. */
+export function respuestaDesdeDetalle(
+  detalle: Record<CampoFecha, FechaDetectada>,
+  extra: Pick<
+    ExtraerDocPersonalIaResponse,
+    'tipoDetectado' | 'formatoFechaIndicado'
+  > = {},
 ): ExtraerDocPersonalIaResponse {
   return {
-    fechaInicio: normalizarFechaIa(parsed.fechaInicio),
-    fechaVencimiento: normalizarFechaIa(parsed.fechaVencimiento),
-    fechaEmision: normalizarFechaIa(parsed.fechaEmision),
+    fechaEmision: detalle.fechaEmision.valor,
+    fechaInicio: detalle.fechaInicio.valor,
+    fechaVencimiento: detalle.fechaVencimiento.valor,
     confianza: {
-      fechaInicio: normalizarConfianza(parsed.confianza?.fechaInicio),
-      fechaVencimiento: normalizarConfianza(parsed.confianza?.fechaVencimiento),
-      fechaEmision: normalizarConfianza(parsed.confianza?.fechaEmision),
+      fechaEmision: detalle.fechaEmision.confianza,
+      fechaInicio: detalle.fechaInicio.confianza,
+      fechaVencimiento: detalle.fechaVencimiento.confianza,
     },
+    detalle,
+    ...extra,
     iaDisponible: true,
   };
+}
+
+export function normalizarRespuesta(
+  parsed: RespuestaModelo,
+): ExtraerDocPersonalIaResponse {
+  const detalle = Object.fromEntries(
+    CAMPOS_FECHA.map((c) => [
+      c,
+      normalizarFechaDetectada(parsed[c], parsed.confianza?.[c]),
+    ]),
+  ) as Record<CampoFecha, FechaDetectada>;
+  return respuestaDesdeDetalle(detalle, {
+    tipoDetectado: texto(parsed.tipoDetectado),
+    formatoFechaIndicado: texto(parsed.formatoFechaIndicado),
+  });
 }
 
 /** Quita el cerco de markdown que a veces agrega el modelo alrededor del JSON. */
@@ -664,9 +404,9 @@ export async function extraerFechasDocPersonal(
     };
   }
 
-  let parsed: RespuestaModelo;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(quitarCercoJson(raw)) as RespuestaModelo;
+    parsed = JSON.parse(quitarCercoJson(raw)) as Record<string, unknown>;
   } catch {
     onError(
       `La IA devolvió JSON inválido (${doc.modo}) para documento ${tipo}.`,

@@ -27,7 +27,8 @@ type TipoDoc =
   | 'constancia_participacion'
   | 'certificado_medico'
   | 'libreta_identidad_maritima'
-  | 'certificado_competencia';
+  | 'certificado_competencia'
+  | 'refrendo';
 
 const TIPOS_DOC_IDENTIDAD: { tipo: TipoDoc; label: string; icon: string }[] = [
   { tipo: 'CURP',                   label: 'CURP',                       icon: '🪪' },
@@ -43,13 +44,14 @@ const TIPOS_DOC_MARITIMOS: { tipo: TipoDoc; label: string; icon: string }[] = [
   { tipo: 'certificado_medico',          label: 'Certificado médico',               icon: '🩺' },
   { tipo: 'libreta_identidad_maritima',  label: 'Libreta de identidad marítima',    icon: '📘' },
   { tipo: 'certificado_competencia',     label: 'Certificado de competencia',       icon: '🎓' },
+  { tipo: 'refrendo',                    label: 'Refrendo',                         icon: '🔏' },
 ];
 
 const TIPOS_DOC = [...TIPOS_DOC_IDENTIDAD, ...TIPOS_DOC_MARITIMOS];
 
 // visa queda fuera del checklist por completo (comportamiento existente);
-// vacuna se mantiene visible pero marcada como opcional, no bloquea el avance.
-const TIPOS_DOC_OPCIONALES: TipoDoc[] = ['vacuna_fiebre_amarilla'];
+// vacuna y refrendo se mantienen visibles pero opcionales, no bloquean el avance.
+const TIPOS_DOC_OPCIONALES: TipoDoc[] = ['vacuna_fiebre_amarilla', 'refrendo'];
 const TIPOS_DOC_REQUERIDOS = TIPOS_DOC.filter((t) => t.tipo !== 'visa');
 const TIPOS_DOC_OBLIGATORIOS = TIPOS_DOC_REQUERIDOS.filter(
   (t) => !TIPOS_DOC_OPCIONALES.includes(t.tipo),

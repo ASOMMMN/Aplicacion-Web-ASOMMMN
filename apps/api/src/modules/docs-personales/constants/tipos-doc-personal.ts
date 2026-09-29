@@ -9,6 +9,7 @@ export const TIPOS_DOC_PERSONAL = [
   'certificado_medico',
   'libreta_identidad_maritima',
   'certificado_competencia',
+  'refrendo',
 ] as const;
 
 export type TipoDocPersonal = (typeof TIPOS_DOC_PERSONAL)[number];
@@ -40,4 +41,5 @@ export const LABEL_TIPO_DOC: Record<TipoDocPersonal, string> = {
   certificado_medico: 'Certificado médico',
   libreta_identidad_maritima: 'Libreta de identidad marítima',
   certificado_competencia: 'Certificado de competencia',
+  refrendo: 'Refrendo',
 };
