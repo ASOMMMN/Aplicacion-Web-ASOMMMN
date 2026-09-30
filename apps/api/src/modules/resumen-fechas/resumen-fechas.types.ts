@@ -1,5 +1,6 @@
 import type { CursoCV } from '../ingest-ia/schemas/extraccion.schema';
 import type { EstadoVigencia } from './vigencia.util';
+import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
 
 /**
  * Origen del dato:
@@ -55,6 +56,8 @@ export interface DocPersonalResumen {
   motivosRevision: string[];
   /** El evaluador corrigió las fechas a mano. */
   fechasVerificadas: boolean;
+  extraccionEstado: EstadoExtraccion;
+  extraccionError: string | null;
 }
 
 export type ConteoVigencia = Record<EstadoVigencia, number>;

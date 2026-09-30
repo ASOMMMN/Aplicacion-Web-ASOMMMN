@@ -13,6 +13,7 @@ import {
   TIPOS_DOC_PERSONAL,
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
+import { ESTADOS_EXTRACCION, EstadoExtraccion } from '../ia/estado-extraccion';
 
 export class SubirDocPersonalDto {
   @ApiProperty({
@@ -93,6 +94,16 @@ export class DocPersonalResponseDto {
 
   @ApiPropertyOptional({ description: 'Error del último análisis, si hubo.' })
   errorAnalisis?: string;
+
+  @ApiProperty({
+    enum: ESTADOS_EXTRACCION,
+    description:
+      'pendiente = nunca se analizó; ok; sin_fechas = se analizó y no hay fechas; error (ver extraccionError).',
+  })
+  extraccionEstado: EstadoExtraccion;
+
+  @ApiPropertyOptional({ nullable: true, description: 'Motivo del error.' })
+  extraccionError: string | null;
 
   @ApiProperty({
     description:

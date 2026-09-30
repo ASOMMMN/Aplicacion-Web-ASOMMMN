@@ -375,7 +375,7 @@ export async function extraerFechasDocPersonal(
   try {
     doc = await leerDocumento(buffer, mimeType, opciones.lectura);
   } catch (err) {
-    const msg = `No se pudo leer el archivo: ${(err as Error).message}`;
+    const msg = `${mimeType === 'application/pdf' ? 'PDF ilegible' : 'Imagen ilegible'}: ${(err as Error).message}`;
     onError(msg);
     return { resultado: sinFechas(true, msg), modelo };
   }
@@ -407,10 +407,10 @@ export async function extraerFechasDocPersonal(
       resultado: sinFechas(
         true,
         status === 401
-          ? 'API key de OpenAI inválida o revocada. Contacta al administrador.'
+          ? 'Error de OpenAI: API key inválida o revocada (HTTP 401).'
           : status === 429
-            ? 'Sin crédito o cuota de OpenAI agotada. Contacta al administrador.'
-            : `No se pudo analizar el documento con IA: ${msg}`,
+            ? 'Error de OpenAI: sin crédito o cuota agotada (HTTP 429).'
+            : `Error de OpenAI${status ? ` (HTTP ${status})` : ''}: ${msg.slice(0, 300)}`,
       ),
     };
   }
@@ -427,7 +427,7 @@ export async function extraerFechasDocPersonal(
       respuestaCruda: raw,
       resultado: sinFechas(
         true,
-        'La IA devolvió una respuesta que no pudo interpretarse.',
+        'Error de OpenAI: la respuesta no pudo interpretarse como JSON.',
       ),
     };
   }

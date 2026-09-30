@@ -16,6 +16,7 @@ import {
 } from './ia/extraer-fechas-doc-personal';
 import { configLecturaDesdeEnv } from './ia/lectura-documento';
 import { cambiosPorAnalisis } from './ia/cambios-analisis';
+import { estadoExtraccion } from './ia/estado-extraccion';
 import type { ResultadoExtraccionFechas } from './ia/extraer-fechas-doc-personal';
 
 import { StorageService } from '../storage/storage.service';
@@ -105,6 +106,7 @@ export class DocsPersonalesService {
       doc.storageType === 'cloudinary' && doc.cloudinaryUrl
         ? 'cloudinary'
         : 'local';
+    const extraccion = estadoExtraccion(doc);
 
     return {
       _id: doc._id.toString(),
@@ -123,6 +125,8 @@ export class DocsPersonalesService {
       analizadoEn: doc.analisisIa?.analizadoEn,
       errorAnalisis: doc.analisisIa?.error,
       fechasVerificadas: Boolean(doc.fechasVerificadas),
+      extraccionEstado: extraccion.estado,
+      extraccionError: extraccion.error,
 
       urlDescargar:
         storageType === 'cloudinary'
@@ -338,6 +342,8 @@ export class DocsPersonalesService {
       ...nuevas,
       revisarFechas: false,
       motivosRevision: [],
+      extraccionEstado: 'ok',
+      extraccionError: null,
       fechasVerificadas: {
         ...nuevas,
         verificadoPor: new Types.ObjectId(actor.userId),
@@ -590,13 +596,15 @@ export class DocsPersonalesService {
         | 'motivosRevision'
         | 'fechasVerificadas'
         | 'analisisIa'
+        | 'extraccionEstado'
+        | 'extraccionError'
       > & { _id: Types.ObjectId }
     >
   > {
     return this.docModel
       .find({ postulanteId: new Types.ObjectId(postulanteId) })
       .select(
-        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa',
+        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError',
       )
       .sort({ subidasEn: -1 })
       .lean();

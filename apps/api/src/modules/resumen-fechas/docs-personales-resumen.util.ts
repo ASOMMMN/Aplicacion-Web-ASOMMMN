@@ -5,6 +5,10 @@ import {
   TipoDocPersonal,
 } from '../docs-personales/constants/tipos-doc-personal';
 import type { ItemBase } from './resumen-fechas.types';
+import {
+  EstadoExtraccion,
+  estadoExtraccion,
+} from '../docs-personales/ia/estado-extraccion';
 
 export interface DocPersonalFechas {
   _id?: { toString(): string };
@@ -17,6 +21,9 @@ export interface DocPersonalFechas {
   revisarFechas?: boolean;
   motivosRevision?: string[];
   fechasVerificadas?: unknown;
+  extraccionEstado?: EstadoExtraccion | null;
+  extraccionError?: string | null;
+  analisisIa?: { error?: string } | null;
 }
 
 const aISO = (valor: Date | string | null | undefined): string | null => {
@@ -49,6 +56,7 @@ export function resumenDocumentosPersonales(
   return TIPOS_DOC_PERSONAL.filter((tipo) => masReciente.has(tipo)).map(
     (tipo) => {
       const doc = masReciente.get(tipo)!;
+      const extraccion = estadoExtraccion(doc);
       return {
         tipo: 'Documento personal' as const,
         nombre: LABEL_TIPO_DOC[tipo],
@@ -71,6 +79,8 @@ export function resumenDocumentosPersonales(
                 revisarFechas: Boolean(doc.revisarFechas),
                 motivosRevision: doc.motivosRevision ?? [],
                 fechasVerificadas: Boolean(doc.fechasVerificadas),
+                extraccionEstado: extraccion.estado,
+                extraccionError: extraccion.error,
               },
             }
           : {}),

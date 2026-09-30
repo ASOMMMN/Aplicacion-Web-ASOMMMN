@@ -4,6 +4,7 @@ import {
   TIPOS_DOC_PERSONAL,
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
+import { ESTADOS_EXTRACCION, EstadoExtraccion } from '../ia/estado-extraccion';
 
 export type DocPersonalDocument = HydratedDocument<DocPersonal>;
 
@@ -75,6 +76,17 @@ export class DocPersonal {
   /** El contenido no corresponde al tipo elegido por el postulante. */
   @Prop({ type: Object, default: null })
   tipoSospechoso?: { tipoElegido: string; tipoDetectado: string } | null;
+
+  /**
+   * Resultado de la última extracción (ver ia/estado-extraccion.ts).
+   * Ausente en documentos anteriores a este campo: se deduce al leer.
+   */
+  @Prop({ type: String, enum: ESTADOS_EXTRACCION, index: true })
+  extraccionEstado?: EstadoExtraccion;
+
+  /** Motivo cuando extraccionEstado = 'error'. */
+  @Prop({ type: String, default: null })
+  extraccionError?: string | null;
 
   /** Último análisis con IA. Ausente = el documento nunca se analizó. */
   @Prop({ type: Object })

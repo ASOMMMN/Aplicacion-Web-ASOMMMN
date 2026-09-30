@@ -34,7 +34,13 @@ describe('cambiosPorAnalisis', () => {
       { modelo: 'm', resultado: sinFechas(true, 'Error de OpenAI') },
       { ahora: AHORA },
     );
-    expect(Object.keys(c)).toEqual(['analisisIa']);
+    expect(Object.keys(c).sort()).toEqual([
+      'analisisIa',
+      'extraccionError',
+      'extraccionEstado',
+    ]);
+    expect(c.extraccionEstado).toBe('error');
+    expect(c.extraccionError).toBe('Error de OpenAI');
     expect(c.analisisIa.error).toBe('Error de OpenAI');
   });
 
@@ -44,5 +50,31 @@ describe('cambiosPorAnalisis', () => {
     expect(c).not.toHaveProperty('fechaVencimiento');
     expect(c).not.toHaveProperty('revisarFechas');
     expect(c.analisisIa).toBeDefined();
+  });
+
+  it('estado ok con fechas; sin_fechas si el documento no las muestra', () => {
+    expect(cambiosPorAnalisis(exito()).extraccionEstado).toBe('ok');
+
+    const vacio = exito();
+    Object.assign(vacio.resultado, {
+      fechaEmision: null,
+      fechaVencimiento: null,
+    });
+    expect(cambiosPorAnalisis(vacio)).toMatchObject({
+      extraccionEstado: 'sin_fechas',
+      extraccionError: null,
+    });
+  });
+
+  it('todas las fechas descartadas por validación → error con motivo', () => {
+    const r = exito();
+    Object.assign(r.resultado, {
+      fechaEmision: null,
+      fechaVencimiento: null,
+      fechasDescartadas: ['La emisión solo indica el año; se dejó vacía.'],
+    });
+    const c = cambiosPorAnalisis(r);
+    expect(c.extraccionEstado).toBe('error');
+    expect(c.extraccionError).toMatch(/^Fecha descartada por validación/);
   });
 });

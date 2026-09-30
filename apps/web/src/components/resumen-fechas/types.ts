@@ -48,7 +48,16 @@ export interface DocPersonalResumen {
   motivosRevision: string[];
   /** El evaluador corrigió las fechas a mano. */
   fechasVerificadas: boolean;
+  extraccionEstado: EstadoExtraccion;
+  /** Motivo cuando extraccionEstado = 'error'. */
+  extraccionError: string | null;
 }
+
+/**
+ * pendiente = nunca se analizó; ok; sin_fechas = se analizó y el documento no
+ * muestra fechas; error = falló o se descartaron las fechas (ver extraccionError).
+ */
+export type EstadoExtraccion = 'pendiente' | 'ok' | 'sin_fechas' | 'error';
 
 export interface ResumenFechasResponse {
   titulo: string;

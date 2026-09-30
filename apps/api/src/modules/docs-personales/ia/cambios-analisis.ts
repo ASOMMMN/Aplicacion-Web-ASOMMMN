@@ -3,6 +3,7 @@
  * servicio (subida, "Volver a analizar" y análisis por lotes).
  */
 import type { ResultadoExtraccionFechas } from './extraer-fechas-doc-personal';
+import type { EstadoExtraccion } from './estado-extraccion';
 
 export interface CambiosAnalisis {
   fechaEmision?: Date | null;
@@ -12,6 +13,9 @@ export interface CambiosAnalisis {
   revisarFechas?: boolean;
   motivosRevision?: string[];
   tipoSospechoso?: { tipoElegido: string; tipoDetectado: string } | null;
+  extraccionEstado: EstadoExtraccion;
+  /** Motivo si extraccionEstado = 'error'; null en los demás casos. */
+  extraccionError: string | null;
   analisisIa: {
     analizadoEn: Date;
     modelo: string;
@@ -35,8 +39,8 @@ export interface OpcionesCambios {
 }
 
 /**
- * - Siempre registra el intento en `analisisIa` (así se distingue "nunca
- *   analizado" de "analizado con error").
+ * - Siempre registra el intento en `analisisIa` y el estado (así se
+ *   distingue "nunca analizado" de "analizado con error").
  * - Si hubo error de lectura o de IA, NO toca las fechas existentes.
  * - Las fechas verificadas por el evaluador nunca se tocan aquí.
  */
@@ -53,10 +57,29 @@ export function cambiosPorAnalisis(
     ...(r.resultado.errorMensaje ? { error: r.resultado.errorMensaje } : {}),
   };
   if (r.resultado.errorMensaje || !r.resultado.iaDisponible) {
-    return { analisisIa };
+    return {
+      extraccionEstado: 'error',
+      extraccionError:
+        r.resultado.errorMensaje || 'La IA no está disponible en el servidor.',
+      analisisIa,
+    };
   }
 
   const res = r.resultado;
+  const conFechas = Boolean(
+    res.fechaEmision || res.fechaInicio || res.fechaVencimiento,
+  );
+  const descartadas = res.fechasDescartadas ?? [];
+  const estado: Pick<CambiosAnalisis, 'extraccionEstado' | 'extraccionError'> =
+    conFechas
+      ? { extraccionEstado: 'ok', extraccionError: null }
+      : descartadas.length > 0
+        ? {
+            extraccionEstado: 'error',
+            extraccionError: `Fecha descartada por validación: ${descartadas.join(' ')}`,
+          }
+        : { extraccionEstado: 'sin_fechas', extraccionError: null };
+
   const detalleFechasIa = res.detalle
     ? (res.detalle as unknown as Record<string, unknown>)
     : undefined;
@@ -64,6 +87,9 @@ export function cambiosPorAnalisis(
     return {
       detalleFechasIa,
       tipoSospechoso: res.tipoSospechoso ?? null,
+      // Las fechas vigentes son las verificadas: el documento sí tiene fechas.
+      extraccionEstado: 'ok',
+      extraccionError: null,
       analisisIa,
     };
   }
@@ -76,6 +102,7 @@ export function cambiosPorAnalisis(
     revisarFechas: Boolean(res.revisar),
     motivosRevision: res.motivosRevision ?? [],
     tipoSospechoso: res.tipoSospechoso ?? null,
+    ...estado,
     analisisIa,
   };
 }

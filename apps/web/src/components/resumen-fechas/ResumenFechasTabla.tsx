@@ -73,6 +73,45 @@ function CeldaFecha({
   );
 }
 
+/**
+ * Documentos personales sin vencimiento: en lugar del "Sin fecha" genérico se
+ * dice por qué (nunca analizado, no se encontraron fechas o el error).
+ */
+function badgeSinFechaDoc(item: ResumenFechaItem): { label: string; className: string; icon: string; title: string } | null {
+  const doc = item.docPersonal;
+  if (!doc || item.estadoVigencia !== 'sin_fecha') return null;
+  switch (doc.extraccionEstado) {
+    case 'pendiente':
+      return {
+        label: 'No analizado',
+        className: 'bg-secondary',
+        icon: 'bi-hourglass',
+        title: 'Este documento nunca se analizó con IA. Usa "Volver a analizar".',
+      };
+    case 'sin_fechas':
+      return {
+        label: 'Sin fechas encontradas',
+        className: 'bg-light text-secondary border',
+        icon: 'bi-search',
+        title: 'Se analizó y la IA no encontró fechas en el documento.',
+      };
+    case 'error':
+      return {
+        label: `Error: ${doc.extraccionError ?? 'desconocido'}`,
+        className: 'bg-danger-subtle text-danger-emphasis border border-danger-subtle',
+        icon: 'bi-exclamation-octagon',
+        title: doc.extraccionError ?? 'Error desconocido',
+      };
+    case 'ok':
+      return {
+        label: 'Sin vencimiento encontrado',
+        className: 'bg-light text-secondary border',
+        icon: 'bi-calendar-x',
+        title: 'Se encontraron otras fechas, pero no la de vencimiento.',
+      };
+  }
+}
+
 function tituloVigencia(item: ResumenFechaItem): string | undefined {
   if (item.estadoVigencia === 'no_aplica') return 'Este tipo de documento no vence';
   const dias = item.diasParaVencer;
@@ -168,6 +207,7 @@ export function ResumenFechasTabla({
             const estado = ESTADOS[c.estadoVigencia];
             const origen = ORIGENES[c.origen];
             const soloCV = c.origen === 'cv';
+            const sinFechaDoc = badgeSinFechaDoc(c);
             return (
               <tr key={`${c.nombre}-${idx}`}>
                 <td title={c.nombreEnCV && c.nombreEnCV !== c.nombre ? `En el CV: ${c.nombreEnCV}` : undefined}>
@@ -221,10 +261,21 @@ export function ResumenFechasTabla({
                   )}
                 </td>
                 <td>
-                  <span className={`badge ${estado.className}`} title={tituloVigencia(c)}>
-                    <i className={`bi ${estado.icon} me-1`} />
-                    {estado.label}
-                  </span>
+                  {sinFechaDoc ? (
+                    <span
+                      className={`badge text-wrap text-start ${sinFechaDoc.className}`}
+                      style={{ maxWidth: 240 }}
+                      title={sinFechaDoc.title}
+                    >
+                      <i className={`bi ${sinFechaDoc.icon} me-1`} />
+                      {sinFechaDoc.label}
+                    </span>
+                  ) : (
+                    <span className={`badge ${estado.className}`} title={tituloVigencia(c)}>
+                      <i className={`bi ${estado.icon} me-1`} />
+                      {estado.label}
+                    </span>
+                  )}
                 </td>
                 <td>
                   <span className={`badge badge-pill-enmv ${origen.className}`}>{origen.label}</span>
