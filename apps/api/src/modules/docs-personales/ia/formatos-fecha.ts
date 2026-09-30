@@ -96,8 +96,10 @@ export function leerFechaLiteral(
   );
   if (m) {
     const iso = isoValida(+m[1], +m[2], +m[3]);
-    if (iso)
-      return { precision: 'dia', anio: +m[1], mes: +m[2], dia: +m[3], iso, invertida: null, ambigua: false, anios }; // prettier-ignore
+    // Tiene forma de fecha completa pero no es válida (p. ej. OCR "2021-00-10"):
+    // se rechaza; nunca se degrada a mes o año.
+    if (!iso) return null;
+    return { precision: 'dia', anio: +m[1], mes: +m[2], dia: +m[3], iso, invertida: null, ambigua: false, anios }; // prettier-ignore
   }
 
   // dd sep mm sep aaaa (o aa)
@@ -111,18 +113,17 @@ export function leerFechaLiteral(
     const y = anioCompleto(+m[3]);
     const [d, mes] = mmdd ? [b, a] : [a, b];
     const iso = isoValida(y, mes, d);
-    if (iso) {
-      return {
-        precision: 'dia',
-        anio: y,
-        mes,
-        dia: d,
-        iso,
-        invertida: isoValida(y, d, mes),
-        ambigua: a <= 12 && b <= 12 && a !== b && !formatoIndicado,
-        anios,
-      };
-    }
+    if (!iso) return null; // "10-00-2021": ilegible, no "año 2021"
+    return {
+      precision: 'dia',
+      anio: y,
+      mes,
+      dia: d,
+      iso,
+      invertida: isoValida(y, d, mes),
+      ambigua: a <= 12 && b <= 12 && a !== b && !formatoIndicado,
+      anios,
+    };
   }
 
   // dd [de] MES [de|,] aaaa  → "11 de abril de 2025", "09MAY2024", "19 dec/dic 2025"
