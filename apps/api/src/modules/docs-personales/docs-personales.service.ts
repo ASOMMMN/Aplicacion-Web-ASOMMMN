@@ -15,6 +15,8 @@ import {
   extraerFechasDocPersonal,
 } from './ia/extraer-fechas-doc-personal';
 import { configLecturaDesdeEnv } from './ia/lectura-documento';
+import { cambiosPorAnalisis } from './ia/cambios-analisis';
+import type { ResultadoExtraccionFechas } from './ia/extraer-fechas-doc-personal';
 
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -36,6 +38,7 @@ import {
   DocPersonalResponseDto,
   MisDocsResponseDto,
   ResumenTipoDto,
+  VerificarFechasDocPersonalDto,
 } from './dto/doc-personal.dto';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
@@ -46,6 +49,9 @@ const ACCEPTED_MIMES = ['application/pdf', 'image/jpeg', 'image/png'];
 const STORAGE_CATEGORY = 'documentos';
 
 export type { ExtraerDocPersonalIaResponse } from './ia/extraer-fechas-doc-personal';
+
+/** Qué disparó un análisis (se guarda en auditoría). */
+export type DisparadorAnalisis = 'subida' | 'reanalisis' | 'lote';
 
 @Injectable()
 export class DocsPersonalesService {
@@ -111,6 +117,12 @@ export class DocsPersonalesService {
       fechaInicio: doc.fechaInicio,
       fechaVencimiento: doc.fechaVencimiento,
       fechaEmision: doc.fechaEmision,
+      revisarFechas: Boolean(doc.revisarFechas),
+      motivosRevision: doc.motivosRevision ?? [],
+      tipoSospechoso: doc.tipoSospechoso ?? null,
+      analizadoEn: doc.analisisIa?.analizadoEn,
+      errorAnalisis: doc.analisisIa?.error,
+      fechasVerificadas: Boolean(doc.fechasVerificadas),
 
       urlDescargar:
         storageType === 'cloudinary'
@@ -207,6 +219,155 @@ export class DocsPersonalesService {
     return resultado;
   }
 
+  /**
+   * Analiza el archivo con IA (lectura robusta + prompts por tipo +
+   * validación en código) y guarda el resultado en el documento.
+   * Nunca lanza: un fallo queda registrado en analisisIa.error sin tocar
+   * las fechas existentes.
+   */
+  private async analizarYGuardar(
+    doc: DocPersonalDocument,
+    buffer: Buffer,
+    actor: AuthUser,
+    disparadoPor: DisparadorAnalisis,
+  ): Promise<ResultadoExtraccionFechas> {
+    const r = await extraerFechasDocPersonal({
+      buffer,
+      mimeType: doc.tipoMime,
+      tipo: doc.tipo,
+      apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
+      modelo: this.configService.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
+      openai: this.openai,
+      lectura: configLecturaDesdeEnv((k) => this.configService.get<string>(k)),
+      onError: (m) => this.logger.error(`[doc ${doc._id.toString()}] ${m}`),
+    });
+
+    try {
+      doc.set(
+        cambiosPorAnalisis(r, {
+          fechasVerificadas: Boolean(doc.fechasVerificadas),
+        }),
+      );
+      await doc.save();
+    } catch (err) {
+      this.logger.error(
+        `No se pudo guardar el análisis del documento ${doc._id.toString()}: ${(err as Error).message}`,
+      );
+    }
+
+    await this.auditarAnalisis(doc, r, actor, disparadoPor);
+    return r;
+  }
+
+  /** Un registro por análisis, con el id del documento, también si falló. */
+  private async auditarAnalisis(
+    doc: DocPersonalDocument,
+    r: ResultadoExtraccionFechas,
+    actor: AuthUser,
+    disparadoPor: DisparadorAnalisis,
+  ): Promise<void> {
+    const res = r.resultado;
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: res.errorMensaje
+        ? 'doc_personal_extraccion_ia_error'
+        : 'doc_personal_extraccion_ia',
+      recurso: 'DocPersonal',
+      recursoId: doc._id.toString(),
+      metadata: {
+        disparadoPor,
+        postulanteId: doc.postulanteId?.toString(),
+        modelo: r.modelo,
+        tipoDocumento: doc.tipo,
+        mimeType: doc.tipoMime,
+        origen: r.origen,
+        paginasLeidas: r.paginasLeidas,
+        paginasTotales: r.paginasTotales,
+        avisoLectura: r.aviso,
+        error: res.errorMensaje,
+        fechaInicioExtraida: res.fechaInicio,
+        fechaVencimientoExtraida: res.fechaVencimiento,
+        fechaEmisionExtraida: res.fechaEmision,
+        confianza: res.confianza,
+        motivosRevision: res.motivosRevision,
+        fechasDescartadas: res.fechasDescartadas,
+        tipoSospechoso: res.tipoSospechoso,
+        fechasVerificadasConservadas: Boolean(doc.fechasVerificadas),
+        respuestaCruda: r.respuestaCruda?.slice(0, 2000),
+      },
+    });
+  }
+
+  // ── Evaluador / Admin: corrección manual de fechas ────────────────────────
+
+  /**
+   * Fija las fechas a mano. Quedan en fechasVerificadas y en los campos de
+   * fecha; un nuevo análisis con IA ya no las sobrescribe.
+   */
+  async verificarFechas(
+    actor: AuthUser,
+    docId: string,
+    dto: VerificarFechasDocPersonalDto,
+  ): Promise<DocPersonalResponseDto> {
+    const doc = await this.docModel.findById(docId);
+    if (!doc) throw new NotFoundException('Documento no encontrado.');
+
+    const aFecha = (v: string | null | undefined) =>
+      v ? new Date(`${v}T00:00:00.000Z`) : null;
+    const nuevas = {
+      fechaEmision: aFecha(dto.fechaEmision),
+      fechaInicio: aFecha(dto.fechaInicio),
+      fechaVencimiento: aFecha(dto.fechaVencimiento),
+    };
+    const desde = nuevas.fechaEmision ?? nuevas.fechaInicio;
+    if (desde && nuevas.fechaVencimiento && nuevas.fechaVencimiento <= desde) {
+      throw new BadRequestException(
+        'El vencimiento debe ser posterior a la emisión/inicio.',
+      );
+    }
+
+    const iso = (d?: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+    const antes = {
+      fechaEmision: iso(doc.fechaEmision),
+      fechaInicio: iso(doc.fechaInicio),
+      fechaVencimiento: iso(doc.fechaVencimiento),
+    };
+
+    doc.set({
+      ...nuevas,
+      revisarFechas: false,
+      motivosRevision: [],
+      fechasVerificadas: {
+        ...nuevas,
+        verificadoPor: new Types.ObjectId(actor.userId),
+        verificadoPorEmail: actor.email,
+        verificadoEn: new Date(),
+      },
+    });
+    await doc.save();
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'doc_personal_fechas_verificadas',
+      recurso: 'DocPersonal',
+      recursoId: docId,
+      metadata: {
+        tipoDocumento: doc.tipo,
+        postulanteId: doc.postulanteId?.toString(),
+        antes,
+        despues: {
+          fechaEmision: iso(nuevas.fechaEmision),
+          fechaInicio: iso(nuevas.fechaInicio),
+          fechaVencimiento: iso(nuevas.fechaVencimiento),
+        },
+      },
+    });
+
+    return this.toResponseDto(doc);
+  }
+
   // ── Postulante: subir ──────────────────────────────────────────────────────
 
   async subir(
@@ -265,38 +426,9 @@ export class DocsPersonalesService {
     });
 
     // Extrae automáticamente las fechas al subir el documento.
-    // Si la IA falla, NO se cancela la subida: el documento permanece guardado.
-    try {
-      const ia = await this.extraerDatosDocPersonalIa(
-        file.buffer,
-        actor.userId,
-        tipo,
-        file.mimetype,
-        actor.email,
-      );
-
-      if (ia.iaDisponible) {
-        doc.fechaInicio = ia.fechaInicio
-          ? new Date(`${ia.fechaInicio}T00:00:00.000Z`)
-          : undefined;
-
-        doc.fechaVencimiento = ia.fechaVencimiento
-          ? new Date(`${ia.fechaVencimiento}T00:00:00.000Z`)
-          : undefined;
-
-        doc.fechaEmision = ia.fechaEmision
-          ? new Date(`${ia.fechaEmision}T00:00:00.000Z`)
-          : undefined;
-
-        await doc.save();
-      }
-    } catch (error) {
-      this.logger.warn(
-        `No se pudieron extraer las fechas del documento ${doc._id}: ${
-          error instanceof Error ? error.message : 'error desconocido'
-        }`,
-      );
-    }
+    // Si la IA falla, NO se cancela la subida: el documento permanece guardado
+    // y el error queda en analisisIa para reintentar con "Volver a analizar".
+    await this.analizarYGuardar(doc, file.buffer, actor, 'subida');
 
     await this.auditoria.registrar({
       actorId: actor.userId,
@@ -454,13 +586,17 @@ export class DocsPersonalesService {
         | 'fechaInicio'
         | 'fechaEmision'
         | 'fechaVencimiento'
-      >
+        | 'revisarFechas'
+        | 'motivosRevision'
+        | 'fechasVerificadas'
+        | 'analisisIa'
+      > & { _id: Types.ObjectId }
     >
   > {
     return this.docModel
       .find({ postulanteId: new Types.ObjectId(postulanteId) })
       .select(
-        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento',
+        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa',
       )
       .sort({ subidasEn: -1 })
       .lean();

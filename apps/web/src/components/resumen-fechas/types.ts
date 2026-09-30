@@ -38,6 +38,16 @@ export interface ResumenFechaItem {
   estadoVigencia: EstadoVigencia;
   diasParaVencer: number | null;
   fuente: string[];
+  /** Solo documentos personales: el archivo usado y su análisis. */
+  docPersonal?: DocPersonalResumen;
+}
+
+export interface DocPersonalResumen {
+  id: string;
+  revisarFechas: boolean;
+  motivosRevision: string[];
+  /** El evaluador corrigió las fechas a mano. */
+  fechasVerificadas: boolean;
 }
 
 export interface ResumenFechasResponse {

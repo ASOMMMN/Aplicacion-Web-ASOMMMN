@@ -44,6 +44,17 @@ export interface ResumenFechaItem {
   estadoVigencia: EstadoVigencia;
   diasParaVencer: number | null;
   fuente: string[];
+  /** Solo documentos personales: el archivo usado y su análisis. */
+  docPersonal?: DocPersonalResumen;
+}
+
+export interface DocPersonalResumen {
+  id: string;
+  /** La validación marcó alguna fecha para revisión. */
+  revisarFechas: boolean;
+  motivosRevision: string[];
+  /** El evaluador corrigió las fechas a mano. */
+  fechasVerificadas: boolean;
 }
 
 export type ConteoVigencia = Record<EstadoVigencia, number>;

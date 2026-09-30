@@ -1,0 +1,121 @@
+import { normalizarRespuesta } from './extraer-fechas-doc-personal';
+import {
+  leerFechaLiteral,
+  validarFechasDocPersonal,
+} from './validar-fechas-doc-personal';
+import type { TipoDocPersonal } from '../constants/tipos-doc-personal';
+
+const HOY = '2026-09-30';
+
+const fecha = (
+  valor: string | null,
+  textoLiteral: string | null,
+  extra: Record<string, unknown> = {},
+) => ({ valor, textoLiteral, etiqueta: null, confianza: 'alta', ...extra });
+
+const validar = (tipo: TipoDocPersonal, crudo: Record<string, unknown>) =>
+  validarFechasDocPersonal(
+    tipo,
+    normalizarRespuesta({
+      fechaEmision: fecha(null, null),
+      fechaInicio: fecha(null, null),
+      fechaVencimiento: fecha(null, null),
+      ...crudo,
+    }),
+    HOY,
+  );
+
+describe('leerFechaLiteral', () => {
+  it('numéricas como dd/mm salvo formato mm/dd declarado', () => {
+    expect(leerFechaLiteral('12/03/2025')?.fecha).toBe('2025-03-12');
+    expect(leerFechaLiteral('12/03/2025', 'mm/dd/yyyy')?.fecha).toBe(
+      '2025-12-03',
+    );
+  });
+
+  it('meses con letra en español e inglés', () => {
+    expect(leerFechaLiteral('19 DIC 2025')?.fecha).toBe('2025-12-19');
+    expect(leerFechaLiteral('09FEB2022')?.fecha).toBe('2022-02-09');
+    expect(leerFechaLiteral('19 DEC/DIC 2025')?.fecha).toBe('2025-12-19');
+  });
+});
+
+describe('validarFechasDocPersonal', () => {
+  it('corrige día/mes invertidos contra el texto literal', () => {
+    const r = validar('certificado_medico', {
+      fechaEmision: fecha('2025-12-03', '12/03/2025'),
+      fechaVencimiento: fecha('2027-12-03', '12/03/2027'),
+    });
+    expect(r.fechaEmision).toBe('2025-03-12');
+    expect(r.fechaVencimiento).toBe('2027-03-12');
+    expect(r.motivosRevision.join(' ')).toMatch(/día\/mes/);
+  });
+
+  it('INE: vigencia solo con año → 31/12 de ese año', () => {
+    const r = validar('INE', {
+      fechaVencimiento: fecha(null, 'VIGENCIA 2021 - 2031', {
+        precision: 'anio',
+      }),
+    });
+    expect(r.fechaVencimiento).toBe('2031-12-31');
+    expect(r.detalle?.fechaVencimiento.precision).toBe('anio');
+  });
+
+  it('solo año fuera de la INE: se deja vacía y se reporta como descartada', () => {
+    const r = validar('pasaporte', {
+      fechaEmision: fecha('2020-01-01', '2020', { precision: 'anio' }),
+    });
+    expect(r.fechaEmision).toBeNull();
+    expect(r.fechasDescartadas).toHaveLength(1);
+    expect(r.revisar).toBe(true);
+  });
+
+  it('vencimiento anterior a la emisión → Revisar', () => {
+    const r = validar('visa', {
+      fechaEmision: fecha('2024-05-10', '10/05/2024'),
+      fechaVencimiento: fecha('2023-05-10', '10/05/2023'),
+    });
+    expect(r.revisar).toBe(true);
+    expect(r.confianza.fechaVencimiento).toBe('baja');
+  });
+
+  it('rango por tipo: pasaporte 10 años ok, 7 años → Revisar', () => {
+    const ok = validar('pasaporte', {
+      fechaEmision: fecha('2020-02-09', '09/02/2020'),
+      fechaVencimiento: fecha('2030-02-09', '09/02/2030'),
+    });
+    expect(ok.revisar).toBe(false);
+
+    const raro = validar('pasaporte', {
+      fechaEmision: fecha('2020-02-09', '09/02/2020'),
+      fechaVencimiento: fecha('2027-02-09', '09/02/2027'),
+    });
+    expect(raro.revisar).toBe(true);
+    // No se descarta: se conserva para que el evaluador la confirme.
+    expect(raro.fechaVencimiento).toBe('2027-02-09');
+  });
+
+  it('certificado médico de más de 2 años → Revisar', () => {
+    const r = validar('certificado_medico', {
+      fechaEmision: fecha('2024-01-15', '15/01/2024'),
+      fechaVencimiento: fecha('2027-01-15', '15/01/2027'),
+    });
+    expect(r.revisar).toBe(true);
+  });
+
+  it('CURP no vence: el vencimiento se descarta', () => {
+    const r = validar('CURP', {
+      fechaVencimiento: fecha('2030-01-01', '01/01/2030'),
+    });
+    expect(r.fechaVencimiento).toBeNull();
+    expect(r.fechasDescartadas).toHaveLength(1);
+  });
+
+  it('tipo sospechoso cuando el contenido es de otro tipo', () => {
+    const r = validar('visa', { tipoDetectado: 'pasaporte' });
+    expect(r.tipoSospechoso).toEqual({
+      tipoElegido: 'visa',
+      tipoDetectado: 'pasaporte',
+    });
+  });
+});

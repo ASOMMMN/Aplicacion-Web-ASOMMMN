@@ -7,12 +7,16 @@ import {
 import type { ItemBase } from './resumen-fechas.types';
 
 export interface DocPersonalFechas {
+  _id?: { toString(): string };
   tipo: TipoDocPersonal;
   nombreOriginal: string;
   subidasEn: Date | string;
   fechaInicio?: Date | string | null;
   fechaEmision?: Date | string | null;
   fechaVencimiento?: Date | string | null;
+  revisarFechas?: boolean;
+  motivosRevision?: string[];
+  fechasVerificadas?: unknown;
 }
 
 const aISO = (valor: Date | string | null | undefined): string | null => {
@@ -60,6 +64,16 @@ export function resumenDocumentosPersonales(
         discrepancia: null,
         origen: 'doc_personal' as const,
         fuente: ['Documentos personales'],
+        ...(doc._id
+          ? {
+              docPersonal: {
+                id: doc._id.toString(),
+                revisarFechas: Boolean(doc.revisarFechas),
+                motivosRevision: doc.motivosRevision ?? [],
+                fechasVerificadas: Boolean(doc.fechasVerificadas),
+              },
+            }
+          : {}),
       };
     },
   );

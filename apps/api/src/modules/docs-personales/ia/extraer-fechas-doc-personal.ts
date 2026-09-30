@@ -20,6 +20,10 @@ import {
   construirPromptPdfEscaneado,
   SYSTEM_PROMPT_DOC_PERSONAL,
 } from './prompts-doc-personal';
+import {
+  TipoSospechoso,
+  validarFechasDocPersonal,
+} from './validar-fechas-doc-personal';
 
 export {
   construirPromptDocPersonal,
@@ -74,6 +78,12 @@ export interface ExtraerDocPersonalIaResponse {
   tipoDetectado?: string | null;
   /** Formato declarado en el documento ("dd/mm/aaaa"…), si lo hay. */
   formatoFechaIndicado?: string | null;
+  /** Validación en código (validar-fechas-doc-personal.ts). */
+  revisar?: boolean;
+  motivosRevision?: string[];
+  tipoSospechoso?: TipoSospechoso | null;
+  /** Fechas propuestas por el modelo que la validación descartó (motivos). */
+  fechasDescartadas?: string[];
   iaDisponible: boolean;
   errorMensaje?: string;
 }
@@ -150,6 +160,10 @@ export const sinFechas = (
   },
   iaDisponible,
   errorMensaje,
+  revisar: false,
+  motivosRevision: [],
+  tipoSospechoso: null,
+  fechasDescartadas: [],
 });
 
 /** Arma la respuesta plana a partir del detalle por fecha. */
@@ -418,9 +432,10 @@ export async function extraerFechasDocPersonal(
     };
   }
 
+  // El modelo propone; el código verifica (día/mes, INE, orden, duración, tipo).
   return {
     ...meta,
     respuestaCruda: raw,
-    resultado: normalizarRespuesta(parsed),
+    resultado: validarFechasDocPersonal(tipo, normalizarRespuesta(parsed)),
   };
 }

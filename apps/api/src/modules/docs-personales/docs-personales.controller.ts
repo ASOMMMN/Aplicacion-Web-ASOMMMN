@@ -41,6 +41,7 @@ import {
   DocPersonalResponseDto,
   MisDocsResponseDto,
   RenombrarDocPersonalDto,
+  VerificarFechasDocPersonalDto,
 } from './dto/doc-personal.dto';
 
 @ApiTags('docs-personales')
@@ -300,6 +301,22 @@ export class DocsPersonalesController {
   }
 
   // ── Evaluador / Admin ─────────────────────────────────────────────────────
+
+  @Patch(':id/fechas')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary: 'Evaluador/Admin: corrige a mano las fechas de un documento',
+    description:
+      'Las fechas quedan como verificadas: "Volver a analizar" ya no las sobrescribe.',
+  })
+  @ApiResponse({ status: 200, type: DocPersonalResponseDto })
+  verificarFechas(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() body: VerificarFechasDocPersonalDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<DocPersonalResponseDto> {
+    return this.svc.verificarFechas(user, id, body);
+  }
 
   @Get('postulante/:postulanteId')
   @Roles('evaluador', 'administrador')

@@ -1,0 +1,48 @@
+import { cambiosPorAnalisis } from './cambios-analisis';
+import {
+  ResultadoExtraccionFechas,
+  sinFechas,
+} from './extraer-fechas-doc-personal';
+
+const AHORA = new Date('2026-09-30T12:00:00Z');
+
+const exito = (): ResultadoExtraccionFechas => ({
+  modelo: 'gpt-4o-mini',
+  origen: 'pdf-visual',
+  resultado: {
+    ...sinFechas(true, ''),
+    errorMensaje: undefined,
+    fechaEmision: '2024-03-15',
+    fechaVencimiento: '2026-03-14',
+    revisar: true,
+    motivosRevision: ['x'],
+  },
+});
+
+describe('cambiosPorAnalisis', () => {
+  it('guarda fechas y la marca Revisar cuando el análisis salió bien', () => {
+    const c = cambiosPorAnalisis(exito(), { ahora: AHORA });
+    expect(c.fechaEmision?.toISOString()).toBe('2024-03-15T00:00:00.000Z');
+    expect(c.fechaVencimiento?.toISOString()).toBe('2026-03-14T00:00:00.000Z');
+    expect(c.revisarFechas).toBe(true);
+    expect(c.analisisIa.analizadoEn).toBe(AHORA);
+    expect(c.analisisIa).not.toHaveProperty('error');
+  });
+
+  it('con error no toca fechas pero registra el intento', () => {
+    const c = cambiosPorAnalisis(
+      { modelo: 'm', resultado: sinFechas(true, 'Error de OpenAI') },
+      { ahora: AHORA },
+    );
+    expect(Object.keys(c)).toEqual(['analisisIa']);
+    expect(c.analisisIa.error).toBe('Error de OpenAI');
+  });
+
+  it('con fechas verificadas por el evaluador no las sobrescribe', () => {
+    const c = cambiosPorAnalisis(exito(), { fechasVerificadas: true });
+    expect(c).not.toHaveProperty('fechaEmision');
+    expect(c).not.toHaveProperty('fechaVencimiento');
+    expect(c).not.toHaveProperty('revisarFechas');
+    expect(c.analisisIa).toBeDefined();
+  });
+});

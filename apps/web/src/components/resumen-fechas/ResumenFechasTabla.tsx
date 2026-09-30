@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Alert, Table } from 'react-bootstrap';
+import { Alert, Button, Table } from 'react-bootstrap';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { formatearFechaCalendario } from '@/lib/fechas';
+import { CorregirFechasModal } from './CorregirFechasModal';
 import type {
   ConfianzaIa,
   EstadoVigencia,
@@ -94,6 +95,10 @@ export function ResumenFechasTabla({
 }) {
   const [resumen, setResumen] = useState<ResumenFechasResponse | null>(null);
   const [error, setError] = useState('');
+  /** Se incrementa tras una corrección o un análisis para recargar. */
+  const [recarga, setRecarga] = useState(0);
+  const [corrigiendo, setCorrigiendo] = useState<ResumenFechaItem | null>(null);
+  const recargar = () => setRecarga((n) => n + 1);
 
   useEffect(() => {
     let cancelado = false;
@@ -111,7 +116,7 @@ export function ResumenFechasTabla({
     return () => {
       cancelado = true;
     };
-  }, [postulanteId, recargarKey]);
+  }, [postulanteId, recargarKey, recarga]);
 
   if (error) return <Alert variant="warning" className="mb-0 small">{error}</Alert>;
   if (!resumen) {
@@ -155,6 +160,7 @@ export function ResumenFechasTabla({
             <th>Fecha vence</th>
             <th>Vigencia</th>
             <th>Origen</th>
+            <th aria-label="Acciones" />
           </tr>
         </thead>
         <tbody>
@@ -170,6 +176,24 @@ export function ResumenFechasTabla({
                     <div className="text-muted text-truncate" style={{ fontSize: '0.7rem', maxWidth: 260 }} title={c.detalle}>
                       {c.detalle}
                     </div>
+                  )}
+                  {c.docPersonal?.revisarFechas && (
+                    <span
+                      className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"
+                      title={c.docPersonal.motivosRevision.join(' · ')}
+                    >
+                      <i className="bi bi-flag-fill me-1" />
+                      Revisar
+                    </span>
+                  )}
+                  {c.docPersonal?.fechasVerificadas && (
+                    <span
+                      className="badge bg-success-subtle text-success-emphasis border border-success-subtle"
+                      title="Fechas corregidas a mano por un evaluador"
+                    >
+                      <i className="bi bi-patch-check-fill me-1" />
+                      Verificada
+                    </span>
                   )}
                 </td>
                 <td className="text-muted">{c.institucion ?? '—'}</td>
@@ -214,11 +238,34 @@ export function ResumenFechasTabla({
                     </span>
                   )}
                 </td>
+                <td className="text-nowrap">
+                  {c.docPersonal && (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="p-0"
+                      title="Corregir las fechas a mano (quedan verificadas)"
+                      onClick={() => setCorrigiendo(c)}
+                    >
+                      <i className="bi bi-pencil-square" /> Corregir
+                    </Button>
+                  )}
+                </td>
               </tr>
             );
           })}
         </tbody>
       </Table>
+      {corrigiendo && (
+        <CorregirFechasModal
+          item={corrigiendo}
+          onCerrar={() => setCorrigiendo(null)}
+          onGuardado={() => {
+            setCorrigiendo(null);
+            recargar();
+          }}
+        />
+      )}
     </>
   );
 }
