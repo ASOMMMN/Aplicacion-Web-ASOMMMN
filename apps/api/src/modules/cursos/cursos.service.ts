@@ -23,6 +23,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import OpenAI from 'openai';
+import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
 import { PDFParse } from 'pdf-parse';
 import { Curso, CursoDocument } from './schemas/curso.schema';
 import {
@@ -114,9 +115,9 @@ export class CursosService {
     private readonly auditoriaService: AuditoriaService,
     private readonly configService: ConfigService,
   ) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
-    });
+    this.openai = crearClienteOpenAI(
+      this.configService.get<string>('OPENAI_API_KEY', ''),
+    );
   }
 
   private readonly openai: OpenAI;

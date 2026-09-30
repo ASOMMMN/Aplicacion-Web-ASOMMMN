@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
 import { PDFParse } from 'pdf-parse';
 import type {
   ConfianzaIa,
@@ -72,9 +73,9 @@ export class OpenAiIaService {
   private readonly model: string;
 
   constructor(private config: ConfigService) {
-    this.client = new OpenAI({
-      apiKey: this.config.get<string>('OPENAI_API_KEY', ''),
-    });
+    this.client = crearClienteOpenAI(
+      this.config.get<string>('OPENAI_API_KEY', ''),
+    );
     this.model = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
   }
 

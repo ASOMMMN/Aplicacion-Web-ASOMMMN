@@ -9,6 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import OpenAI from 'openai';
+import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
 import {
   ExtraerDocPersonalIaResponse,
   extraerFechasDocPersonal,
@@ -67,9 +68,9 @@ export class DocsPersonalesService {
 
     private readonly configService: ConfigService,
   ) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
-    });
+    this.openai = crearClienteOpenAI(
+      this.configService.get<string>('OPENAI_API_KEY', ''),
+    );
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

@@ -336,14 +336,11 @@ export async function extraerFechasDocPersonal(
   const { buffer, mimeType, tipo, apiKey, modelo } = opciones;
   const onError = opciones.onError ?? ((m: string) => console.error(m));
 
-  if (!apiKey) {
-    return {
-      resultado: sinFechas(
-        false,
-        'IA no disponible (OPENAI_API_KEY no configurada).',
-      ),
-      modelo,
-    };
+  if (!apiKey?.trim()) {
+    const msg =
+      'Falta la API key de OpenAI: OPENAI_API_KEY no está configurada en el servidor.';
+    onError(`extraerFechasDocPersonal (${tipo}): ${msg}`);
+    return { resultado: sinFechas(false, msg), modelo };
   }
   if (!buffer || buffer.length === 0) {
     return { resultado: sinFechas(false, 'El archivo está vacío.'), modelo };

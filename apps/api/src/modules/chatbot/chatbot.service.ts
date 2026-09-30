@@ -10,6 +10,7 @@ import { Model, Types } from 'mongoose';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import OpenAI from 'openai';
+import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
 
 import {
   ChatConversacion,
@@ -54,9 +55,9 @@ export class ChatbotService implements OnModuleInit {
     private readonly postulanteModel: Model<PostulanteDocument>,
     private readonly configService: ConfigService,
   ) {
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
-    });
+    this.openai = crearClienteOpenAI(
+      this.configService.get<string>('OPENAI_API_KEY', ''),
+    );
     this.model = this.configService.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
   }
 

@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
@@ -30,6 +30,16 @@ async function bootstrap() {
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3001);
   const isProduction = config.get('NODE_ENV') === 'production';
+
+  // Sin key, la extracción de fechas, el análisis de CV, los cursos y el
+  // chatbot quedan sin IA: avisarlo al arrancar, no al primer documento.
+  if (!config.get<string>('OPENAI_API_KEY', '').trim()) {
+    new Logger('Configuracion').error(
+      'OPENAI_API_KEY no está configurada: la extracción de fechas de documentos personales, ' +
+        'el análisis de CV, la extracción de cursos y el chatbot NO funcionarán. ' +
+        'Defínela en las variables de entorno del servicio (Render → Environment).',
+    );
+  }
  
   app.use(
     helmet({
