@@ -182,3 +182,88 @@ export class VerificarFechasDocPersonalDto {
   @IsISO8601({ strict: true })
   fechaVencimiento?: string | null;
 }
+
+/** Resultado de analizar un documento (botones de la interfaz). */
+export class ResultadoAnalisisDocDto {
+  @ApiProperty()
+  docId: string;
+
+  @ApiProperty({ enum: TIPOS_DOC_PERSONAL })
+  tipo: TipoDocPersonal;
+
+  @ApiProperty()
+  label: string;
+
+  @ApiProperty()
+  nombreOriginal: string;
+
+  @ApiProperty({ enum: ESTADOS_EXTRACCION })
+  extraccionEstado: EstadoExtraccion;
+
+  @ApiPropertyOptional({ nullable: true })
+  extraccionError: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: '2024-03-15' })
+  fechaEmision: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  fechaInicio: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: '2026-03-14' })
+  fechaVencimiento: string | null;
+
+  @ApiProperty()
+  revisarFechas: boolean;
+
+  @ApiProperty()
+  fechasVerificadas: boolean;
+}
+
+/** Estado del análisis global en segundo plano (solo administrador). */
+export class EstadoAnalisisGlobalDto {
+  @ApiProperty({ description: 'Hay un análisis global corriendo.' })
+  enCurso: boolean;
+
+  @ApiProperty({
+    description:
+      'Documentos en estado pendiente o error (sin fechas verificadas) ahora mismo.',
+  })
+  pendientesAhora: number;
+
+  @ApiProperty({ description: 'Documentos del último análisis (o el actual).' })
+  total: number;
+
+  @ApiProperty()
+  procesados: number;
+
+  @ApiProperty()
+  correctos: number;
+
+  @ApiProperty()
+  sinFechas: number;
+
+  @ApiProperty()
+  errores: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  iniciadoEn: Date | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  iniciadoPor: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  finalizadoEn: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Por qué terminó: completado, detenido por el usuario o error de credenciales/cuota.',
+  })
+  motivoFin: string | null;
+
+  @ApiProperty({
+    type: [ResultadoAnalisisDocDto],
+    description: 'Últimos documentos procesados (más reciente primero).',
+  })
+  recientes: ResultadoAnalisisDocDto[];
+}

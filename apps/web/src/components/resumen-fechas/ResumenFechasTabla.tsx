@@ -5,7 +5,7 @@ import { Alert, Button, Table } from 'react-bootstrap';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { formatearFechaCalendario } from '@/lib/fechas';
-import { CorregirFechasModal } from './CorregirFechasModal';
+import { CorregirFechasModal, mensajeError } from './CorregirFechasModal';
 import type {
   ConfianzaIa,
   EstadoVigencia,
@@ -138,6 +138,22 @@ export function ResumenFechasTabla({
   const [recarga, setRecarga] = useState(0);
   const [corrigiendo, setCorrigiendo] = useState<ResumenFechaItem | null>(null);
   const recargar = () => setRecarga((n) => n + 1);
+  /** Documento que se está volviendo a analizar (uno a la vez). */
+  const [analizando, setAnalizando] = useState<string | null>(null);
+  const [avisoAccion, setAvisoAccion] = useState('');
+
+  const volverAAnalizar = async (docId: string) => {
+    setAnalizando(docId);
+    setAvisoAccion('');
+    try {
+      await api.post(`/docs-personales/${docId}/reanalizar`);
+    } catch (err) {
+      setAvisoAccion(mensajeError(err, 'No se pudo volver a analizar el documento.'));
+    } finally {
+      setAnalizando(null);
+      recargar();
+    }
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -184,6 +200,11 @@ export function ResumenFechasTabla({
 
   return (
     <>
+      {avisoAccion && (
+        <Alert variant="danger" className="small py-2" dismissible onClose={() => setAvisoAccion('')}>
+          {avisoAccion}
+        </Alert>
+      )}
       <div className="small text-muted mb-2 d-flex flex-wrap gap-2 align-items-center">
         {partesResumen.flatMap((p, idx) => (idx === 0 ? [p] : [<span key={`sep-${idx}`}>·</span>, p]))}
         <span className="ms-auto" style={{ fontSize: '0.75rem' }}>
@@ -291,15 +312,32 @@ export function ResumenFechasTabla({
                 </td>
                 <td className="text-nowrap">
                   {c.docPersonal && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="p-0"
-                      title="Corregir las fechas a mano (quedan verificadas)"
-                      onClick={() => setCorrigiendo(c)}
-                    >
-                      <i className="bi bi-pencil-square" /> Corregir
-                    </Button>
+                    <div className="d-flex flex-column align-items-start gap-1">
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0"
+                        disabled={analizando !== null}
+                        title={
+                          c.docPersonal.fechasVerificadas
+                            ? 'Vuelve a leer el documento con IA; las fechas verificadas no se cambian'
+                            : 'Vuelve a leer el documento con IA y actualiza sus fechas'
+                        }
+                        onClick={() => volverAAnalizar(c.docPersonal!.id)}
+                      >
+                        <i className="bi bi-arrow-repeat" />{' '}
+                        {analizando === c.docPersonal.id ? 'Analizando…' : 'Volver a analizar'}
+                      </Button>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0"
+                        title="Corregir las fechas a mano (quedan verificadas)"
+                        onClick={() => setCorrigiendo(c)}
+                      >
+                        <i className="bi bi-pencil-square" /> Corregir
+                      </Button>
+                    </div>
                   )}
                 </td>
               </tr>

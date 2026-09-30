@@ -33,6 +33,7 @@ const ROLE_ALLOWED_PREFIXES: Record<string, string[]> = {
     "/mi-nube",
     "/reportes",
     "/auditoria",
+    "/analisis-documentos",
   ],
 };
 

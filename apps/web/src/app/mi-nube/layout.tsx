@@ -31,6 +31,7 @@ const ROLE_CONFIG: Record<
       { href: '/mi-nube', label: 'Mi nube' },
       { href: '/reportes', label: 'Reportes' },
       { href: '/auditoria', label: 'Auditoría' },
+      { href: '/analisis-documentos', label: 'Análisis de documentos' },
     ],
   },
 };

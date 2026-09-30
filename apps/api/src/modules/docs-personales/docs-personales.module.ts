@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { DocsPersonalesController } from './docs-personales.controller';
 import { DocsPersonalesService } from './docs-personales.service';
+import { AnalisisGlobalService } from './analisis-global.service';
 import { DocPersonal, DocPersonalSchema } from './schemas/doc-personal.schema';
 import {
   Postulante,
@@ -23,7 +24,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
     AuditoriaModule,
   ],
   controllers: [DocsPersonalesController],
-  providers: [DocsPersonalesService],
+  providers: [DocsPersonalesService, AnalisisGlobalService],
   exports: [DocsPersonalesService],
 })
 export class DocsPersonalesModule {}

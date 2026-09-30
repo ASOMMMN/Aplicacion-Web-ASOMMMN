@@ -13,6 +13,7 @@ import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
 import {
   ExtraerDocPersonalIaResponse,
   extraerFechasDocPersonal,
+  sinFechas,
 } from './ia/extraer-fechas-doc-personal';
 import { configLecturaDesdeEnv } from './ia/lectura-documento';
 import { cambiosPorAnalisis } from './ia/cambios-analisis';
@@ -33,11 +34,13 @@ import {
 import {
   TIPOS_DOC_PERSONAL,
   LABEL_TIPO_DOC,
+  TIPOS_DOC_SIN_VENCIMIENTO,
   TipoDocPersonal,
 } from './constants/tipos-doc-personal';
 import {
   DocPersonalResponseDto,
   MisDocsResponseDto,
+  ResultadoAnalisisDocDto,
   ResumenTipoDto,
   VerificarFechasDocPersonalDto,
 } from './dto/doc-personal.dto';
@@ -245,7 +248,17 @@ export class DocsPersonalesService {
       lectura: configLecturaDesdeEnv((k) => this.configService.get<string>(k)),
       onError: (m) => this.logger.error(`[doc ${doc._id.toString()}] ${m}`),
     });
+    await this.guardarAnalisis(doc, r, actor, disparadoPor);
+    return r;
+  }
 
+  /** Guarda el resultado (o el error) en el documento y lo audita. */
+  private async guardarAnalisis(
+    doc: DocPersonalDocument,
+    r: ResultadoExtraccionFechas,
+    actor: AuthUser,
+    disparadoPor: DisparadorAnalisis,
+  ): Promise<void> {
     try {
       doc.set(
         cambiosPorAnalisis(r, {
@@ -260,7 +273,102 @@ export class DocsPersonalesService {
     }
 
     await this.auditarAnalisis(doc, r, actor, disparadoPor);
-    return r;
+  }
+
+  // ── Evaluador / Admin: volver a analizar ──────────────────────────────────
+
+  /**
+   * Descarga el archivo de S3 y lo vuelve a analizar. No toca fechas
+   * verificadas por el evaluador. Si el archivo no se puede descargar, el
+   * error queda en el documento (extraccionEstado = 'error').
+   */
+  async reanalizar(
+    actor: AuthUser,
+    docId: string,
+    disparadoPor: DisparadorAnalisis = 'reanalisis',
+  ): Promise<ResultadoAnalisisDocDto> {
+    const doc = await this.docModel.findById(docId);
+    if (!doc) throw new NotFoundException('Documento no encontrado.');
+
+    let buffer: Buffer | null = null;
+    let errorDescarga: string | null = null;
+    if (doc.storageType !== 'cloudinary' || !doc.cloudinaryUrl) {
+      errorDescarga =
+        'Archivo no disponible: se subió con el almacenamiento anterior; hay que volver a subirlo.';
+    } else {
+      try {
+        const url = await this.storage.getSecureDownloadUrl(
+          doc.cloudinaryUrl,
+          doc.nombreOriginal,
+          doc.tipoMime,
+        );
+        buffer = await this.storage.getObjectBuffer(url);
+      } catch (err) {
+        errorDescarga = `No se pudo descargar el archivo de S3: ${(err as Error).message}`;
+      }
+    }
+
+    if (buffer) {
+      await this.analizarYGuardar(doc, buffer, actor, disparadoPor);
+    } else {
+      this.logger.error(`[doc ${docId}] ${errorDescarga}`);
+      await this.guardarAnalisis(
+        doc,
+        {
+          modelo: this.configService.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
+          resultado: sinFechas(true, errorDescarga!),
+        },
+        actor,
+        disparadoPor,
+      );
+    }
+    return this.resultadoAnalisis(doc);
+  }
+
+  /** Resumen de un documento tras analizarlo (para la interfaz). */
+  resultadoAnalisis(doc: DocPersonalDocument): ResultadoAnalisisDocDto {
+    const iso = (d?: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+    const { estado, error } = estadoExtraccion(doc);
+    return {
+      docId: doc._id.toString(),
+      tipo: doc.tipo,
+      label: LABEL_TIPO_DOC[doc.tipo],
+      nombreOriginal: doc.nombreOriginal,
+      extraccionEstado: estado,
+      extraccionError: error,
+      fechaEmision: iso(doc.fechaEmision),
+      fechaInicio: iso(doc.fechaInicio),
+      fechaVencimiento: iso(doc.fechaVencimiento),
+      revisarFechas: Boolean(doc.revisarFechas),
+      fechasVerificadas: Boolean(doc.fechasVerificadas),
+    };
+  }
+
+  /**
+   * Documentos del postulante que conviene analizar: nunca analizados, con
+   * error, o analizados sin fechas en un tipo que sí vence. Excluye los que
+   * tienen fechas verificadas por el evaluador.
+   */
+  async pendientesDePostulante(
+    postulanteId: string,
+  ): Promise<ResultadoAnalisisDocDto[]> {
+    const docs = await this.docModel
+      .find({
+        postulanteId: new Types.ObjectId(postulanteId),
+        fechasVerificadas: null,
+      })
+      .sort({ subidasEn: -1 });
+    return docs
+      .filter((d) => {
+        const { estado } = estadoExtraccion(d);
+        return (
+          estado === 'pendiente' ||
+          estado === 'error' ||
+          (estado === 'sin_fechas' &&
+            !TIPOS_DOC_SIN_VENCIMIENTO.includes(d.tipo))
+        );
+      })
+      .map((d) => this.resultadoAnalisis(d));
   }
 
   /** Un registro por análisis, con el id del documento, también si falló. */

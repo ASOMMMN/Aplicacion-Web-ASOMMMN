@@ -104,6 +104,19 @@ class EnvironmentVariables {
   @IsString()
   IA_DOCS_MAX_CARACTERES_TEXTO: string = '';
 
+  // Análisis global de documentos (docs-personales/analisis-global.service.ts)
+  @IsOptional()
+  @IsString()
+  IA_DOCS_LOTE: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_DOCS_PAUSA_MS: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_DOCS_PAUSA_LOTE_MS: string = '';
+
   @IsOptional()
   @IsString()
   CHATBOT_WHATSAPP_NUMERO: string = '';

@@ -41,15 +41,21 @@ import {
   DocPersonalResponseDto,
   MisDocsResponseDto,
   RenombrarDocPersonalDto,
+  EstadoAnalisisGlobalDto,
+  ResultadoAnalisisDocDto,
   VerificarFechasDocPersonalDto,
 } from './dto/doc-personal.dto';
+import { AnalisisGlobalService } from './analisis-global.service';
 
 @ApiTags('docs-personales')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('docs-personales')
 export class DocsPersonalesController {
-  constructor(private readonly svc: DocsPersonalesService) {}
+  constructor(
+    private readonly svc: DocsPersonalesService,
+    private readonly analisisGlobal: AnalisisGlobalService,
+  ) {}
 
   // ── Postulante: extracción IA ─────────────────────────────────────────────
 
@@ -301,6 +307,75 @@ export class DocsPersonalesController {
   }
 
   // ── Evaluador / Admin ─────────────────────────────────────────────────────
+
+  @Post(':id/reanalizar')
+  @Roles('evaluador', 'administrador')
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 120, ttl: 3_600_000 } }) // 120 análisis/hora por usuario
+  @ApiOperation({
+    summary: 'Evaluador/Admin: vuelve a analizar un documento con IA',
+    description:
+      'Descarga el archivo de S3 y extrae las fechas. No toca fechas verificadas por el evaluador.',
+  })
+  @ApiResponse({ status: 201, type: ResultadoAnalisisDocDto })
+  reanalizar(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<ResultadoAnalisisDocDto> {
+    return this.svc.reanalizar(user, id);
+  }
+
+  @Get('postulante/:postulanteId/pendientes-analisis')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary:
+      'Evaluador/Admin: documentos del postulante sin fechas que conviene analizar',
+  })
+  @ApiResponse({ status: 200, type: [ResultadoAnalisisDocDto] })
+  pendientesDePostulante(
+    @Param('postulanteId', ParseObjectIdPipe) postulanteId: string,
+  ): Promise<ResultadoAnalisisDocDto[]> {
+    return this.svc.pendientesDePostulante(postulanteId);
+  }
+
+  // ── Admin: análisis global en segundo plano ──────────────────────────────
+
+  @Get('analisis-global')
+  @Roles('administrador')
+  @ApiOperation({
+    summary:
+      'Admin: progreso del análisis global y cuántos documentos están pendientes',
+  })
+  @ApiResponse({ status: 200, type: EstadoAnalisisGlobalDto })
+  estadoAnalisisGlobal(): Promise<EstadoAnalisisGlobalDto> {
+    return this.analisisGlobal.obtenerEstado();
+  }
+
+  @Post('analisis-global/iniciar')
+  @Roles('administrador')
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 10, ttl: 3_600_000 } })
+  @ApiOperation({
+    summary:
+      'Admin: analiza en segundo plano los documentos pendientes o con error de todos los postulantes',
+  })
+  @ApiResponse({ status: 201, type: EstadoAnalisisGlobalDto })
+  @ApiResponse({ status: 409, description: 'Ya hay un análisis en curso.' })
+  iniciarAnalisisGlobal(
+    @CurrentUser() user: AuthUser,
+  ): Promise<EstadoAnalisisGlobalDto> {
+    return this.analisisGlobal.iniciar(user);
+  }
+
+  @Post('analisis-global/detener')
+  @Roles('administrador')
+  @ApiOperation({
+    summary: 'Admin: detiene el análisis global después del documento en curso',
+  })
+  @ApiResponse({ status: 201, type: EstadoAnalisisGlobalDto })
+  detenerAnalisisGlobal(): Promise<EstadoAnalisisGlobalDto> {
+    return this.analisisGlobal.detener();
+  }
 
   @Patch(':id/fechas')
   @Roles('evaluador', 'administrador')

@@ -26,6 +26,7 @@ import { TiempoTotalCard } from '@/components/bitacora-embarque/TiempoTotalCard'
 import { EmbarqueTimeline } from '@/components/bitacora-embarque/EmbarqueTimeline';
 import type { BitacoraEmbarqueResponse } from '@/components/bitacora-embarque/types';
 import { ResumenFechasTabla } from '@/components/resumen-fechas/ResumenFechasTabla';
+import { AnalizarPendientesCandidato } from '@/components/resumen-fechas/AnalizarPendientesCandidato';
 import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 import { formatearFechaCalendario } from '@/lib/fechas';
 
@@ -348,6 +349,8 @@ export default function CandidatoDetallePage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  /** Se incrementa tras "Analizar documentos pendientes" para recargar el resumen. */
+  const [recargaResumen, setRecargaResumen] = useState(0);
   const [detalle, setDetalle] = useState<CandidatoDetalle | null>(null);
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [evaluacionesPorDocumento, setEvaluacionesPorDocumento] = useState<EvaluacionDocumento[]>([]);
@@ -1100,13 +1103,19 @@ export default function CandidatoDetallePage() {
                   Resumen de fechas
                   <span className="anchor-glyph">⚓</span>
                 </h5>
-                <p className="small text-muted mb-3">
-                  Cursos, certificaciones y documentos personales con su vigencia.
-                </p>
+                <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                  <p className="small text-muted mb-0">
+                    Cursos, certificaciones y documentos personales con su vigencia.
+                  </p>
+                  <AnalizarPendientesCandidato
+                    postulanteId={candidatoId}
+                    onTerminado={() => setRecargaResumen((n) => n + 1)}
+                  />
+                </div>
                 {/* Unificación y semáforo se calculan en el backend (/resumen-fechas) */}
                 <ResumenFechasTabla
                   postulanteId={candidatoId}
-                  recargarKey={`${extraccion?._id ?? ''}-${extraccion?.estado ?? ''}-${extraccion?.confirmadoEn ?? ''}`}
+                  recargarKey={`${extraccion?._id ?? ''}-${extraccion?.estado ?? ''}-${extraccion?.confirmadoEn ?? ''}-${recargaResumen}`}
                 />
               </Card.Body>
             </Card>
