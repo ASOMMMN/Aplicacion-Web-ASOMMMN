@@ -162,7 +162,9 @@ export function ResumenFechasTabla({
     setAnalizando(docId);
     setAvisoAccion('');
     try {
-      await api.post(`/docs-personales/${docId}/reanalizar`);
+      const { data } = await api.post<{ aviso?: string }>(`/docs-personales/${docId}/reanalizar`);
+      // Límite por minuto de OpenAI: el documento no cambió; se puede reintentar.
+      if (data.aviso) setAvisoAccion(`${data.aviso}. Vuelve a intentarlo en un minuto.`);
     } catch (err) {
       setAvisoAccion(mensajeError(err, 'No se pudo volver a analizar el documento.'));
     } finally {

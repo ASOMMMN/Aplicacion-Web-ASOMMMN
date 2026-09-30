@@ -13,9 +13,11 @@ import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
 import {
   ExtraerDocPersonalIaResponse,
   extraerFechasDocPersonal,
+  modeloDocsDesdeEnv,
   sinFechas,
 } from './ia/extraer-fechas-doc-personal';
 import { configLecturaDesdeEnv } from './ia/lectura-documento';
+import { configReintentosDesdeEnv } from '../../common/utils/openai-errores.util';
 import { cambiosPorAnalisis } from './ia/cambios-analisis';
 import { estadoExtraccion } from './ia/estado-extraccion';
 import type { ResultadoExtraccionFechas } from './ia/extraer-fechas-doc-personal';
@@ -189,10 +191,7 @@ export class DocsPersonalesService {
     mimeType: string,
     actorEmail: string,
   ): Promise<ExtraerDocPersonalIaResponse> {
-    const modelo = this.configService.get<string>(
-      'OPENAI_MODEL',
-      'gpt-4o-mini',
-    );
+    const modelo = modeloDocsDesdeEnv((k) => this.configService.get<string>(k));
     const { resultado, origen } = await extraerFechasDocPersonal({
       buffer: fileBuffer,
       mimeType,
@@ -201,6 +200,9 @@ export class DocsPersonalesService {
       modelo,
       openai: this.openai,
       lectura: configLecturaDesdeEnv((k) => this.configService.get<string>(k)),
+      reintentos: configReintentosDesdeEnv((k) =>
+        this.configService.get<string>(k),
+      ),
       onError: (m) => this.logger.error(m),
     });
 
@@ -244,9 +246,12 @@ export class DocsPersonalesService {
       mimeType: doc.tipoMime,
       tipo: doc.tipo,
       apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
-      modelo: this.configService.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
+      modelo: modeloDocsDesdeEnv((k) => this.configService.get<string>(k)),
       openai: this.openai,
       lectura: configLecturaDesdeEnv((k) => this.configService.get<string>(k)),
+      reintentos: configReintentosDesdeEnv((k) =>
+        this.configService.get<string>(k),
+      ),
       onError: (m) => this.logger.error(`[doc ${doc._id.toString()}] ${m}`),
     });
     await this.guardarAnalisis(doc, r, actor, disparadoPor);
@@ -261,12 +266,15 @@ export class DocsPersonalesService {
     disparadoPor: DisparadorAnalisis,
   ): Promise<void> {
     try {
-      doc.set(
-        cambiosPorAnalisis(r, {
-          fechasVerificadas: Boolean(doc.fechasVerificadas),
-        }),
-      );
-      await doc.save();
+      const cambios = cambiosPorAnalisis(r, {
+        fechasVerificadas: Boolean(doc.fechasVerificadas),
+      });
+      // null = límite por minuto de OpenAI: el documento queda como estaba
+      // (p. ej. "pendiente") para reintentarlo, no como error.
+      if (cambios) {
+        doc.set(cambios);
+        await doc.save();
+      }
     } catch (err) {
       this.logger.error(
         `No se pudo guardar el análisis del documento ${doc._id.toString()}: ${(err as Error).message}`,
@@ -309,21 +317,31 @@ export class DocsPersonalesService {
       }
     }
 
+    let aviso: string | undefined;
+    let limitePorMinuto = false;
     if (buffer) {
-      await this.analizarYGuardar(doc, buffer, actor, disparadoPor);
+      const r = await this.analizarYGuardar(doc, buffer, actor, disparadoPor);
+      if (r.errorOpenAI?.tipo === 'limite_por_minuto') {
+        limitePorMinuto = true;
+        aviso = r.resultado.errorMensaje;
+      }
     } else {
       this.logger.error(`[doc ${docId}] ${errorDescarga}`);
       await this.guardarAnalisis(
         doc,
         {
-          modelo: this.configService.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
+          modelo: modeloDocsDesdeEnv((k) => this.configService.get<string>(k)),
           resultado: sinFechas(true, errorDescarga!),
         },
         actor,
         disparadoPor,
       );
     }
-    return this.resultadoAnalisis(doc);
+    return {
+      ...this.resultadoAnalisis(doc),
+      ...(aviso ? { aviso } : {}),
+      limitePorMinuto,
+    };
   }
 
   /** Resumen de un documento tras analizarlo (para la interfaz). */
@@ -383,9 +401,12 @@ export class DocsPersonalesService {
     await this.auditoria.registrar({
       actorId: actor.userId,
       actorEmail: actor.email,
-      accion: res.errorMensaje
-        ? 'doc_personal_extraccion_ia_error'
-        : 'doc_personal_extraccion_ia',
+      accion:
+        r.errorOpenAI?.tipo === 'limite_por_minuto'
+          ? 'doc_personal_extraccion_ia_pospuesta'
+          : res.errorMensaje
+            ? 'doc_personal_extraccion_ia_error'
+            : 'doc_personal_extraccion_ia',
       recurso: 'DocPersonal',
       recursoId: doc._id.toString(),
       metadata: {
@@ -399,6 +420,8 @@ export class DocsPersonalesService {
         paginasTotales: r.paginasTotales,
         avisoLectura: r.aviso,
         error: res.errorMensaje,
+        errorOpenAI: r.errorOpenAI,
+        tokens: r.tokens,
         fechaInicioExtraida: res.fechaInicio,
         fechaVencimientoExtraida: res.fechaVencimiento,
         fechaEmisionExtraida: res.fechaEmision,

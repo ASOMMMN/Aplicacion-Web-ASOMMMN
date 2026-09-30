@@ -24,6 +24,7 @@ import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import OpenAI from 'openai';
 import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
+import { clasificarErrorOpenAI } from '../../common/utils/openai-errores.util';
 import { PDFParse } from 'pdf-parse';
 import { Curso, CursoDocument } from './schemas/curso.schema';
 import {
@@ -551,12 +552,12 @@ export class CursosService {
           fechaVencimiento: 'baja',
         },
         iaDisponible: true,
+        // 429 puede ser "sin saldo" (insufficient_quota) o "límite por
+        // minuto" (rate_limit_exceeded): se distingue por el code de OpenAI.
         errorMensaje:
-          status === 401
-            ? 'API key de OpenAI inválida o revocada. Contacta al administrador.'
-            : status === 429
-              ? 'Sin crédito o cuota de OpenAI agotada. Contacta al administrador.'
-              : `No se pudo analizar el PDF con IA: ${msg}`,
+          status === 401 || status === 429
+            ? clasificarErrorOpenAI(err).mensaje
+            : `No se pudo analizar el PDF con IA: ${msg}`,
       };
     }
   }

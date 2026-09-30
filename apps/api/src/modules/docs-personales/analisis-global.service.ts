@@ -37,7 +37,11 @@ export const FILTRO_PENDIENTES_GLOBAL: QueryFilter<DocPersonal> = {
 };
 
 /** Errores que afectan a todos los documentos: no tiene caso seguir. */
-const ERROR_GLOBAL = /API key|cuota|HTTP 429/i;
+/**
+ * Errores que afectan a todos los documentos: no tiene caso seguir.
+ * El límite por minuto de OpenAI NO está aquí: ese pausa y continúa.
+ */
+const ERROR_GLOBAL = /API key|sin saldo/i;
 
 const MAX_RECIENTES = 30;
 
@@ -57,6 +61,7 @@ const progresoInicial = (): Progreso => ({
   finalizadoEn: null,
   motivoFin: null,
   recientes: [],
+  pausa: null,
 });
 
 /**
@@ -147,6 +152,12 @@ export class AnalisisGlobalService {
     const pausa = num('IA_DOCS_PAUSA_MS', 1500);
     const pausaLote = num('IA_DOCS_PAUSA_LOTE_MS', 5000);
 
+    // Límite por minuto de OpenAI: pausa y reintenta el MISMO documento,
+    // sin contarlo como error. La espera crece si sigue limitado.
+    const pausa429 = num('IA_DOCS_PAUSA_429_MS', 60_000);
+    const maxPausas429 = Math.max(1, num('IA_DOCS_MAX_PAUSAS_429', 20));
+    let pausasSeguidas = 0;
+
     for (let i = 0; i < ids.length; i++) {
       if (this.detenerSolicitado) {
         return this.terminar(actor, 'Detenido por el usuario.');
@@ -161,6 +172,29 @@ export class AnalisisGlobalService {
       } catch (err) {
         error = (err as Error).message;
       }
+
+      if (r?.limitePorMinuto) {
+        pausasSeguidas++;
+        if (pausasSeguidas > maxPausas429) {
+          return this.terminar(
+            actor,
+            `Detenido: ${pausasSeguidas - 1} pausas seguidas por límite por minuto de OpenAI. Revisa los límites de la cuenta.`,
+          );
+        }
+        const espera = Math.min(pausa429 * pausasSeguidas, 10 * 60_000);
+        this.progreso.pausa = {
+          hasta: new Date(Date.now() + espera),
+          motivo: r.aviso ?? 'Límite por minuto de OpenAI',
+        };
+        this.logger.warn(
+          `Análisis global en pausa ${Math.round(espera / 1000)} s por límite por minuto de OpenAI (documento ${id}, pausa ${pausasSeguidas}).`,
+        );
+        await this.esperar(espera);
+        this.progreso.pausa = null;
+        i--; // mismo documento
+        continue;
+      }
+      pausasSeguidas = 0;
 
       const p = this.progreso;
       p.procesados++;
@@ -180,9 +214,18 @@ export class AnalisisGlobalService {
     this.terminar(actor, 'Completado.');
   }
 
+  /** Espera en tramos de 1 s para que "Detener" responda durante la pausa. */
+  private async esperar(ms: number) {
+    const fin = Date.now() + ms;
+    while (Date.now() < fin && !this.detenerSolicitado) {
+      await dormir(Math.min(1000, fin - Date.now()));
+    }
+  }
+
   private terminar(actor: AuthUser, motivo: string) {
     const p = this.progreso;
     p.enCurso = false;
+    p.pausa = null;
     p.finalizadoEn = new Date();
     p.motivoFin = motivo;
     this.logger.log(

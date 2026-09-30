@@ -45,11 +45,16 @@ export interface OpcionesCambios {
  *   distingue "nunca analizado" de "analizado con error").
  * - Si hubo error de lectura o de IA, NO toca las fechas existentes.
  * - Las fechas verificadas por el evaluador nunca se tocan aquí.
+ * - Límite por minuto de OpenAI → null: no se guarda nada.
  */
 export function cambiosPorAnalisis(
   r: ResultadoExtraccionFechas,
   opciones: OpcionesCambios = {},
-): CambiosAnalisis {
+): CambiosAnalisis | null {
+  // Límite por minuto de OpenAI: no es un error del documento. No se toca
+  // nada (sigue "pendiente" o con su análisis anterior) para reintentarlo.
+  if (r.errorOpenAI?.tipo === 'limite_por_minuto') return null;
+
   const analisisIa = {
     analizadoEn: opciones.ahora ?? new Date(),
     modelo: r.modelo,

@@ -8,7 +8,7 @@
  * final tras la validación y el estado que se guardaría en el documento.
  *
  * Variables de entorno (del proceso o, si faltan, de apps/api/.env; de ese
- * archivo solo se leen estas): OPENAI_API_KEY, OPENAI_MODEL,
+ * archivo solo se leen estas): OPENAI_API_KEY, OPENAI_MODEL_DOCS,
  * IA_DOCS_UMBRAL_TEXTO, IA_DOCS_MAX_PAGINAS, IA_DOCS_ANCHO_PX,
  * IA_DOCS_MAX_CARACTERES_TEXTO.
  *
@@ -26,6 +26,7 @@ import { parse as parseDotenv } from 'dotenv';
 import {
   extraerFechasDocPersonal,
   ExtraerDocPersonalIaResponse,
+  modeloDocsDesdeEnv,
 } from '../src/modules/docs-personales/ia/extraer-fechas-doc-personal';
 import {
   configLecturaDesdeEnv,
@@ -60,7 +61,7 @@ const DESCRIPCION_ORIGEN: Record<string, string> = {
 function leerEntorno(): Record<string, string> {
   const permitidas = [
     'OPENAI_API_KEY',
-    'OPENAI_MODEL',
+    'OPENAI_MODEL_DOCS',
     'IA_DOCS_UMBRAL_TEXTO',
     'IA_DOCS_MAX_PAGINAS',
     'IA_DOCS_ANCHO_PX',
@@ -139,8 +140,7 @@ async function main() {
   const iModelo = args.indexOf('--modelo');
   const modelo =
     (iModelo >= 0 ? args[iModelo + 1] : undefined) ??
-    env.OPENAI_MODEL ??
-    'gpt-4o-mini';
+    modeloDocsDesdeEnv((k) => env[k]);
   const lectura = configLecturaDesdeEnv((k) => env[k]);
   const buffer = readFileSync(ruta);
 
@@ -225,11 +225,31 @@ async function main() {
       console.log(`  Formato indicado: ${res.formatoFechaIndicado}`);
   }
 
+  if (r.tokens) {
+    titulo('Tokens');
+    console.log(
+      `  Estimados antes de enviar: ~${r.tokens.estimadoEntrada} de entrada` +
+        (r.tokens.entrada !== undefined
+          ? ` · reales: ${r.tokens.entrada} de entrada, ${r.tokens.salida ?? 0} de salida`
+          : '') +
+        (r.tokens.reintentos429
+          ? ` · ${r.tokens.reintentos429} espera(s) por límite por minuto`
+          : ''),
+    );
+  }
+  if (r.errorOpenAI) {
+    console.log(
+      `  Error de OpenAI: ${r.errorOpenAI.tipo} (${r.errorOpenAI.codigo ?? 'sin code'}, HTTP ${r.errorOpenAI.status})`,
+    );
+  }
+
   const cambios = cambiosPorAnalisis(r);
   titulo('Estado que se guardaría');
   console.log(
-    `  extraccionEstado: ${cambios.extraccionEstado}` +
-      (cambios.extraccionError ? ` — ${cambios.extraccionError}` : ''),
+    cambios
+      ? `  extraccionEstado: ${cambios.extraccionEstado}` +
+          (cambios.extraccionError ? ` — ${cambios.extraccionError}` : '')
+      : '  (nada: límite por minuto de OpenAI, el documento queda como estaba)',
   );
 }
 

@@ -19,9 +19,13 @@ const exito = (): ResultadoExtraccionFechas => ({
   },
 });
 
+/** En estos casos siempre hay cambios (no es límite por minuto). */
+const cambios = (...a: Parameters<typeof cambiosPorAnalisis>) =>
+  cambiosPorAnalisis(...a)!;
+
 describe('cambiosPorAnalisis', () => {
   it('guarda fechas y la marca Revisar cuando el análisis salió bien', () => {
-    const c = cambiosPorAnalisis(exito(), { ahora: AHORA });
+    const c = cambios(exito(), { ahora: AHORA });
     expect(c.fechaEmision?.toISOString()).toBe('2024-03-15T00:00:00.000Z');
     expect(c.fechaVencimiento?.toISOString()).toBe('2026-03-14T00:00:00.000Z');
     expect(c.revisarFechas).toBe(true);
@@ -30,7 +34,7 @@ describe('cambiosPorAnalisis', () => {
   });
 
   it('con error no toca fechas pero registra el intento', () => {
-    const c = cambiosPorAnalisis(
+    const c = cambios(
       { modelo: 'm', resultado: sinFechas(true, 'Error de OpenAI') },
       { ahora: AHORA },
     );
@@ -45,7 +49,7 @@ describe('cambiosPorAnalisis', () => {
   });
 
   it('con fechas verificadas por el evaluador no las sobrescribe', () => {
-    const c = cambiosPorAnalisis(exito(), { fechasVerificadas: true });
+    const c = cambios(exito(), { fechasVerificadas: true });
     expect(c).not.toHaveProperty('fechaEmision');
     expect(c).not.toHaveProperty('fechaVencimiento');
     expect(c).not.toHaveProperty('revisarFechas');
@@ -53,14 +57,14 @@ describe('cambiosPorAnalisis', () => {
   });
 
   it('estado ok con fechas; sin_fechas si el documento no las muestra', () => {
-    expect(cambiosPorAnalisis(exito()).extraccionEstado).toBe('ok');
+    expect(cambios(exito()).extraccionEstado).toBe('ok');
 
     const vacio = exito();
     Object.assign(vacio.resultado, {
       fechaEmision: null,
       fechaVencimiento: null,
     });
-    expect(cambiosPorAnalisis(vacio)).toMatchObject({
+    expect(cambios(vacio)).toMatchObject({
       extraccionEstado: 'sin_fechas',
       extraccionError: null,
     });
@@ -73,8 +77,24 @@ describe('cambiosPorAnalisis', () => {
       fechaVencimiento: null,
       fechasDescartadas: ['La emisión solo indica el año; se dejó vacía.'],
     });
-    const c = cambiosPorAnalisis(r);
+    const c = cambios(r);
     expect(c.extraccionEstado).toBe('error');
     expect(c.extraccionError).toMatch(/^Fecha descartada por validación/);
+  });
+
+  it('límite por minuto de OpenAI → null: el documento no cambia ni queda en error', () => {
+    const c = cambiosPorAnalisis({
+      modelo: 'gpt-4o',
+      errorOpenAI: {
+        tipo: 'limite_por_minuto',
+        status: 429,
+        codigo: 'rate_limit_exceeded',
+      },
+      resultado: sinFechas(
+        true,
+        'Límite por minuto de OpenAI: se reintentará (rate_limit_exceeded).',
+      ),
+    });
+    expect(c).toBeNull();
   });
 });

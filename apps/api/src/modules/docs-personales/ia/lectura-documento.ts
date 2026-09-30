@@ -154,7 +154,15 @@ export async function leerDocumento(
         if (!data)
           throw new Error(`El render de la página ${p} no produjo imagen`);
         const img = await loadImage(Buffer.from(data));
-        imagenes.push(...prepararPagina(img, p, opcionesPreparacion(cfg)));
+        // Con capa de texto, las fechas salen del texto: basta una imagen
+        // por página (recortada) para ver qué etiqueta acompaña a cada una.
+        // Escaneado: partes ampliadas para que se lean los dígitos.
+        imagenes.push(
+          ...prepararPagina(img, p, {
+            ...opcionesPreparacion(cfg),
+            ...(escaneado ? {} : { maxPartes: 1 }),
+          }),
+        );
       }
       return {
         modo: escaneado ? 'pdf-visual' : 'pdf-texto',

@@ -87,6 +87,11 @@ class EnvironmentVariables {
   @IsString()
   OPENAI_MODEL: string = 'gpt-4o-mini';
 
+  // Modelo para documentos personales (ver extraer-fechas-doc-personal.ts)
+  @IsOptional()
+  @IsString()
+  OPENAI_MODEL_DOCS: string = '';
+
   // Lectura de documentos para la IA (ver docs-personales/ia/lectura-documento.ts)
   @IsOptional()
   @IsString()
@@ -120,6 +125,27 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   IA_DOCS_PAUSA_LOTE_MS: string = '';
+
+  // Límite por minuto de OpenAI (common/utils/openai-errores.util.ts)
+  @IsOptional()
+  @IsString()
+  IA_OPENAI_MAX_INTENTOS: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_OPENAI_ESPERA_BASE_MS: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_OPENAI_ESPERA_MAX_MS: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_DOCS_PAUSA_429_MS: string = '';
+
+  @IsOptional()
+  @IsString()
+  IA_DOCS_MAX_PAUSAS_429: string = '';
 
   @IsOptional()
   @IsString()

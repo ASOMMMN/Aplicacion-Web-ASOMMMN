@@ -225,6 +225,18 @@ export class ResultadoAnalisisDocDto {
 
   @ApiProperty()
   fechasVerificadas: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'No se pudo analizar ahora (p. ej. límite por minuto de OpenAI); el documento no cambió.',
+  })
+  aviso?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'OpenAI respondió límite por minuto tras los reintentos: reintentar más tarde.',
+  })
+  limitePorMinuto?: boolean;
 }
 
 /** Estado del análisis global en segundo plano (solo administrador). */
@@ -274,4 +286,11 @@ export class EstadoAnalisisGlobalDto {
     description: 'Últimos documentos procesados (más reciente primero).',
   })
   recientes: ResultadoAnalisisDocDto[];
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'En pausa por límite por minuto de OpenAI: hasta cuándo y por qué. Continúa solo.',
+  })
+  pausa: { hasta: Date; motivo: string } | null;
 }

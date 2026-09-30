@@ -13,6 +13,15 @@ import {
   ModoLectura,
 } from './lectura-documento';
 import type { ImagenPreparada } from './preparar-imagen';
+import {
+  clasificarErrorOpenAI,
+  CONFIG_REINTENTOS_POR_DEFECTO,
+  ConfigReintentos,
+  conReintentosOpenAI,
+  TipoErrorOpenAI,
+  tokensImagen,
+  tokensTexto,
+} from '../../../common/utils/openai-errores.util';
 
 import type { TipoDocPersonal } from '../constants/tipos-doc-personal';
 import {
@@ -32,6 +41,18 @@ export {
   construirPromptPdfEscaneado,
   SYSTEM_PROMPT_DOC_PERSONAL,
 } from './prompts-doc-personal';
+
+/**
+ * Modelo para leer documentos: OPENAI_MODEL_DOCS, por defecto gpt-4o.
+ * Medido con documentos reales: gpt-4o-mini cobra ~33× más tokens por
+ * imagen (114 000–198 000 tokens de entrada por documento contra 4 400–7 900
+ * con gpt-4o), agota el límite por minuto y leyó peor los escaneos.
+ * OPENAI_MODEL se sigue usando para chatbot, CV y cursos.
+ */
+export const MODELO_DOCS_POR_DEFECTO = 'gpt-4o';
+export const modeloDocsDesdeEnv = (
+  leer: (clave: string) => string | undefined,
+): string => leer('OPENAI_MODEL_DOCS')?.trim() || MODELO_DOCS_POR_DEFECTO;
 
 /** Formatos que la extracción IA sabe leer. */
 export const MIMES_EXTRACCION_IA = [
@@ -242,6 +263,20 @@ export interface ResultadoExtraccionFechas {
   imagenesDetalle?: Array<Omit<ImagenPreparada, 'dataUrl'>>;
   /** Lo que propuso el modelo, antes de la validación en código. */
   propuestaModelo?: ExtraerDocPersonalIaResponse;
+  /** Tokens: estimados antes de enviar y reales (usage) de la respuesta. */
+  tokens?: {
+    estimadoEntrada: number;
+    entrada?: number;
+    salida?: number;
+    /** Esperas por límite por minuto antes de obtener respuesta. */
+    reintentos429: number;
+  };
+  /** Si falló por OpenAI: tipo de error (sin saldo, límite por minuto…). */
+  errorOpenAI?: {
+    tipo: TipoErrorOpenAI;
+    status: number;
+    codigo: string | null;
+  };
 }
 
 export interface OpcionesExtraccionFechas {
@@ -256,6 +291,33 @@ export interface OpcionesExtraccionFechas {
   lectura?: ConfiguracionLectura;
   /** Para registrar errores (por defecto, console.error). */
   onError?: (mensaje: string) => void;
+  /** Reintentos ante límite por minuto de OpenAI (429 rate_limit_exceeded). */
+  reintentos?: ConfigReintentos;
+  /** Para pruebas: sustituye la espera entre reintentos. */
+  dormir?: (ms: number) => Promise<void>;
+}
+
+/** Tokens de entrada aproximados de una petición (para el log y el costo). */
+export function estimarTokensEntrada(
+  modelo: string,
+  texto: string,
+  imagenes: Array<Pick<ImagenPreparada, 'ancho' | 'alto' | 'parte'>>,
+): number {
+  return (
+    tokensTexto(texto) +
+    imagenes.reduce(
+      (s, i) =>
+        s +
+        tokensImagen(modelo, i.ancho, i.alto, i.parte === 0 ? 'low' : 'high'),
+      0,
+    )
+  );
+}
+
+interface RespuestaDelModelo {
+  raw: string;
+  entrada?: number;
+  salida?: number;
 }
 
 /** Qué es cada imagen adjunta (el modelo las recibe en este orden). */
@@ -281,7 +343,7 @@ async function llamarVision(
   modelo: string,
   tipo: TipoDocPersonal,
   doc: DocumentoLeido,
-): Promise<string> {
+): Promise<RespuestaDelModelo> {
   const nota =
     doc.imagenes.length === 0
       ? ''
@@ -294,30 +356,39 @@ async function llamarVision(
     ? construirPromptDocPersonal(doc.texto, tipo)
     : construirPromptImagenDocPersonal(tipo);
 
-  const completion = await openai.chat.completions.create({
-    model: modelo,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT_DOC_PERSONAL },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: `${prompt}${nota}` },
-          ...doc.imagenes.map((img) => ({
-            type: 'image_url' as const,
-            image_url: {
-              url: img.dataUrl,
-              // La vista general solo da contexto: basta la resolución baja.
-              detail: img.parte === 0 ? ('low' as const) : ('high' as const),
-            },
-          })),
-        ],
-      },
-    ],
-    temperature: 0,
-    max_tokens: 800,
-  });
-  return completion.choices[0]?.message?.content ?? '{}';
+  const completion = await openai.chat.completions.create(
+    {
+      model: modelo,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT_DOC_PERSONAL },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: `${prompt}${nota}` },
+            ...doc.imagenes.map((img) => ({
+              type: 'image_url' as const,
+              image_url: {
+                url: img.dataUrl,
+                // La vista general solo da contexto: basta la resolución baja.
+                detail: img.parte === 0 ? ('low' as const) : ('high' as const),
+              },
+            })),
+          ],
+        },
+      ],
+      temperature: 0,
+      max_tokens: 800,
+    },
+    // Los reintentos los maneja conReintentosOpenAI: el SDK reintentaría
+    // también "insufficient_quota", que no se arregla esperando.
+    { maxRetries: 0 },
+  );
+  return {
+    raw: completion.choices[0]?.message?.content ?? '{}',
+    entrada: completion.usage?.prompt_tokens,
+    salida: completion.usage?.completion_tokens,
+  };
 }
 
 /** Respaldo cuando no se pudo renderizar: el PDF completo a la Responses API. */
@@ -326,7 +397,7 @@ async function llamarResponsesConPdf(
   modelo: string,
   tipo: TipoDocPersonal,
   buffer: Buffer,
-): Promise<string> {
+): Promise<RespuestaDelModelo> {
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
@@ -356,25 +427,40 @@ async function llamarResponsesConPdf(
   });
 
   if (!response.ok) {
-    throw Object.assign(
-      new Error(`OpenAI Responses API: ${await response.text()}`),
-      { status: response.status },
-    );
+    const cuerpo = await response.text();
+    let error: { code?: string; type?: string } | undefined;
+    try {
+      error = (JSON.parse(cuerpo) as { error?: typeof error }).error;
+    } catch {
+      // cuerpo no JSON
+    }
+    // Misma forma que APIError del SDK: status, code, error y headers.
+    throw Object.assign(new Error(`OpenAI Responses API: ${cuerpo}`), {
+      status: response.status,
+      code: error?.code ?? null,
+      error,
+      headers: response.headers,
+    });
   }
 
   const json = (await response.json()) as {
     output_text?: string;
     output?: Array<{ content?: Array<{ text?: string }> }>;
+    usage?: { input_tokens?: number; output_tokens?: number };
   };
-  return quitarCercoJson(
-    json.output_text ??
-      json.output
-        ?.flatMap((item) => item.content ?? [])
-        .map((item) => item.text ?? '')
-        .filter(Boolean)
-        .join('\n') ??
-      '{}',
-  );
+  return {
+    raw: quitarCercoJson(
+      json.output_text ??
+        json.output
+          ?.flatMap((item) => item.content ?? [])
+          .map((item) => item.text ?? '')
+          .filter(Boolean)
+          .join('\n') ??
+        '{}',
+    ),
+    entrada: json.usage?.input_tokens,
+    salida: json.usage?.output_tokens,
+  };
 }
 
 /**
@@ -436,31 +522,59 @@ export async function extraerFechasDocPersonal(
     })),
   };
 
-  let raw: string;
+  const estimadoEntrada =
+    doc.modo === 'pdf-crudo'
+      ? tokensTexto(construirPromptPdfEscaneado(tipo)) +
+        // El PDF crudo se cobra como texto + imagen por página; aproximación.
+        doc.paginasLeidas * tokensImagen(modelo, 1700, 2200, 'high')
+      : estimarTokensEntrada(
+          modelo,
+          SYSTEM_PROMPT_DOC_PERSONAL +
+            (doc.texto
+              ? construirPromptDocPersonal(doc.texto, tipo)
+              : construirPromptImagenDocPersonal(tipo)),
+          doc.imagenes,
+        );
+  let reintentos429 = 0;
+  const contexto = `modelo ${modelo}, ~${estimadoEntrada} tokens de entrada, ${doc.imagenes.length} imagen(es), tipo ${tipo}`;
+
+  let respuesta: RespuestaDelModelo;
   try {
-    raw =
-      doc.modo === 'pdf-crudo'
-        ? await llamarResponsesConPdf(apiKey, modelo, tipo, buffer)
-        : await llamarVision(openai, modelo, tipo, doc);
+    respuesta = await conReintentosOpenAI(
+      () =>
+        doc.modo === 'pdf-crudo'
+          ? llamarResponsesConPdf(apiKey, modelo, tipo, buffer)
+          : llamarVision(openai, modelo, tipo, doc),
+      opciones.reintentos ?? CONFIG_REINTENTOS_POR_DEFECTO,
+      (e, espera, intento) => {
+        reintentos429++;
+        onError(
+          `OpenAI ${e.tipo} (${e.codigo ?? 'sin code'}, HTTP ${e.status}) — ${contexto} — intento ${intento}, se reintenta en ${Math.round(espera / 1000)} s`,
+        );
+      },
+      opciones.dormir,
+    );
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Error desconocido';
-    const status =
-      (err as { status?: number })?.status ??
-      (err as { statusCode?: number })?.statusCode ??
-      0;
-    onError(`extraerFechasDocPersonal falló — HTTP ${status} — ${msg}`);
+    const e = clasificarErrorOpenAI(err);
+    onError(
+      `OpenAI ${e.tipo} (${e.codigo ?? 'sin code'}, HTTP ${e.status}) — ${contexto}${
+        reintentos429 ? ` — tras ${reintentos429} reintento(s)` : ''
+      } — ${e.detalle}`,
+    );
     return {
       ...meta,
-      resultado: sinFechas(
-        true,
-        status === 401
-          ? 'Error de OpenAI: API key inválida o revocada (HTTP 401).'
-          : status === 429
-            ? 'Error de OpenAI: sin crédito o cuota agotada (HTTP 429).'
-            : `Error de OpenAI${status ? ` (HTTP ${status})` : ''}: ${msg.slice(0, 300)}`,
-      ),
+      tokens: { estimadoEntrada, reintentos429 },
+      errorOpenAI: { tipo: e.tipo, status: e.status, codigo: e.codigo },
+      resultado: sinFechas(true, e.mensaje),
     };
   }
+  const raw = respuesta.raw;
+  const tokens = {
+    estimadoEntrada,
+    entrada: respuesta.entrada,
+    salida: respuesta.salida,
+    reintentos429,
+  };
 
   let parsed: Record<string, unknown>;
   try {
@@ -471,6 +585,7 @@ export async function extraerFechasDocPersonal(
     );
     return {
       ...meta,
+      tokens,
       respuestaCruda: raw,
       resultado: sinFechas(
         true,
@@ -483,6 +598,7 @@ export async function extraerFechasDocPersonal(
   const propuestaModelo = normalizarRespuesta(parsed);
   return {
     ...meta,
+    tokens,
     respuestaCruda: raw,
     propuestaModelo,
     resultado: validarFechasDocPersonal(tipo, propuestaModelo),

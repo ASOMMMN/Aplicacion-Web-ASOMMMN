@@ -24,6 +24,8 @@ interface EstadoAnalisisGlobal {
   finalizadoEn: string | null;
   motivoFin: string | null;
   recientes: ResultadoAnalisisDoc[];
+  /** Límite por minuto de OpenAI: el análisis espera y continúa solo. */
+  pausa: { hasta: string; motivo: string } | null;
 }
 
 const BASE = '/docs-personales/analisis-global';
@@ -164,6 +166,13 @@ export default function AnalisisDocumentosPage() {
                       <div className="small text-muted">
                         Iniciado por {estado.iniciadoPor}. Puedes cerrar esta página: el análisis sigue en el servidor.
                       </div>
+                      {estado.pausa && (
+                        <div className="small text-warning-emphasis mt-1">
+                          <i className="bi bi-pause-circle me-1" />
+                          En pausa hasta las {new Date(estado.pausa.hasta).toLocaleTimeString('es-MX')} ({estado.pausa.motivo}).
+                          Continúa solo; el documento no se marca como error.
+                        </div>
+                      )}
                     </>
                   ) : (
                     <>

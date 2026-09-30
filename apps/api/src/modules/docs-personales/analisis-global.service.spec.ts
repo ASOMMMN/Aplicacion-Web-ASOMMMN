@@ -6,7 +6,10 @@ import type { AuthUser } from '../auth/strategies/jwt.strategy';
 const ADMIN = { userId: new Types.ObjectId().toString(), email: 'admin@x.mx' };
 
 function crear(resultados: Array<Partial<ResultadoAnalisisDocDto>>) {
-  const ids = resultados.map(() => new Types.ObjectId());
+  // Un documento por resultado, salvo los reintentos por límite por minuto.
+  const ids = resultados
+    .filter((r) => !r.limitePorMinuto)
+    .map(() => new Types.ObjectId());
   const docModel = {
     countDocuments: jest.fn().mockResolvedValue(ids.length),
     find: jest.fn(() => ({
@@ -65,19 +68,43 @@ describe('AnalisisGlobalService', () => {
     });
   });
 
-  it('se detiene ante un error de cuota o de API key (afecta a todos)', async () => {
+  it('se detiene si OpenAI no tiene saldo o la key es inválida (afecta a todos)', async () => {
     const { svc, docs } = crear([
       {
         extraccionEstado: 'error',
         extraccionError:
-          'Error de OpenAI: sin crédito o cuota agotada (HTTP 429).',
+          'OpenAI sin saldo: recarga crédito (insufficient_quota).',
       },
       { extraccionEstado: 'ok' },
     ]);
     await svc.iniciar(ADMIN as AuthUser);
     const fin = await esperarFin(svc);
     expect(docs.reanalizar).toHaveBeenCalledTimes(1);
-    expect(fin.motivoFin).toMatch(/^Detenido: .*cuota/);
+    expect(fin.motivoFin).toMatch(/^Detenido: OpenAI sin saldo/);
+  });
+
+  it('límite por minuto: pausa y reintenta el MISMO documento sin contarlo como error', async () => {
+    const { svc, docs } = crear([
+      {
+        extraccionEstado: 'pendiente',
+        limitePorMinuto: true,
+        aviso: 'Límite por minuto de OpenAI: se reintentará',
+      },
+      { extraccionEstado: 'ok' }, // mismo documento, segundo intento
+      { extraccionEstado: 'sin_fechas' },
+    ]);
+    await svc.iniciar(ADMIN as AuthUser);
+    const fin = await esperarFin(svc);
+    const ids = docs.reanalizar.mock.calls.map((c) => (c as unknown[])[1]);
+    expect(ids[0]).toBe(ids[1]); // se reintentó el mismo
+    expect(fin).toMatchObject({
+      procesados: 2,
+      correctos: 1,
+      sinFechas: 1,
+      errores: 0,
+      pausa: null,
+      motivoFin: 'Completado.',
+    });
   });
 
   it('detener() corta después del documento en curso', async () => {

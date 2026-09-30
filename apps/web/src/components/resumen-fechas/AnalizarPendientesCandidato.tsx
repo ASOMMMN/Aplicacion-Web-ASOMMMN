@@ -20,6 +20,9 @@ export interface ResultadoAnalisisDoc {
   fechaVencimiento: string | null;
   revisarFechas: boolean;
   fechasVerificadas: boolean;
+  /** No se pudo analizar ahora (límite por minuto de OpenAI); el documento no cambió. */
+  aviso?: string;
+  limitePorMinuto?: boolean;
 }
 
 type Fila = ResultadoAnalisisDoc & { fase: 'espera' | 'analizando' | 'listo' | 'fallo'; fallo?: string };
@@ -162,7 +165,12 @@ export function AnalizarPendientesCandidato({
                       <td>
                         {f.fase === 'espera' && <span className="text-muted">En espera</span>}
                         {f.fase === 'analizando' && <span className="text-primary">Analizando…</span>}
-                        {f.fase === 'listo' && <DescripcionResultado r={f} />}
+                        {f.fase === 'listo' &&
+                          (f.limitePorMinuto ? (
+                            <span className="text-warning-emphasis">{f.aviso}</span>
+                          ) : (
+                            <DescripcionResultado r={f} />
+                          ))}
                         {f.fase === 'fallo' && <span className="text-danger">{f.fallo}</span>}
                       </td>
                     </tr>
