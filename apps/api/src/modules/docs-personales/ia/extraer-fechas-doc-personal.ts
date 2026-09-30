@@ -228,6 +228,12 @@ export interface ResultadoExtraccionFechas {
   respuestaCruda?: string;
   /** Aviso no fatal de la lectura (p. ej. no se pudo renderizar). */
   aviso?: string;
+  /** Caracteres de texto extraídos del PDF que se enviaron (0 si imagen). */
+  caracteresTexto?: number;
+  /** Imágenes (páginas o foto) enviadas al modelo de visión. */
+  imagenesEnviadas?: number;
+  /** Lo que propuso el modelo, antes de la validación en código. */
+  propuestaModelo?: ExtraerDocPersonalIaResponse;
 }
 
 export interface OpcionesExtraccionFechas {
@@ -387,6 +393,8 @@ export async function extraerFechasDocPersonal(
     paginasTotales: doc.paginasTotales,
     paginasLeidas: doc.paginasLeidas,
     aviso: doc.aviso,
+    caracteresTexto: doc.texto.length,
+    imagenesEnviadas: doc.imagenes.length,
   };
 
   let raw: string;
@@ -433,9 +441,11 @@ export async function extraerFechasDocPersonal(
   }
 
   // El modelo propone; el código verifica (día/mes, INE, orden, duración, tipo).
+  const propuestaModelo = normalizarRespuesta(parsed);
   return {
     ...meta,
     respuestaCruda: raw,
-    resultado: validarFechasDocPersonal(tipo, normalizarRespuesta(parsed)),
+    propuestaModelo,
+    resultado: validarFechasDocPersonal(tipo, propuestaModelo),
   };
 }
