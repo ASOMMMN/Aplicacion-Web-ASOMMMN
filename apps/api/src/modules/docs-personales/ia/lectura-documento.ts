@@ -18,6 +18,12 @@ import {
   OPCIONES_PREPARACION_POR_DEFECTO,
   prepararPagina,
 } from './preparar-imagen';
+import {
+  FuenteEstructurada,
+  fuentesEstructuradas,
+  leerQrs,
+  MAX_PAGINAS_QR_POR_DEFECTO,
+} from './qr-cadena';
 
 export interface ConfiguracionLectura {
   /** Menos caracteres que esto (en las páginas leídas) = PDF escaneado. */
@@ -32,6 +38,8 @@ export interface ConfiguracionLectura {
   maxPartes: number;
   /** Rotación extra en grados horarios (la sugiere un intento anterior). */
   rotacionExtra?: 0 | 90 | 180 | 270;
+  /** Páginas en las que se buscan QR (0 = no buscar). */
+  maxPaginasQr: number;
 }
 
 export const CONFIG_LECTURA_POR_DEFECTO: ConfiguracionLectura = {
@@ -40,6 +48,7 @@ export const CONFIG_LECTURA_POR_DEFECTO: ConfiguracionLectura = {
   anchoPx: 2400,
   maxCaracteresTexto: 12000,
   maxPartes: OPCIONES_PREPARACION_POR_DEFECTO.maxPartes,
+  maxPaginasQr: MAX_PAGINAS_QR_POR_DEFECTO,
 };
 
 /**
@@ -64,13 +73,21 @@ export function configLecturaDesdeEnv(
       d.maxCaracteresTexto,
     ),
     maxPartes: num('IA_DOCS_MAX_PARTES', d.maxPartes),
+    // 0 desactiva la búsqueda de QR.
+    maxPaginasQr:
+      leer('IA_DOCS_QR_MAX_PAGINAS') === '0'
+        ? 0
+        : num('IA_DOCS_QR_MAX_PAGINAS', d.maxPaginasQr),
   };
 }
 
 /** Lo mínimo que se usa de PDFParse (inyectable para pruebas). */
 export interface LectorPdf {
   getInfo(): Promise<{ total: number }>;
-  getText(params: { first: number }): Promise<{ text?: string }>;
+  getText(params: { first: number }): Promise<{
+    text?: string;
+    pages?: Array<{ num: number; text: string }>;
+  }>;
   getScreenshot(params: {
     partial: number[];
     desiredWidth: number;
@@ -99,6 +116,40 @@ export interface DocumentoLeido {
   paginasLeidas: number;
   /** Aviso no fatal (p. ej. el render falló y se usará el PDF crudo). */
   aviso?: string;
+  /** Por página: texto de la capa del PDF, QR y cadena original. */
+  paginas: PaginaLeida[];
+}
+
+export interface PaginaLeida {
+  numero: number;
+  /** Capa de texto de la página ('' si es escaneada o imagen). */
+  texto: string;
+  /** QR y cadena original con sus fechas (fuente de mayor prioridad). */
+  estructuradas: FuenteEstructurada[];
+}
+
+/** Texto por página: pdf-parse lo da en `pages`; si no, por separadores. */
+function textosPorPagina(
+  r: { text?: string; pages?: Array<{ num: number; text: string }> },
+  paginas: number,
+): string[] {
+  if (r.pages?.length) {
+    return Array.from(
+      { length: paginas },
+      (_, i) => r.pages!.find((p) => p.num === i + 1)?.text ?? '',
+    );
+  }
+  const partes = (r.text ?? '').split(/^\s*-- \d+ of \d+ --\s*$/m);
+  return Array.from({ length: paginas }, (_, i) => (partes[i] ?? '').trim());
+}
+
+/** QR de la imagen (nunca hace fallar la lectura). */
+function qrsSeguros(img: Parameters<typeof leerQrs>[0]): string[] {
+  try {
+    return leerQrs(img);
+  } catch {
+    return [];
+  }
 }
 
 const opcionesPreparacion = (cfg: ConfiguracionLectura) => ({
@@ -116,12 +167,20 @@ export async function leerDocumento(
   if (mimeType !== 'application/pdf') {
     // loadImage aplica la orientación EXIF de las fotos de celular.
     const img = await loadImage(buffer);
+    const qrs = cfg.maxPaginasQr > 0 ? qrsSeguros(img) : [];
     return {
       modo: 'imagen',
       texto: '',
       imagenes: prepararPagina(img, 1, opcionesPreparacion(cfg)),
       paginasTotales: 1,
       paginasLeidas: 1,
+      paginas: [
+        {
+          numero: 1,
+          texto: '',
+          estructuradas: fuentesEstructuradas(1, qrs, ''),
+        },
+      ],
     };
   }
 
@@ -131,9 +190,17 @@ export async function leerDocumento(
     const paginasTotales = info.total;
     const paginasLeidas = Math.min(paginasTotales, cfg.maxPaginas);
 
-    const { text } = await parser.getText({ first: paginasLeidas });
+    const resultadoTexto = await parser.getText({ first: paginasLeidas });
+    const textos = textosPorPagina(resultadoTexto, paginasLeidas);
     // Sin los separadores "-- 1 of 3 --" que agrega pdf-parse.
-    const texto = (text ?? '').replace(/^\s*-- \d+ of \d+ --\s*$/gm, '').trim();
+    const texto = (resultadoTexto.text ?? '')
+      .replace(/^\s*-- \d+ of \d+ --\s*$/gm, '')
+      .trim();
+    const paginas: PaginaLeida[] = textos.map((t, i) => ({
+      numero: i + 1,
+      texto: t,
+      estructuradas: fuentesEstructuradas(i + 1, [], t),
+    }));
     const escaneado = texto.length < cfg.umbralCaracteresTexto;
     const textoEnviado = escaneado
       ? ''
@@ -154,6 +221,14 @@ export async function leerDocumento(
         if (!data)
           throw new Error(`El render de la página ${p} no produjo imagen`);
         const img = await loadImage(Buffer.from(data));
+        const qrs = p <= cfg.maxPaginasQr ? qrsSeguros(img) : [];
+        if (qrs.length) {
+          paginas[p - 1].estructuradas = fuentesEstructuradas(
+            p,
+            qrs,
+            textos[p - 1],
+          );
+        }
         // Con capa de texto, las fechas salen del texto: basta una imagen
         // por página (recortada) para ver qué etiqueta acompaña a cada una.
         // Escaneado: partes ampliadas para que se lean los dígitos.
@@ -170,6 +245,7 @@ export async function leerDocumento(
         imagenes,
         paginasTotales,
         paginasLeidas,
+        paginas,
       };
     } catch (err) {
       const aviso = `No se pudo renderizar el PDF: ${(err as Error).message}`;
@@ -180,6 +256,7 @@ export async function leerDocumento(
             imagenes: [],
             paginasTotales,
             paginasLeidas,
+            paginas,
             aviso,
           }
         : {
@@ -189,6 +266,7 @@ export async function leerDocumento(
             imagenes: [],
             paginasTotales,
             paginasLeidas,
+            paginas,
             aviso,
           };
     }

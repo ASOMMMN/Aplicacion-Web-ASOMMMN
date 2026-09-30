@@ -149,6 +149,10 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  IA_DOCS_QR_MAX_PAGINAS: string = '';
+
+  @IsOptional()
+  @IsString()
   CHATBOT_WHATSAPP_NUMERO: string = '';
 
   @IsString()

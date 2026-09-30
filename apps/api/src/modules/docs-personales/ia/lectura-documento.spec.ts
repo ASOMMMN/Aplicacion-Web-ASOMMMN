@@ -56,7 +56,8 @@ const TEXTO_CERTIFICADO =
   'Fecha en la que expira el certificado médico / Expiration date of medical certificate: 19/12/2027.';
 
 const PDF = Buffer.from('%PDF');
-const cfg = CONFIG_LECTURA_POR_DEFECTO;
+// Sin búsqueda de QR: tiene sus propias pruebas (qr-cadena.spec.ts).
+const cfg = { ...CONFIG_LECTURA_POR_DEFECTO, maxPaginasQr: 0 };
 
 describe('leerDocumento', () => {
   it('PDF con texto → texto (sin separadores) + imágenes de TODAS las páginas', async () => {
@@ -129,7 +130,7 @@ describe('leerDocumento', () => {
   });
 
   it('imagen → se decodifica y se prepara', async () => {
-    const r = await leerDocumento(Buffer.from(paginaPng()), 'image/png');
+    const r = await leerDocumento(Buffer.from(paginaPng()), 'image/png', cfg);
     expect(r.modo).toBe('imagen');
     expect(r.imagenes.length).toBeGreaterThan(0);
     expect(r.imagenes[0].dataUrl).toMatch(/^data:image\/jpeg;base64,/);
@@ -146,5 +147,9 @@ describe('configLecturaDesdeEnv', () => {
     expect(c.maxPaginas).toBe(6);
     expect(c.umbralCaracteresTexto).toBe(cfg.umbralCaracteresTexto);
     expect(c.anchoPx).toBe(2400);
+    expect(
+      configLecturaDesdeEnv((k) => ({ IA_DOCS_QR_MAX_PAGINAS: '0' })[k])
+        .maxPaginasQr,
+    ).toBe(0);
   });
 });
