@@ -14,6 +14,7 @@ import {
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
 import { ESTADOS_EXTRACCION, EstadoExtraccion } from '../ia/estado-extraccion';
+import type { PrecisionFechas } from '../schemas/doc-personal.schema';
 
 export class SubirDocPersonalDto {
   @ApiProperty({
@@ -71,6 +72,13 @@ export class DocPersonalResponseDto {
     example: '2026-01-15',
   })
   fechaEmision?: Date;
+
+  @ApiProperty({
+    description:
+      'Precisión de cada fecha según su texto: dia | mes | anio (ausente = dia).',
+    example: { fechaEmision: 'anio', fechaVencimiento: 'anio' },
+  })
+  precisionFechas: PrecisionFechas;
 
   @ApiProperty({
     description:

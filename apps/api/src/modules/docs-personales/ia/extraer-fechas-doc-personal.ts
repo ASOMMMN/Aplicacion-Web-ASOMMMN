@@ -42,8 +42,12 @@ export const MIMES_EXTRACCION_IA = [
 
 export type Confianza = 'alta' | 'media' | 'baja';
 
-/** "anio": el documento solo da el año (INE); la fecha es 31/12 de ese año. */
-export type PrecisionFecha = 'dia' | 'anio';
+/**
+ * Precisión de una fecha, determinada por su texto literal: "dia", "mes"
+ * (04/2025) o "anio" (2016). Ver formatos-fecha.ts.
+ */
+import type { PrecisionFecha } from './formatos-fecha';
+export type { PrecisionFecha } from './formatos-fecha';
 
 export type CampoFecha = 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento';
 export const CAMPOS_FECHA: CampoFecha[] = [
@@ -130,7 +134,8 @@ export function normalizarFechaDetectada(
       textoLiteral: texto(o.textoLiteral),
       etiqueta: texto(o.etiqueta),
       confianza: valor ? normalizarConfianza(o.confianza) : 'baja',
-      precision: o.precision === 'anio' ? 'anio' : 'dia',
+      // La precisión real se recalcula del texto literal al validar.
+      precision: 'dia',
     };
   }
   const valor = normalizarFechaIa(crudo);

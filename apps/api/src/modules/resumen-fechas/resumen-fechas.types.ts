@@ -1,6 +1,7 @@
 import type { CursoCV } from '../ingest-ia/schemas/extraccion.schema';
 import type { EstadoVigencia } from './vigencia.util';
 import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
+import type { PrecisionFechas } from '../docs-personales/schemas/doc-personal.schema';
 
 /**
  * Origen del dato:
@@ -30,6 +31,11 @@ export interface ResumenFechaItem {
   fechaInicio: string | null;
   fechaEmision: string | null;
   fechaVencimiento: string | null;
+  /**
+   * Precisión de cada fecha (ausente = día): "2016" se guarda como
+   * 2016-01-01 con precisión "anio" y se muestra "2016".
+   */
+  precisionFechas?: PrecisionFechas;
   /**
    * true = el vencimiento no lo dio el postulante ni el CV: lo calculó el
    * sistema (inicio + 5 años). Si hay una fecha real, esta la reemplaza.

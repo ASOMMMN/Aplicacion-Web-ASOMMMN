@@ -17,6 +17,7 @@ import {
   TIPOS_DOC_PERSONAL,
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
+import { leerFechaLiteral, valorGuardado } from './formatos-fecha';
 import type {
   CampoFecha,
   Confianza,
@@ -54,99 +55,7 @@ const TIPOS_SIN_VENCIMIENTO_NUNCA: TipoDocPersonal[] = [
 
 // ── Utilidades de fecha ────────────────────────────────────────────────────
 
-const MESES: Record<string, number> = {
-  ene: 1,
-  jan: 1,
-  feb: 2,
-  mar: 3,
-  abr: 4,
-  apr: 4,
-  may: 5,
-  jun: 6,
-  jul: 7,
-  ago: 8,
-  aug: 8,
-  sep: 9,
-  set: 9,
-  oct: 10,
-  nov: 11,
-  dic: 12,
-  dec: 12,
-};
-
-function isoValida(y: number, m: number, d: number): string | null {
-  const f = new Date(Date.UTC(y, m - 1, d));
-  if (
-    f.getUTCFullYear() !== y ||
-    f.getUTCMonth() !== m - 1 ||
-    f.getUTCDate() !== d
-  ) {
-    return null;
-  }
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-}
-
-const anioCompleto = (a: number) =>
-  a >= 100 ? a : a <= 69 ? 2000 + a : 1900 + a;
-
-export interface LecturaLiteral {
-  /** Interpretación según el formato (dd/mm por defecto). */
-  fecha: string | null;
-  /** Interpretación con día y mes invertidos (solo numéricas). */
-  invertida: string | null;
-  /** Día y mes ≤ 12: la lectura depende del formato. */
-  ambigua: boolean;
-}
-
-/**
- * Lee la primera fecha del texto literal. Numéricas: dd/mm/aaaa salvo que
- * el documento declare mm/dd. También "19 DIC 2025", "09FEB2022",
- * "19 DEC/DIC 2025".
- */
-export function leerFechaLiteral(
-  literal: string | null,
-  formatoIndicado?: string | null,
-): LecturaLiteral | null {
-  if (!literal) return null;
-  const t = literal.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-
-  const num =
-    /(\d{1,2})\s*[/\-.\s]\s*(\d{1,2})\s*[/\-.\s]\s*(\d{4}|\d{2})(?!\d)/.exec(t);
-  if (num) {
-    const a = Number(num[1]);
-    const b = Number(num[2]);
-    const y = anioCompleto(Number(num[3]));
-    const mmdd = /^m/.test((formatoIndicado ?? '').trim().toLowerCase());
-    const [d, m] = mmdd ? [b, a] : [a, b];
-    return {
-      fecha: isoValida(y, m, d),
-      invertida: isoValida(y, d, m),
-      ambigua: a <= 12 && b <= 12 && a !== b,
-    };
-  }
-
-  const texto =
-    /(\d{1,2})\s*[/\-.\s]?\s*([a-z]{3})[a-z]*\.?(?:\s*\/\s*[a-z]{3}[a-z]*\.?)?\s*[/\-.\s]?\s*(\d{4})/.exec(
-      t,
-    );
-  if (texto && MESES[texto[2]]) {
-    return {
-      fecha: isoValida(Number(texto[3]), MESES[texto[2]], Number(texto[1])),
-      invertida: null,
-      ambigua: false,
-    };
-  }
-  return null;
-}
-
-/** Años que aparecen en un literal sin fecha completa ("VIGENCIA 2021 - 2031"). */
-export function aniosSueltos(literal: string | null): number[] {
-  if (!literal || /\d{1,2}\s*[/\-.]\s*\d{1,2}\s*[/\-.]\s*\d{2,4}/.test(literal))
-    return [];
-  return [...literal.matchAll(/(?<!\d)(19|20)\d{2}(?!\d)/g)].map((m) =>
-    Number(m[0]),
-  );
-}
+export { leerFechaLiteral } from './formatos-fecha';
 
 const ORDEN_CONFIANZA: Confianza[] = ['baja', 'media', 'alta'];
 const minConfianza = (a: Confianza, b: Confianza): Confianza =>
@@ -216,28 +125,20 @@ export function validarFechasDocPersonal(
     motivos.push(motivo);
   };
 
-  // 1-2. Fecha contra su texto literal (día/mes, año suelto)
+  // 1-2. El valor y la precisión salen SIEMPRE del texto literal, nunca de
+  // lo que diga el modelo ("EMISIÓN 2016" es año aunque el modelo dé
+  // 2016-01-01). Sin literal legible, la fecha se descarta.
   for (const campo of Object.keys(detalle) as CampoFecha[]) {
     const f = detalle[campo];
-    const anios = aniosSueltos(f.textoLiteral);
+    if (!f.valor && !f.textoLiteral) continue;
 
-    if (tipo === 'INE' && campo === 'fechaVencimiento' && anios.length > 0) {
-      // Vigencia de INE: solo año → 31/12 del último año.
-      const valor = `${Math.max(...anios)}-12-31`;
-      if (f.valor !== valor || f.precision !== 'anio') {
-        f.valor = valor;
-        f.precision = 'anio';
-        f.confianza = f.confianza === 'baja' ? 'media' : f.confianza;
-      }
-      continue;
-    }
-    if (
-      f.precision === 'anio' &&
-      !(tipo === 'INE' && campo === 'fechaVencimiento')
-    ) {
-      // Solo año en otro campo/tipo: no se inventa día ni mes.
+    const lectura = leerFechaLiteral(
+      f.textoLiteral,
+      respuesta.formatoFechaIndicado,
+    );
+    if (!lectura) {
       if (f.valor) {
-        const motivo = `La ${NOMBRE_CAMPO[campo]} solo indica el año; se dejó vacía.`;
+        const motivo = `La ${NOMBRE_CAMPO[campo]} (${f.valor}) no aparece como fecha en el texto "${f.textoLiteral ?? ''}"; se dejó vacía.`;
         marcar(campo, motivo);
         descartadas.push(motivo);
       }
@@ -245,17 +146,30 @@ export function validarFechasDocPersonal(
       f.precision = 'dia';
       continue;
     }
-    if (!f.valor) continue;
 
-    const lectura = leerFechaLiteral(
-      f.textoLiteral,
-      respuesta.formatoFechaIndicado,
-    );
-    if (!lectura?.fecha) continue; // sin evidencia legible: se confía en el valor
+    if (
+      tipo === 'INE' &&
+      campo === 'fechaVencimiento' &&
+      lectura.precision === 'anio'
+    ) {
+      // Única excepción: la vigencia de la INE (solo año) vence el 31/12
+      // del último año.
+      f.valor = `${Math.max(...lectura.anios)}-12-31`;
+      f.precision = 'anio';
+      continue;
+    }
 
-    if (f.valor !== lectura.fecha) {
+    if (lectura.precision !== 'dia') {
+      // Fecha parcial: se guarda con su precisión, nunca como día.
+      f.valor = valorGuardado(lectura, campo);
+      f.precision = lectura.precision;
+      f.confianza = minConfianza(f.confianza, 'media');
+      continue;
+    }
+
+    f.precision = 'dia';
+    if (f.valor && f.valor !== lectura.iso) {
       if (f.valor === lectura.invertida) {
-        f.valor = lectura.fecha;
         f.confianza = minConfianza(f.confianza, 'media');
         motivos.push(
           `Se corrigió día/mes de la ${NOMBRE_CAMPO[campo]} ("${f.textoLiteral}" se lee como dd/mm).`,
@@ -265,11 +179,11 @@ export function validarFechasDocPersonal(
           campo,
           `La ${NOMBRE_CAMPO[campo]} (${f.valor}) no coincide con el texto "${f.textoLiteral}"; se usó la del texto.`,
         );
-        f.valor = lectura.fecha;
       }
-    } else if (lectura.ambigua && !respuesta.formatoFechaIndicado) {
+    } else if (lectura.ambigua) {
       f.confianza = minConfianza(f.confianza, 'media');
     }
+    f.valor = lectura.iso;
   }
 
   // Tipos que no vencen

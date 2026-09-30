@@ -5,6 +5,7 @@ import {
   TipoDocPersonal,
 } from '../docs-personales/constants/tipos-doc-personal';
 import type { ItemBase } from './resumen-fechas.types';
+import type { PrecisionFechas } from '../docs-personales/schemas/doc-personal.schema';
 import {
   EstadoExtraccion,
   estadoExtraccion,
@@ -22,6 +23,7 @@ export interface DocPersonalFechas {
   motivosRevision?: string[];
   fechasVerificadas?: unknown;
   extraccionEstado?: EstadoExtraccion | null;
+  precisionFechas?: PrecisionFechas;
   extraccionError?: string | null;
   analisisIa?: { error?: string } | null;
 }
@@ -66,6 +68,9 @@ export function resumenDocumentosPersonales(
         fechaInicio: aISO(doc.fechaInicio),
         fechaEmision: aISO(doc.fechaEmision),
         fechaVencimiento: aISO(doc.fechaVencimiento),
+        ...(doc.precisionFechas
+          ? { precisionFechas: doc.precisionFechas }
+          : {}),
         fechaVencimientoEstimada: false,
         confianzaCV: null,
         nombreEnCV: null,

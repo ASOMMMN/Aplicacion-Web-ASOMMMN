@@ -122,6 +122,7 @@ export class DocsPersonalesService {
       fechaInicio: doc.fechaInicio,
       fechaVencimiento: doc.fechaVencimiento,
       fechaEmision: doc.fechaEmision,
+      precisionFechas: doc.precisionFechas ?? {},
       revisarFechas: Boolean(doc.revisarFechas),
       motivosRevision: doc.motivosRevision ?? [],
       tipoSospechoso: doc.tipoSospechoso ?? null,
@@ -450,6 +451,12 @@ export class DocsPersonalesService {
       ...nuevas,
       revisarFechas: false,
       motivosRevision: [],
+      // El evaluador captura fechas completas.
+      precisionFechas: {
+        fechaEmision: 'dia',
+        fechaInicio: 'dia',
+        fechaVencimiento: 'dia',
+      },
       extraccionEstado: 'ok',
       extraccionError: null,
       fechasVerificadas: {
@@ -706,13 +713,14 @@ export class DocsPersonalesService {
         | 'analisisIa'
         | 'extraccionEstado'
         | 'extraccionError'
+        | 'precisionFechas'
       > & { _id: Types.ObjectId }
     >
   > {
     return this.docModel
       .find({ postulanteId: new Types.ObjectId(postulanteId) })
       .select(
-        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError',
+        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError precisionFechas',
       )
       .sort({ subidasEn: -1 })
       .lean();

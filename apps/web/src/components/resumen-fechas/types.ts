@@ -5,6 +5,9 @@ export type EstadoVigencia = 'vencido' | 'por_vencer' | 'vigente' | 'sin_fecha' 
 
 export type ConfianzaIa = 'alta' | 'media' | 'baja';
 
+/** "dia" = fecha completa; "mes" = 04/2025; "anio" = 2016 (el documento no trae más). */
+export type PrecisionFecha = 'dia' | 'mes' | 'anio';
+
 export type OrigenResumen ='subido' | 'cv' | 'subido_y_cv' | 'doc_personal';
 
 export interface ResumenFechaItem {
@@ -19,6 +22,8 @@ export interface ResumenFechaItem {
   fechaInicio: string | null;
   fechaEmision: string | null;
   fechaVencimiento: string | null;
+  /** Precisión de cada fecha según el documento (ausente = día). */
+  precisionFechas?: Partial<Record<'fechaInicio' | 'fechaEmision' | 'fechaVencimiento', PrecisionFecha>>;
   /** El vencimiento lo calculó el sistema (inicio + 5 años), no viene de un documento. */
   fechaVencimientoEstimada: boolean;
   /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */

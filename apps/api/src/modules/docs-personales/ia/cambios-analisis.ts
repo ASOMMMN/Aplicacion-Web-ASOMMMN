@@ -4,11 +4,13 @@
  */
 import type { ResultadoExtraccionFechas } from './extraer-fechas-doc-personal';
 import type { EstadoExtraccion } from './estado-extraccion';
+import type { PrecisionFechas } from '../schemas/doc-personal.schema';
 
 export interface CambiosAnalisis {
   fechaEmision?: Date | null;
   fechaInicio?: Date | null;
   fechaVencimiento?: Date | null;
+  precisionFechas?: PrecisionFechas;
   detalleFechasIa?: Record<string, unknown>;
   revisarFechas?: boolean;
   motivosRevision?: string[];
@@ -98,6 +100,11 @@ export function cambiosPorAnalisis(
     fechaEmision: aFecha(res.fechaEmision),
     fechaInicio: aFecha(res.fechaInicio),
     fechaVencimiento: aFecha(res.fechaVencimiento),
+    precisionFechas: {
+      fechaEmision: res.detalle?.fechaEmision.precision ?? 'dia',
+      fechaInicio: res.detalle?.fechaInicio.precision ?? 'dia',
+      fechaVencimiento: res.detalle?.fechaVencimiento.precision ?? 'dia',
+    },
     detalleFechasIa,
     revisarFechas: Boolean(res.revisar),
     motivosRevision: res.motivosRevision ?? [],

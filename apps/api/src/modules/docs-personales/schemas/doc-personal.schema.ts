@@ -5,6 +5,7 @@ import {
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
 import { ESTADOS_EXTRACCION, EstadoExtraccion } from '../ia/estado-extraccion';
+import type { PrecisionFecha } from '../ia/formatos-fecha';
 
 export type DocPersonalDocument = HydratedDocument<DocPersonal>;
 
@@ -60,6 +61,14 @@ export class DocPersonal {
   @Prop()
   fechaEmision?: Date;
 
+  /**
+   * Precisión de cada fecha según su texto: "dia", "mes" o "anio". Una fecha
+   * parcial se guarda al inicio (emisión/inicio) o al final (vencimiento)
+   * del periodo y se muestra como "04/2025" o "2016". Ausente = "dia".
+   */
+  @Prop({ type: Object })
+  precisionFechas?: PrecisionFechas;
+
   // ── Resultado del análisis con IA ─────────────────────────────────────────
 
   /** Evidencia por fecha: texto literal, etiqueta, confianza y precisión. */
@@ -108,6 +117,10 @@ export class DocPersonal {
   @Prop({ type: Object })
   fechasVerificadas?: FechasVerificadas;
 }
+
+export type PrecisionFechas = Partial<
+  Record<'fechaEmision' | 'fechaInicio' | 'fechaVencimiento', PrecisionFecha>
+>;
 
 export interface FechasVerificadas {
   fechaEmision: Date | null;

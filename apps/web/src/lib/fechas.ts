@@ -19,6 +19,22 @@ export function formatearFechaCalendario(
 }
 
 /**
+ * Fecha de calendario con la precisión que trae el documento: "09/05/2024",
+ * "04/2025" (solo mes y año) o "2016" (solo año). Nunca inventa día ni mes.
+ */
+export function formatearFechaConPrecision(
+  valor: string | null | undefined,
+  precision: 'dia' | 'mes' | 'anio' = 'dia',
+  vacio = '—',
+): string {
+  const m = valor ? /^(\d{4})-(\d{2})-(\d{2})/.exec(valor) : null;
+  if (!m) return vacio;
+  if (precision === 'anio') return m[1];
+  if (precision === 'mes') return `${m[2]}/${m[1]}`;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/**
  * Igual que formatearFechaCalendario pero con mes abreviado: "15 mar 2024".
  * Se formatea en UTC para que la fecha no se corra por la zona del navegador.
  */

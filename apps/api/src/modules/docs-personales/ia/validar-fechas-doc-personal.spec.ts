@@ -27,16 +27,16 @@ const validar = (tipo: TipoDocPersonal, crudo: Record<string, unknown>) =>
 
 describe('leerFechaLiteral', () => {
   it('numéricas como dd/mm salvo formato mm/dd declarado', () => {
-    expect(leerFechaLiteral('12/03/2025')?.fecha).toBe('2025-03-12');
-    expect(leerFechaLiteral('12/03/2025', 'mm/dd/yyyy')?.fecha).toBe(
+    expect(leerFechaLiteral('12/03/2025')?.iso).toBe('2025-03-12');
+    expect(leerFechaLiteral('12/03/2025', 'mm/dd/yyyy')?.iso).toBe(
       '2025-12-03',
     );
   });
 
   it('meses con letra en español e inglés', () => {
-    expect(leerFechaLiteral('19 DIC 2025')?.fecha).toBe('2025-12-19');
-    expect(leerFechaLiteral('09FEB2022')?.fecha).toBe('2022-02-09');
-    expect(leerFechaLiteral('19 DEC/DIC 2025')?.fecha).toBe('2025-12-19');
+    expect(leerFechaLiteral('19 DIC 2025')?.iso).toBe('2025-12-19');
+    expect(leerFechaLiteral('09FEB2022')?.iso).toBe('2022-02-09');
+    expect(leerFechaLiteral('19 DEC/DIC 2025')?.iso).toBe('2025-12-19');
   });
 });
 
@@ -61,13 +61,33 @@ describe('validarFechasDocPersonal', () => {
     expect(r.detalle?.fechaVencimiento.precision).toBe('anio');
   });
 
-  it('solo año fuera de la INE: se deja vacía y se reporta como descartada', () => {
+  it('solo año fuera de la INE: se guarda con precisión año, nunca como día', () => {
     const r = validar('pasaporte', {
-      fechaEmision: fecha('2020-01-01', '2020', { precision: 'anio' }),
+      fechaEmision: fecha('2020-01-01', '2020'),
+    });
+    expect(r.fechaEmision).toBe('2020-01-01');
+    expect(r.detalle?.fechaEmision.precision).toBe('anio');
+  });
+
+  it('INE: emisión solo con año → precisión año aunque el modelo dé día (caso real)', () => {
+    // El modelo devolvió 2016-01-01 con precisión "dia" y el texto "EMISIÓN 2016".
+    const r = validar('INE', {
+      fechaEmision: fecha('2016-01-01', 'EMISIÓN 2016', { precision: 'dia' }),
+      fechaVencimiento: fecha('2026-01-01', 'VIGENCIA 2016 - 2026'),
+    });
+    expect(r.detalle?.fechaEmision.precision).toBe('anio');
+    expect(r.detalle?.fechaVencimiento).toMatchObject({
+      valor: '2026-12-31',
+      precision: 'anio',
+    });
+  });
+
+  it('fecha sin literal legible se descarta aunque el modelo dé un valor', () => {
+    const r = validar('visa', {
+      fechaEmision: fecha('2021-10-16', 'ver reverso'),
     });
     expect(r.fechaEmision).toBeNull();
     expect(r.fechasDescartadas).toHaveLength(1);
-    expect(r.revisar).toBe(true);
   });
 
   it('vencimiento anterior a la emisión → Revisar', () => {

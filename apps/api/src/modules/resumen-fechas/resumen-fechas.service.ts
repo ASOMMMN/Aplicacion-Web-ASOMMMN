@@ -23,6 +23,10 @@ import {
 
 import { unificarCursos } from './cursos-match.util';
 import { resumenDocumentosPersonales } from './docs-personales-resumen.util';
+import {
+  formatearConPrecision,
+  PrecisionFecha,
+} from '../docs-personales/ia/formatos-fecha';
 import type {
   ConteoVigencia,
   ItemBase,
@@ -233,18 +237,29 @@ export class ResumenFechasService {
       filas: resumen.items.map((item) => ({
         tipo: item.tipo,
         nombre: item.nombre,
-        fechaInicio: this.formatearFechaReporte(item.fechaInicio),
-        fechaEmision: this.formatearFechaReporte(item.fechaEmision),
-        fechaVencimiento: this.formatearFechaReporte(item.fechaVencimiento),
+        fechaInicio: this.formatearFechaReporte(
+          item.fechaInicio,
+          item.precisionFechas?.fechaInicio,
+        ),
+        fechaEmision: this.formatearFechaReporte(
+          item.fechaEmision,
+          item.precisionFechas?.fechaEmision,
+        ),
+        fechaVencimiento: this.formatearFechaReporte(
+          item.fechaVencimiento,
+          item.precisionFechas?.fechaVencimiento,
+        ),
         estadoVigencia: item.estadoVigencia,
         fuente: item.fuente,
       })),
     };
   }
 
-  private formatearFechaReporte(valor: string | null): string {
-    if (!valor) return '—';
-    const partes = valor.split('-');
-    return partes.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : '—';
+  /** DD/MM/AAAA, MM/AAAA o AAAA según la precisión de la fecha. */
+  private formatearFechaReporte(
+    valor: string | null,
+    precision?: PrecisionFecha,
+  ): string {
+    return formatearConPrecision(valor, precision) ?? '—';
   }
 }

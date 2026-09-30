@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Table } from 'react-bootstrap';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
-import { formatearFechaCalendario } from '@/lib/fechas';
+import { formatearFechaCalendario, formatearFechaConPrecision } from '@/lib/fechas';
 import { CorregirFechasModal, mensajeError } from './CorregirFechasModal';
 import type {
   ConfianzaIa,
   EstadoVigencia,
+  PrecisionFecha,
   OrigenResumen,
   ResumenFechaItem,
   ResumenFechasResponse,
@@ -44,11 +45,13 @@ function CeldaFecha({
   etiqueta,
   soloCV,
   confianza,
+  precision = 'dia',
 }: {
   fecha: string | null;
   etiqueta?: string;
   soloCV: boolean;
   confianza?: ConfianzaIa;
+  precision?: PrecisionFecha;
 }) {
   if (!fecha) {
     return soloCV ? (
@@ -61,7 +64,20 @@ function CeldaFecha({
   }
   return (
     <>
-      {formatearFecha(fecha)}
+      {formatearFechaConPrecision(fecha, precision)}
+      {precision !== 'dia' && (
+        <span
+          className="badge bg-light text-secondary border ms-1"
+          style={{ fontSize: '0.65rem' }}
+          title={
+            precision === 'anio'
+              ? 'El documento solo indica el año'
+              : 'El documento solo indica mes y año'
+          }
+        >
+          {precision === 'anio' ? 'año' : 'mes'}
+        </span>
+      )}
       {etiqueta && <span className="text-muted ms-1" style={{ fontSize: '0.7rem' }}>({etiqueta})</span>}
       {confianza === 'baja' && (
         <i
@@ -264,6 +280,7 @@ export function ResumenFechasTabla({
                     etiqueta={!c.fechaInicio && c.fechaEmision ? 'emisión' : undefined}
                     soloCV={soloCV}
                     confianza={c.fechaInicio ? c.confianzaCV?.fechaInicio : c.confianzaCV?.fechaEmision}
+                    precision={c.fechaInicio ? c.precisionFechas?.fechaInicio : c.precisionFechas?.fechaEmision}
                   />
                 </td>
                 <td className="text-muted small">
@@ -271,6 +288,7 @@ export function ResumenFechasTabla({
                     fecha={c.fechaVencimiento}
                     soloCV={soloCV}
                     confianza={c.confianzaCV?.fechaVencimiento}
+                    precision={c.precisionFechas?.fechaVencimiento}
                   />
                   {c.fechaVencimiento && c.fechaVencimientoEstimada && (
                     <span
