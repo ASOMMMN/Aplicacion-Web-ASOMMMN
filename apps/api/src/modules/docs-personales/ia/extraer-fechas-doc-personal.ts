@@ -12,6 +12,7 @@ import {
   leerDocumento,
   ModoLectura,
 } from './lectura-documento';
+import type { ImagenPreparada } from './preparar-imagen';
 
 import type { TipoDocPersonal } from '../constants/tipos-doc-personal';
 import {
@@ -232,6 +233,8 @@ export interface ResultadoExtraccionFechas {
   caracteresTexto?: number;
   /** Imágenes (páginas o foto) enviadas al modelo de visión. */
   imagenesEnviadas?: number;
+  /** Resolución y origen de cada imagen enviada. */
+  imagenesDetalle?: Array<Omit<ImagenPreparada, 'dataUrl'>>;
   /** Lo que propuso el modelo, antes de la validación en código. */
   propuestaModelo?: ExtraerDocPersonalIaResponse;
 }
@@ -250,6 +253,23 @@ export interface OpcionesExtraccionFechas {
   onError?: (mensaje: string) => void;
 }
 
+/** Qué es cada imagen adjunta (el modelo las recibe en este orden). */
+export function describirImagenes(imagenes: ImagenPreparada[]): string {
+  const lineas = imagenes.map((img, i) => {
+    const que =
+      img.parte === 0
+        ? `vista general de la página ${img.pagina}`
+        : img.partes > 1
+          ? `página ${img.pagina}, parte ${img.parte} de ${img.partes} (ampliada)`
+          : `página ${img.pagina}`;
+    return `- Imagen ${i + 1}: ${que}.`;
+  });
+  return [
+    `Se adjuntan ${imagenes.length} imagen(es) del documento, revísalas todas:`,
+    ...lineas,
+  ].join('\n');
+}
+
 /** Envía texto y/o imágenes de páginas al modelo de visión. */
 async function llamarVision(
   openai: OpenAI,
@@ -260,9 +280,11 @@ async function llamarVision(
   const nota =
     doc.imagenes.length === 0
       ? ''
-      : doc.texto
-        ? '\n\nSe adjunta además la imagen de la primera página: úsala para confirmar qué etiqueta acompaña a cada fecha.'
-        : `\n\nSe adjuntan ${doc.imagenes.length} página(s) del documento como imágenes: revísalas todas.`;
+      : '\n\n' +
+        describirImagenes(doc.imagenes) +
+        (doc.texto
+          ? '\nÚsalas para confirmar qué etiqueta acompaña a cada fecha.'
+          : '');
   const prompt = doc.texto
     ? construirPromptDocPersonal(doc.texto, tipo)
     : construirPromptImagenDocPersonal(tipo);
@@ -276,9 +298,13 @@ async function llamarVision(
         role: 'user',
         content: [
           { type: 'text', text: `${prompt}${nota}` },
-          ...doc.imagenes.map((url) => ({
+          ...doc.imagenes.map((img) => ({
             type: 'image_url' as const,
-            image_url: { url, detail: 'high' as const },
+            image_url: {
+              url: img.dataUrl,
+              // La vista general solo da contexto: basta la resolución baja.
+              detail: img.parte === 0 ? ('low' as const) : ('high' as const),
+            },
           })),
         ],
       },
@@ -395,6 +421,14 @@ export async function extraerFechasDocPersonal(
     aviso: doc.aviso,
     caracteresTexto: doc.texto.length,
     imagenesEnviadas: doc.imagenes.length,
+    imagenesDetalle: doc.imagenes.map((img) => ({
+      ancho: img.ancho,
+      alto: img.alto,
+      pagina: img.pagina,
+      parte: img.parte,
+      partes: img.partes,
+      rotacion: img.rotacion,
+    })),
   };
 
   let raw: string;

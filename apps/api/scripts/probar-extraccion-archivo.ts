@@ -76,6 +76,24 @@ function leerEntorno(): Record<string, string> {
   return env;
 }
 
+/**
+ * Tamaño con el que OpenAI analiza la imagen: detail "high" la ajusta a
+ * 2048×2048 y luego a 768 px de lado corto; "low", a 512×512.
+ */
+function tamanoQueVeOpenAI(
+  w: number,
+  h: number,
+  bajo: boolean,
+): [number, number] {
+  if (bajo) {
+    const e = Math.min(1, 512 / Math.max(w, h));
+    return [Math.round(w * e), Math.round(h * e)];
+  }
+  const e1 = Math.min(1, 2048 / Math.max(w, h));
+  const e2 = Math.min(1, 768 / Math.min(w * e1, h * e1));
+  return [Math.round(w * e1 * e2), Math.round(h * e1 * e2)];
+}
+
 function salir(mensaje: string): never {
   console.error(`${mensaje}\n\n${USO}`);
   process.exit(1);
@@ -167,6 +185,14 @@ async function main() {
             : 'no (solo texto)'
       }`,
     );
+    for (const [i, img] of (r.imagenesDetalle ?? []).entries()) {
+      const [w, h] = tamanoQueVeOpenAI(img.ancho, img.alto, img.parte === 0);
+      console.log(
+        `    Imagen ${i + 1}: página ${img.pagina}, ${
+          img.parte === 0 ? 'vista general' : `parte ${img.parte}/${img.partes}`
+        }, ${img.ancho}×${img.alto} px${img.rotacion ? `, girada ${img.rotacion}°` : ''} → el modelo la ve a ${w}×${h}`,
+      );
+    }
     if (r.aviso) console.log(`  Aviso: ${r.aviso}`);
   } else {
     console.log('  No se llegó a llamar al modelo.');

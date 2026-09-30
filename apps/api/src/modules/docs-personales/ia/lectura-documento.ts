@@ -1,17 +1,23 @@
 /**
  * Lectura de un documento para enviarlo al modelo de visión.
  *
- * - Imagen (JPG/PNG): se envía tal cual.
- * - PDF con poco texto extraíble (escaneado / foto): se renderizan las
- *   primeras páginas a PNG y se envían como imágenes.
- * - PDF con texto: se envía el texto Y la imagen de la primera página (el
- *   texto de pdf-parse pierde la relación etiqueta ↔ fecha en tablas y
- *   documentos bilingües; la imagen permite confirmarla).
+ * - Imagen (JPG/PNG): se decodifica (aplicando la orientación EXIF) y se
+ *   prepara (recorte, rotación, partes): ver preparar-imagen.ts.
+ * - PDF: se extrae el texto de las primeras páginas y se renderizan TODAS
+ *   esas páginas (anverso y reverso), una a la vez, y se preparan igual.
+ *   Con poco texto (escaneado) el modelo solo ve imágenes; con texto ve
+ *   texto + imágenes, y el texto sirve para verificar las fechas.
  *
- * Si el render falla (p. ej. falta el binario de @napi-rs/canvas), se
- * devuelve modo 'pdf-crudo' para que el llamador envíe el PDF completo.
+ * Si el render falla, se devuelve modo 'pdf-crudo' (escaneado) para que el
+ * llamador envíe el PDF completo, o se sigue solo con texto.
  */
+import { loadImage } from '@napi-rs/canvas';
 import { PDFParse } from 'pdf-parse';
+import {
+  ImagenPreparada,
+  OPCIONES_PREPARACION_POR_DEFECTO,
+  prepararPagina,
+} from './preparar-imagen';
 
 export interface ConfiguracionLectura {
   /** Menos caracteres que esto (en las páginas leídas) = PDF escaneado. */
@@ -20,21 +26,26 @@ export interface ConfiguracionLectura {
   maxPaginas: number;
   /** Ancho en píxeles al renderizar cada página. */
   anchoPx: number;
-  /** Máximo de caracteres de texto que se envían al modelo. */
+  /** Máximo de caracteres de texto del PDF que se envían al modelo. */
   maxCaracteresTexto: number;
+  /** Máximo de partes por página (ver preparar-imagen.ts). */
+  maxPartes: number;
+  /** Rotación extra en grados horarios (la sugiere un intento anterior). */
+  rotacionExtra?: 0 | 90 | 180 | 270;
 }
 
 export const CONFIG_LECTURA_POR_DEFECTO: ConfiguracionLectura = {
   umbralCaracteresTexto: 200,
   maxPaginas: 4,
-  anchoPx: 1600,
+  anchoPx: 2400,
   maxCaracteresTexto: 12000,
+  maxPartes: OPCIONES_PREPARACION_POR_DEFECTO.maxPartes,
 };
 
 /**
  * Lee la configuración de variables de entorno (opcionales):
  * IA_DOCS_UMBRAL_TEXTO, IA_DOCS_MAX_PAGINAS, IA_DOCS_ANCHO_PX,
- * IA_DOCS_MAX_CARACTERES_TEXTO.
+ * IA_DOCS_MAX_CARACTERES_TEXTO, IA_DOCS_MAX_PARTES.
  */
 export function configLecturaDesdeEnv(
   leer: (clave: string) => string | undefined,
@@ -52,6 +63,7 @@ export function configLecturaDesdeEnv(
       'IA_DOCS_MAX_CARACTERES_TEXTO',
       d.maxCaracteresTexto,
     ),
+    maxPartes: num('IA_DOCS_MAX_PARTES', d.maxPartes),
   };
 }
 
@@ -60,11 +72,11 @@ export interface LectorPdf {
   getInfo(): Promise<{ total: number }>;
   getText(params: { first: number }): Promise<{ text?: string }>;
   getScreenshot(params: {
-    first: number;
+    partial: number[];
     desiredWidth: number;
     imageDataUrl: boolean;
     imageBuffer: boolean;
-  }): Promise<{ pages: Array<{ dataUrl?: string }> }>;
+  }): Promise<{ pages: Array<{ data?: Uint8Array }> }>;
   destroy(): Promise<void>;
 }
 
@@ -73,7 +85,7 @@ const crearLectorPdf = (buffer: Buffer): LectorPdf =>
 
 export type ModoLectura =
   | 'imagen'
-  | 'pdf-texto' // texto + imagen de la primera página
+  | 'pdf-texto' // texto + imágenes de las páginas
   | 'pdf-visual' // imágenes de las páginas
   | 'pdf-crudo'; // no se pudo renderizar: enviar el PDF completo
 
@@ -81,13 +93,19 @@ export interface DocumentoLeido {
   modo: ModoLectura;
   /** Texto extraído (vacío si es imagen o escaneado). */
   texto: string;
-  /** Imágenes como data URL (image/png o el mime original). */
-  imagenes: string[];
+  /** Imágenes preparadas (vista general y partes de cada página). */
+  imagenes: ImagenPreparada[];
   paginasTotales: number;
   paginasLeidas: number;
   /** Aviso no fatal (p. ej. el render falló y se usará el PDF crudo). */
   aviso?: string;
 }
+
+const opcionesPreparacion = (cfg: ConfiguracionLectura) => ({
+  ...OPCIONES_PREPARACION_POR_DEFECTO,
+  maxPartes: cfg.maxPartes,
+  rotacionExtra: cfg.rotacionExtra,
+});
 
 export async function leerDocumento(
   buffer: Buffer,
@@ -96,10 +114,12 @@ export async function leerDocumento(
   crearLector: (buffer: Buffer) => LectorPdf = crearLectorPdf,
 ): Promise<DocumentoLeido> {
   if (mimeType !== 'application/pdf') {
+    // loadImage aplica la orientación EXIF de las fotos de celular.
+    const img = await loadImage(buffer);
     return {
       modo: 'imagen',
       texto: '',
-      imagenes: [`data:${mimeType};base64,${buffer.toString('base64')}`],
+      imagenes: prepararPagina(img, 1, opcionesPreparacion(cfg)),
       paginasTotales: 1,
       paginasLeidas: 1,
     };
@@ -115,26 +135,33 @@ export async function leerDocumento(
     // Sin los separadores "-- 1 of 3 --" que agrega pdf-parse.
     const texto = (text ?? '').replace(/^\s*-- \d+ of \d+ --\s*$/gm, '').trim();
     const escaneado = texto.length < cfg.umbralCaracteresTexto;
+    const textoEnviado = escaneado
+      ? ''
+      : texto.slice(0, cfg.maxCaracteresTexto);
 
     try {
-      const { pages } = await parser.getScreenshot({
-        first: escaneado ? paginasLeidas : 1,
-        desiredWidth: cfg.anchoPx,
-        imageDataUrl: true,
-        imageBuffer: false,
-      });
-      const imagenes = pages
-        .map((p) => p.dataUrl)
-        .filter((u): u is string => Boolean(u));
-      if (imagenes.length === 0)
-        throw new Error('El render no produjo imágenes');
-
+      const imagenes: ImagenPreparada[] = [];
+      // Una página a la vez: en Render Free (512 MB) no caben varias
+      // páginas renderizadas a la vez.
+      for (let p = 1; p <= paginasLeidas; p++) {
+        const { pages } = await parser.getScreenshot({
+          partial: [p],
+          desiredWidth: cfg.anchoPx,
+          imageDataUrl: false,
+          imageBuffer: true,
+        });
+        const data = pages[0]?.data;
+        if (!data)
+          throw new Error(`El render de la página ${p} no produjo imagen`);
+        const img = await loadImage(Buffer.from(data));
+        imagenes.push(...prepararPagina(img, p, opcionesPreparacion(cfg)));
+      }
       return {
         modo: escaneado ? 'pdf-visual' : 'pdf-texto',
-        texto: escaneado ? '' : texto.slice(0, cfg.maxCaracteresTexto),
+        texto: textoEnviado,
         imagenes,
         paginasTotales,
-        paginasLeidas: escaneado ? imagenes.length : paginasLeidas,
+        paginasLeidas,
       };
     } catch (err) {
       const aviso = `No se pudo renderizar el PDF: ${(err as Error).message}`;
@@ -150,7 +177,7 @@ export async function leerDocumento(
         : {
             // Con texto suficiente se puede seguir solo con texto.
             modo: 'pdf-texto',
-            texto: texto.slice(0, cfg.maxCaracteresTexto),
+            texto: textoEnviado,
             imagenes: [],
             paginasTotales,
             paginasLeidas,

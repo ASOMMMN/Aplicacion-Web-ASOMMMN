@@ -104,6 +104,10 @@ class EnvironmentVariables {
   @IsString()
   IA_DOCS_MAX_CARACTERES_TEXTO: string = '';
 
+  @IsOptional()
+  @IsString()
+  IA_DOCS_MAX_PARTES: string = '';
+
   // Análisis global de documentos (docs-personales/analisis-global.service.ts)
   @IsOptional()
   @IsString()

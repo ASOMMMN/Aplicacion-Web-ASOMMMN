@@ -1,3 +1,4 @@
+import { createCanvas } from '@napi-rs/canvas';
 import {
   CONFIG_LECTURA_POR_DEFECTO,
   configLecturaDesdeEnv,
@@ -5,16 +6,27 @@ import {
   leerDocumento,
 } from './lectura-documento';
 
+/** Página blanca con "renglones" negros (sin datos reales). */
+function paginaPng(ancho = 850, alto = 1100): Uint8Array {
+  const c = createCanvas(ancho, alto);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, ancho, alto);
+  ctx.fillStyle = '#000';
+  for (let y = 100; y < 400; y += 30) ctx.fillRect(100, y, 500, 12);
+  return c.toBuffer('image/png');
+}
+
 /**
  * Lector falso: simula un PDF de N páginas con un texto por página.
  * (pdfjs necesita import() dinámico, que Jest no permite sin
- * --experimental-vm-modules; el render real se verificó en Node.)
+ * --experimental-vm-modules; el render real se verificó en Node y en Linux.)
  */
 function lectorFalso(
   paginas: string[],
   opciones: { renderFalla?: boolean } = {},
-): { crear: () => LectorPdf; pedidas: { texto?: number; capturas?: number } } {
-  const pedidas: { texto?: number; capturas?: number } = {};
+): { crear: () => LectorPdf; pedidas: { texto?: number; capturas: number[] } } {
+  const pedidas: { texto?: number; capturas: number[] } = { capturas: [] };
   const crear = (): LectorPdf => ({
     getInfo: () => Promise.resolve({ total: paginas.length }),
     getText: ({ first }) => {
@@ -26,16 +38,12 @@ function lectorFalso(
           .join('\n'),
       });
     },
-    getScreenshot: ({ first }) => {
-      pedidas.capturas = first;
+    getScreenshot: ({ partial }) => {
+      pedidas.capturas.push(...partial);
       if (opciones.renderFalla) {
         return Promise.reject(new Error('canvas no disponible'));
       }
-      return Promise.resolve({
-        pages: paginas
-          .slice(0, first)
-          .map((_, i) => ({ dataUrl: `data:image/png;base64,PAGINA${i + 1}` })),
-      });
+      return Promise.resolve({ pages: [{ data: paginaPng() }] });
     },
     destroy: () => Promise.resolve(),
   });
@@ -51,14 +59,15 @@ const PDF = Buffer.from('%PDF');
 const cfg = CONFIG_LECTURA_POR_DEFECTO;
 
 describe('leerDocumento', () => {
-  it('PDF con texto → texto (sin separadores de página) + imagen de la primera página', async () => {
+  it('PDF con texto → texto (sin separadores) + imágenes de TODAS las páginas', async () => {
     const { crear, pedidas } = lectorFalso([TEXTO_CERTIFICADO, 'Anexo']);
     const r = await leerDocumento(PDF, 'application/pdf', cfg, crear);
     expect(r.modo).toBe('pdf-texto');
     expect(r.texto).toContain('19/12/2027');
     expect(r.texto).not.toMatch(/-- \d+ of \d+ --/);
-    expect(r.imagenes).toEqual(['data:image/png;base64,PAGINA1']);
-    expect(pedidas.capturas).toBe(1);
+    expect(pedidas.capturas).toEqual([1, 2]); // una página a la vez
+    expect(r.imagenes.map((i) => i.pagina)).toEqual([1, 2]);
+    expect(r.imagenes[0].dataUrl).toMatch(/^data:image\/jpeg;base64,/);
   });
 
   it('PDF escaneado (poco texto) → imágenes de todas las páginas leídas', async () => {
@@ -66,8 +75,17 @@ describe('leerDocumento', () => {
     const r = await leerDocumento(PDF, 'application/pdf', cfg, crear);
     expect(r.modo).toBe('pdf-visual');
     expect(r.texto).toBe('');
-    expect(r.imagenes).toHaveLength(3);
+    expect(new Set(r.imagenes.map((i) => i.pagina))).toEqual(
+      new Set([1, 2, 3]),
+    );
     expect(r.paginasLeidas).toBe(3);
+  });
+
+  it('las imágenes vienen recortadas (sin márgenes blancos)', async () => {
+    const { crear } = lectorFalso(['']);
+    const r = await leerDocumento(PDF, 'application/pdf', cfg, crear);
+    // La página mide 850 px; el contenido, ~500 px + margen.
+    expect(r.imagenes[0].ancho).toBeLessThan(620);
   });
 
   it('respeta el máximo de páginas al leer texto y al renderizar', async () => {
@@ -79,8 +97,9 @@ describe('leerDocumento', () => {
       crear,
     );
     expect(r.paginasTotales).toBe(6);
-    expect(r.imagenes).toHaveLength(2);
-    expect(pedidas).toEqual({ texto: 2, capturas: 2 });
+    expect(pedidas.texto).toBe(2);
+    expect(pedidas.capturas).toEqual([1, 2]);
+    expect(r.paginasLeidas).toBe(2);
   });
 
   it('el umbral de texto es configurable', async () => {
@@ -109,12 +128,11 @@ describe('leerDocumento', () => {
     expect(r.texto).toContain('19/12/2025');
   });
 
-  it('imagen → se envía tal cual', async () => {
-    const r = await leerDocumento(Buffer.from('png'), 'image/png');
+  it('imagen → se decodifica y se prepara', async () => {
+    const r = await leerDocumento(Buffer.from(paginaPng()), 'image/png');
     expect(r.modo).toBe('imagen');
-    expect(r.imagenes).toEqual([
-      `data:image/png;base64,${Buffer.from('png').toString('base64')}`,
-    ]);
+    expect(r.imagenes.length).toBeGreaterThan(0);
+    expect(r.imagenes[0].dataUrl).toMatch(/^data:image\/jpeg;base64,/);
   });
 });
 
@@ -127,5 +145,6 @@ describe('configLecturaDesdeEnv', () => {
     const c = configLecturaDesdeEnv((k) => env[k]);
     expect(c.maxPaginas).toBe(6);
     expect(c.umbralCaracteresTexto).toBe(cfg.umbralCaracteresTexto);
+    expect(c.anchoPx).toBe(2400);
   });
 });
