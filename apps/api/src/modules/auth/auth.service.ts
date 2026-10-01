@@ -378,7 +378,11 @@ export class AuthService implements OnModuleInit {
     userAgent: string,
   ): Promise<{ accessToken: string; refreshToken: string; rol: string }> {
     const tokenHash = this.hashToken(oldRawToken);
-    const doc = await this.refreshTokenModel.findOne({
+    // Rotación atómica: buscar y eliminar en una sola operación. Con
+    // findOne + deleteOne, dos refresh simultáneos con la misma cookie podían
+    // leer el token antes del borrado y emitir dos sesiones; así solo uno gana
+    // y el otro recibe 401.
+    const doc = await this.refreshTokenModel.findOneAndDelete({
       tokenHash,
       expiresAt: { $gt: new Date() },
     });
@@ -391,9 +395,6 @@ export class AuthService implements OnModuleInit {
     const user = await this.usuarioModel.findById(doc.userId);
     if (!user || user.estadoCuenta === 'bloqueada')
       throw new UnauthorizedException('Acceso denegado.');
-
-    // Rotación: eliminar token anterior, emitir nuevo
-    await this.refreshTokenModel.deleteOne({ _id: doc._id });
 
     const accessToken = this.firmarAccessToken(user);
     const refreshToken = await this.crearRefreshToken(
