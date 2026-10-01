@@ -4,13 +4,15 @@
  * validación en código). No se conecta a la base ni escribe nada.
  *
  * Imprime: cuánto texto se extrajo, si se usó visión (imágenes de páginas),
- * la respuesta cruda del modelo, lo que propuso el modelo, el resultado
- * final tras la validación y el estado que se guardaría en el documento.
+ * la respuesta cruda del modelo, lo que propuso el modelo, las lecturas
+ * deterministas por fuente (QR, cadena original, etiquetas) y por documento,
+ * el documento principal elegido, el estado de cada fecha (fuente,
+ * Coincidente, Revisar), el resultado final y el estado que se guardaría.
  *
  * Variables de entorno (del proceso o, si faltan, de apps/api/.env; de ese
  * archivo solo se leen estas): OPENAI_API_KEY, OPENAI_MODEL_DOCS,
  * IA_DOCS_UMBRAL_TEXTO, IA_DOCS_MAX_PAGINAS, IA_DOCS_ANCHO_PX,
- * IA_DOCS_MAX_CARACTERES_TEXTO.
+ * IA_DOCS_MAX_CARACTERES_TEXTO, IA_DOCS_MAX_PARTES, IA_DOCS_QR_MAX_PAGINAS.
  *
  * Uso (desde la raíz del repo):
  *   npx ts-node apps/api/scripts/probar-extraccion-archivo.ts <ruta> <tipo> [--modelo gpt-4o] [--mostrar-texto]
@@ -33,6 +35,8 @@ import {
   leerDocumento,
 } from '../src/modules/docs-personales/ia/lectura-documento';
 import { cambiosPorAnalisis } from '../src/modules/docs-personales/ia/cambios-analisis';
+import type { LecturaFecha } from '../src/modules/docs-personales/ia/extractor-etiquetas';
+import { formatearConPrecision } from '../src/modules/docs-personales/ia/formatos-fecha';
 import {
   TIPOS_DOC_PERSONAL,
   TipoDocPersonal,
@@ -66,6 +70,8 @@ function leerEntorno(): Record<string, string> {
     'IA_DOCS_MAX_PAGINAS',
     'IA_DOCS_ANCHO_PX',
     'IA_DOCS_MAX_CARACTERES_TEXTO',
+    'IA_DOCS_MAX_PARTES',
+    'IA_DOCS_QR_MAX_PAGINAS',
   ];
   const ruta = resolve(__dirname, '../.env');
   const archivo = existsSync(ruta) ? parseDotenv(readFileSync(ruta)) : {};
@@ -116,6 +122,84 @@ function imprimirFechas(r: ExtraerDocPersonalIaResponse) {
         (d?.textoLiteral ? `  texto: "${d.textoLiteral}"` : '') +
         (d?.etiqueta ? `  etiqueta: "${d.etiqueta}"` : ''),
     );
+  }
+}
+
+const CAMPOS = ['fechaEmision', 'fechaInicio', 'fechaVencimiento'] as const;
+const fmt = (valor: string | null | undefined, precision?: string) =>
+  valor
+    ? (formatearConPrecision(valor, (precision ?? 'dia') as 'dia') ?? valor)
+    : '—';
+
+/** Lecturas deterministas agrupadas por fuente, página y grupo local. */
+function imprimirLecturas(lecturas: LecturaFecha[]) {
+  if (lecturas.length === 0) {
+    console.log(
+      '  (ninguna: sin QR, sin cadena original y sin etiquetas en el texto)',
+    );
+    return;
+  }
+  for (const fuente of ['qr', 'texto', 'ocr'] as const) {
+    const ls = lecturas.filter((l) => l.fuente === fuente);
+    if (ls.length === 0) continue;
+    console.log(`  [${fuente}]`);
+    for (const l of ls) {
+      console.log(
+        `    pág. ${l.pagina} grupo ${l.grupo}  ${l.campo.padEnd(17)} ${fmt(l.valor, l.precision).padEnd(11)} clave ${l.clave.padEnd(10)} "${l.etiqueta}" → "${l.textoLiteral}"`,
+      );
+    }
+  }
+}
+
+function imprimirCombinacion(res: ExtraerDocPersonalIaResponse) {
+  titulo('Documentos detectados');
+  const grupos = res.grupos ?? [];
+  if (grupos.length === 0) {
+    console.log('  (sin lecturas deterministas: se usa solo la IA)');
+  }
+  for (const g of grupos) {
+    const fechas = CAMPOS.filter((c) => g.fechas[c])
+      .map(
+        (c) =>
+          `${c} ${fmt(g.fechas[c]!.valor, g.fechas[c]!.precision)} [${g.fechas[c]!.fuente}]`,
+      )
+      .join(' · ');
+    console.log(
+      `  ${g.principal ? '★' : ' '} Documento ${g.indice + 1} (pág. ${g.paginas.join(', ')}): ${fechas || 'sin fechas'}`,
+    );
+  }
+  if (grupos.length > 0) {
+    console.log(
+      `  Principal: documento ${(res.principal ?? 0) + 1} (vencimiento más reciente)`,
+    );
+  }
+
+  titulo('Estado por fecha');
+  for (const c of CAMPOS) {
+    const f = res.fuentes?.[c];
+    const conf = res.confianza[c];
+    const estado = !f?.valor
+      ? '—'
+      : conf === 'baja'
+        ? 'Revisar'
+        : f.coincidente
+          ? 'Coincidente'
+          : 'sin confirmar';
+    console.log(
+      `  ${c.padEnd(17)} ${fmt(f?.valor, f?.precision).padEnd(11)} fuente ${String(f?.fuente ?? '—').padEnd(6)} ${estado.padEnd(13)} confianza ${conf}`,
+    );
+    for (const l of f?.lecturas ?? []) {
+      console.log(
+        `      ${l.fuente.padEnd(6)} ${l.clave}${l.pagina ? ` (pág. ${l.pagina})` : ''}`,
+      );
+    }
+  }
+
+  if (res.evidenciaEstructurada?.length) {
+    titulo('QR y cadena original (evidencia)');
+    for (const e of res.evidenciaEstructurada) {
+      console.log(`  pág. ${e.pagina} ${e.origen}: ${e.texto.slice(0, 300)}`);
+    }
   }
 }
 
@@ -194,6 +278,15 @@ async function main() {
       );
     }
     if (r.aviso) console.log(`  Aviso: ${r.aviso}`);
+    if (r.tiempos) {
+      const pags = Math.max(1, r.paginasLeidas ?? 1);
+      console.log(
+        `  Tiempo: lectura ${r.tiempos.lecturaMs} ms (${Math.round(r.tiempos.lecturaMs / pags)} ms/página)` +
+          (r.tiempos.modeloMs !== undefined
+            ? ` · modelo ${r.tiempos.modeloMs} ms`
+            : ''),
+      );
+    }
   } else {
     console.log('  No se llegó a llamar al modelo.');
   }
@@ -206,8 +299,13 @@ async function main() {
     imprimirFechas(r.propuestaModelo);
   }
 
+  titulo('Lecturas deterministas (por fuente)');
+  imprimirLecturas(r.lecturasDeterministas ?? []);
+
   const res = r.resultado;
-  titulo('Resultado final (tras la validación)');
+  if (!res.errorMensaje) imprimirCombinacion(res);
+
+  titulo('Resultado final (combinado y validado)');
   if (res.errorMensaje) {
     console.log(`  ERROR: ${res.errorMensaje}`);
   } else {

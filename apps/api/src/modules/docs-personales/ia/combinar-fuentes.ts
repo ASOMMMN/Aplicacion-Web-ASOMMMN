@@ -427,6 +427,8 @@ export function combinarFuentes(
 export interface FuenteFechaResumen {
   fuente: FuenteFecha;
   coincidente: boolean;
+  /** La combinación o la validación dejaron esta fecha en confianza baja. */
+  revisar: boolean;
 }
 
 /** Fecha de un documento detectado en el archivo, para la API. */
@@ -464,7 +466,7 @@ export function resumenFuentes(
   const d = detalleFechasIa as {
     fuentes?: Partial<Record<CampoFecha, Partial<FuenteCampo>>>;
     grupos?: GrupoFechas[];
-  };
+  } & Partial<Record<CampoFecha, { confianza?: Confianza }>>;
   const r: ResumenFuentes = {};
   if (d.fuentes && typeof d.fuentes === 'object') {
     const fuentes: ResumenFuentes['fuentesFechas'] = {};
@@ -474,6 +476,7 @@ export function resumenFuentes(
         fuentes[campo] = {
           fuente: f.fuente,
           coincidente: Boolean(f.coincidente),
+          revisar: d[campo]?.confianza === 'baja',
         };
       }
     }

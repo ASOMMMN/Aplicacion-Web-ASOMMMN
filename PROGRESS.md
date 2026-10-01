@@ -45,14 +45,25 @@ SEMAR/DGMM…), combinando fuentes deterministas con la IA:
   documentos analizados antes de este cambio. 10 tests de integración
   (`combinar-con-ia.spec.ts`, incluye un QR real con OpenAI simulado).
 
-Estado al 2026-10-01: typecheck de API y web OK, Jest 20 suites / 174 tests
-OK, ESLint sin errores en los archivos tocados.
+- Interfaz (`ResumenFechasTabla.tsx`): junto a cada fecha, badge de fuente
+  (QR, Etiqueta, IA) y de estado (Coincidente en verde, Revisar en ámbar;
+  Revisar = la fecha quedó en confianza baja). Si el archivo trae varios
+  documentos, aviso "N documentos en el archivo" que despliega cada uno con
+  sus fechas y cuál está en uso. `fuentesFechas[campo].revisar` en la API.
+- Script de diagnóstico: lecturas deterministas por fuente, página y grupo;
+  documentos detectados con el principal; estado por fecha con sus
+  lecturas; evidencia de QR/cadena; tiempo de lectura (ms/página) y del
+  modelo. Las lecturas se calculan antes de llamar al modelo, así que se
+  ven aunque la IA falle.
+
+Estado al 2026-10-01: typecheck de API y web OK, Jest 20 suites / 175 tests
+OK, ESLint sin errores en los archivos tocados. La interfaz no se probó en
+el navegador (necesita la app con base de datos y documentos re-analizados).
 
 ## Falta
 
-- Interfaz: badges de fuente/estado y documentos detectados.
-- Script de diagnóstico con lecturas por fuente y grupo.
-- Prueba con documentos reales.
+- Prueba con documentos reales (faltan las rutas de los archivos).
+- Ver la interfaz funcionando con documentos re-analizados.
 - Si la IA falla (sin saldo, JSON inválido), hoy no se guarda nada aunque
   haya QR o etiquetas legibles. Posible mejora: usar solo las deterministas.
 - Los documentos ya analizados no tienen `fuentes` hasta volver a
@@ -108,9 +119,7 @@ OK, ESLint sin errores en los archivos tocados.
 
 ## Siguientes pasos
 
-1. Badges de fuente y estado en `ResumenFechasTabla.tsx`; lecturas por
-   fuente y grupo en `probar-extraccion-archivo.ts`.
-2. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
+1. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
    constancia FIDENA, PDF con varios documentos).
 
 ## Otros hallazgos
@@ -129,4 +138,5 @@ OK, ESLint sin errores en los archivos tocados.
   `f155e90` y `839f6f2`; se crea este archivo.
 - 2026-10-01: plan de combinación de fuentes.
 - 2026-10-01: `combinar-fuentes.ts` con tests (`7088fa7`).
-- 2026-10-01: motor conectado, DTO y prompt.
+- 2026-10-01: motor conectado, DTO y prompt (`3fb1397`).
+- 2026-10-01: badges en la interfaz y diagnóstico por fuente en el script.

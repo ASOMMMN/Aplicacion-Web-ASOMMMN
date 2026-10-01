@@ -7,8 +7,12 @@ import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { formatearFechaCalendario, formatearFechaConPrecision } from '@/lib/fechas';
 import { CorregirFechasModal, mensajeError } from './CorregirFechasModal';
 import type {
+  CampoFecha,
   ConfianzaIa,
+  DocumentoDetectado,
   EstadoVigencia,
+  FuenteFecha,
+  FuenteFechaResumen,
   PrecisionFecha,
   OrigenResumen,
   ResumenFechaItem,
@@ -36,6 +40,70 @@ const ORIGENES: Record<OrigenResumen, { label: string; className: string }> = {
 
 const formatearFecha = (iso: string) => formatearFechaCalendario(iso);
 
+const FUENTES: Record<FuenteFecha, { label: string; title: string }> = {
+  qr: { label: 'QR', title: 'Leída del código QR o de la cadena original del documento' },
+  texto: { label: 'Etiqueta', title: 'Leída del texto del documento, junto a su etiqueta' },
+  ocr: { label: 'OCR', title: 'Leída con reconocimiento de texto' },
+  ia: { label: 'IA', title: 'Leída por la IA; ninguna otra fuente la confirma' },
+};
+
+/** Fuente de la fecha y su estado: Revisar (ámbar) tiene prioridad sobre Coincidente (verde). */
+function BadgesFuente({ info }: { info?: FuenteFechaResumen }) {
+  if (!info) return null;
+  const fuente = FUENTES[info.fuente];
+  return (
+    <>
+      <span className="badge bg-light text-secondary border ms-1" style={{ fontSize: '0.65rem' }} title={fuente.title}>
+        {fuente.label}
+      </span>
+      {info.revisar ? (
+        <span
+          className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1"
+          style={{ fontSize: '0.65rem' }}
+          title="Las fuentes no coinciden o la fecha no pasó la validación; verifícala contra el documento"
+        >
+          Revisar
+        </span>
+      ) : (
+        info.coincidente && (
+          <span
+            className="badge bg-success-subtle text-success-emphasis border border-success-subtle ms-1"
+            style={{ fontSize: '0.65rem' }}
+            title={info.fuente === 'qr' ? 'El QR del documento la confirma' : 'El texto del documento y la IA dicen lo mismo'}
+          >
+            Coincidente
+          </span>
+        )
+      )}
+    </>
+  );
+}
+
+const NOMBRE_CAMPO: Record<CampoFecha, string> = {
+  fechaEmision: 'emisión',
+  fechaInicio: 'inicio',
+  fechaVencimiento: 'vence',
+};
+
+/** Lista de los documentos encontrados en un mismo archivo. */
+function DocumentosDetectados({ documentos }: { documentos: DocumentoDetectado[] }) {
+  return (
+    <ul className="list-unstyled mb-0 mt-1 small" style={{ fontSize: '0.75rem' }}>
+      {documentos.map((d, i) => (
+        <li key={i} className={d.principal ? 'fw-semibold' : 'text-muted'}>
+          Documento {i + 1}
+          {d.paginas.length > 0 && ` (pág. ${d.paginas.join(', ')})`}:{' '}
+          {(Object.keys(NOMBRE_CAMPO) as CampoFecha[])
+            .filter((c) => d.fechas[c])
+            .map((c) => `${NOMBRE_CAMPO[c]} ${formatearFechaConPrecision(d.fechas[c]!.valor, d.fechas[c]!.precision)}`)
+            .join(' · ') || 'sin fechas'}
+          {d.principal && <span className="badge bg-primary-subtle text-primary-emphasis border ms-1">en uso</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * Celda de fecha. Si falta y el dato viene solo del CV, lo dice explícitamente
  * ("No indicada en CV") para no confundirlo con un dato pendiente de capturar.
@@ -46,12 +114,15 @@ function CeldaFecha({
   soloCV,
   confianza,
   precision = 'dia',
+  fuente,
 }: {
   fecha: string | null;
   etiqueta?: string;
   soloCV: boolean;
   confianza?: ConfianzaIa;
   precision?: PrecisionFecha;
+  /** Documentos personales: fuente y estado de la fecha. */
+  fuente?: FuenteFechaResumen;
 }) {
   if (!fecha) {
     return soloCV ? (
@@ -79,6 +150,7 @@ function CeldaFecha({
         </span>
       )}
       {etiqueta && <span className="text-muted ms-1" style={{ fontSize: '0.7rem' }}>({etiqueta})</span>}
+      <BadgesFuente info={fuente} />
       {confianza === 'baja' && (
         <i
           className="bi bi-question-circle text-warning ms-1"
@@ -157,6 +229,15 @@ export function ResumenFechasTabla({
   /** Documento que se está volviendo a analizar (uno a la vez). */
   const [analizando, setAnalizando] = useState<string | null>(null);
   const [avisoAccion, setAvisoAccion] = useState('');
+  /** Documentos personales con la lista de documentos detectados abierta. */
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const alternar = (id: string) =>
+    setExpandidos((prev) => {
+      const sig = new Set(prev);
+      if (sig.has(id)) sig.delete(id);
+      else sig.add(id);
+      return sig;
+    });
 
   const volverAAnalizar = async (docId: string) => {
     setAnalizando(docId);
@@ -247,6 +328,9 @@ export function ResumenFechasTabla({
             const origen = ORIGENES[c.origen];
             const soloCV = c.origen === 'cv';
             const sinFechaDoc = badgeSinFechaDoc(c);
+            const fuentes = c.docPersonal?.fuentesFechas;
+            const documentos = c.docPersonal?.documentosDetectados ?? [];
+            const abierto = c.docPersonal ? expandidos.has(c.docPersonal.id) : false;
             return (
               <tr key={`${c.nombre}-${idx}`}>
                 <td title={c.nombreEnCV && c.nombreEnCV !== c.nombre ? `En el CV: ${c.nombreEnCV}` : undefined}>
@@ -274,6 +358,23 @@ export function ResumenFechasTabla({
                       Verificada
                     </span>
                   )}
+                  {documentos.length > 1 && (
+                    <div>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="p-0 text-warning-emphasis"
+                        style={{ fontSize: '0.75rem' }}
+                        aria-expanded={abierto}
+                        onClick={() => alternar(c.docPersonal!.id)}
+                      >
+                        <i className="bi bi-files me-1" />
+                        {documentos.length} documentos en el archivo
+                        <i className={`bi ${abierto ? 'bi-chevron-up' : 'bi-chevron-down'} ms-1`} />
+                      </Button>
+                      {abierto && <DocumentosDetectados documentos={documentos} />}
+                    </div>
+                  )}
                 </td>
                 <td className="text-muted">{c.institucion ?? '—'}</td>
                 <td className="text-muted small">
@@ -283,6 +384,7 @@ export function ResumenFechasTabla({
                     soloCV={soloCV}
                     confianza={c.fechaInicio ? c.confianzaCV?.fechaInicio : c.confianzaCV?.fechaEmision}
                     precision={c.fechaInicio ? c.precisionFechas?.fechaInicio : c.precisionFechas?.fechaEmision}
+                    fuente={c.fechaInicio ? fuentes?.fechaInicio : fuentes?.fechaEmision}
                   />
                 </td>
                 <td className="text-muted small">
@@ -291,6 +393,7 @@ export function ResumenFechasTabla({
                     soloCV={soloCV}
                     confianza={c.confianzaCV?.fechaVencimiento}
                     precision={c.precisionFechas?.fechaVencimiento}
+                    fuente={fuentes?.fechaVencimiento}
                   />
                   {c.fechaVencimiento && c.fechaVencimientoEstimada && (
                     <span

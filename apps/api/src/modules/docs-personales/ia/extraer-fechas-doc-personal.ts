@@ -380,6 +380,8 @@ export interface ResultadoExtraccionFechas {
   propuestaModelo?: ExtraerDocPersonalIaResponse;
   /** Lecturas deterministas (QR, cadena original y etiquetas por página). */
   lecturasDeterministas?: LecturaFecha[];
+  /** Milisegundos: lectura (texto, render, QR) y respuesta del modelo. */
+  tiempos?: { lecturaMs: number; modeloMs?: number };
   /** Tokens: estimados antes de enviar y reales (usage) de la respuesta. */
   tokens?: {
     estimadoEntrada: number;
@@ -612,6 +614,7 @@ export async function extraerFechasDocPersonal(
   const openai = opciones.openai ?? new OpenAI({ apiKey });
 
   let doc: DocumentoLeido;
+  const inicioLectura = Date.now();
   try {
     doc = await leerDocumento(buffer, mimeType, opciones.lectura);
   } catch (err) {
@@ -621,7 +624,16 @@ export async function extraerFechasDocPersonal(
   }
   if (doc.aviso) onError(doc.aviso);
 
+  const lecturaMs = Date.now() - inicioLectura;
+  const tiempos: NonNullable<ResultadoExtraccionFechas['tiempos']> = {
+    lecturaMs,
+  };
+  // Antes de llamar al modelo: así también quedan en el diagnóstico si la
+  // IA falla. Se recalculan si la IA declara el formato de fecha (mm/dd).
+  const lecturasPrevias = lecturasDeterministas(doc);
   const meta = {
+    tiempos,
+    lecturasDeterministas: lecturasPrevias,
     origen: doc.modo,
     modelo,
     paginasTotales: doc.paginasTotales,
@@ -656,6 +668,7 @@ export async function extraerFechasDocPersonal(
   const contexto = `modelo ${modelo}, ~${estimadoEntrada} tokens de entrada, ${doc.imagenes.length} imagen(es), tipo ${tipo}`;
 
   let respuesta: RespuestaDelModelo;
+  const inicioModelo = Date.now();
   try {
     respuesta = await conReintentosOpenAI(
       () =>
@@ -685,6 +698,7 @@ export async function extraerFechasDocPersonal(
       resultado: sinFechas(true, e.mensaje),
     };
   }
+  tiempos.modeloMs = Date.now() - inicioModelo;
   const raw = respuesta.raw;
   const tokens = {
     estimadoEntrada,
@@ -715,7 +729,9 @@ export async function extraerFechasDocPersonal(
   // tipo) y luego se combina con QR, cadena original y etiquetas del texto.
   const propuestaModelo = normalizarRespuesta(parsed);
   const validado = validarFechasDocPersonal(tipo, propuestaModelo);
-  const lecturas = lecturasDeterministas(doc, validado.formatoFechaIndicado);
+  const lecturas = validado.formatoFechaIndicado
+    ? lecturasDeterministas(doc, validado.formatoFechaIndicado)
+    : lecturasPrevias;
   const evidencia = doc.paginas.flatMap((p) =>
     p.estructuradas.map((e) => ({
       pagina: e.pagina,

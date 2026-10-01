@@ -56,6 +56,33 @@ export interface DocPersonalResumen {
   extraccionEstado: EstadoExtraccion;
   /** Motivo cuando extraccionEstado = 'error'. */
   extraccionError: string | null;
+  /**
+   * De dónde salió cada fecha y si otra fuente la confirma. Ausente en
+   * documentos analizados antes de la combinación de fuentes o verificados.
+   */
+  fuentesFechas?: Partial<Record<CampoFecha, FuenteFechaResumen>>;
+  /** Solo si el archivo trae más de un documento. */
+  documentosDetectados?: DocumentoDetectado[];
+}
+
+export type CampoFecha = 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento';
+
+/** qr = QR o cadena original; texto = etiqueta en el texto del PDF; ia = modelo. */
+export type FuenteFecha = 'qr' | 'texto' | 'ocr' | 'ia';
+
+export interface FuenteFechaResumen {
+  fuente: FuenteFecha;
+  /** Una fuente determinista y la IA dicen lo mismo (o la dio el QR). */
+  coincidente: boolean;
+  /** La fecha quedó en confianza baja: verifícala contra el documento. */
+  revisar: boolean;
+}
+
+export interface DocumentoDetectado {
+  /** Sus fechas son las que se muestran en la fila (vencimiento más reciente). */
+  principal: boolean;
+  paginas: number[];
+  fechas: Partial<Record<CampoFecha, { valor: string; precision: PrecisionFecha; fuente: FuenteFecha }>>;
 }
 
 /**

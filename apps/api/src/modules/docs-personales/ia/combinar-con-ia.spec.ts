@@ -198,8 +198,12 @@ describe('resumenFuentes', () => {
     );
     expect(resumenFuentes(d, false)).toEqual({
       fuentesFechas: {
-        fechaEmision: { fuente: 'texto', coincidente: false },
-        fechaVencimiento: { fuente: 'texto', coincidente: false },
+        fechaEmision: { fuente: 'texto', coincidente: false, revisar: false },
+        fechaVencimiento: {
+          fuente: 'texto',
+          coincidente: false,
+          revisar: false,
+        },
       },
     });
   });
@@ -217,6 +221,28 @@ describe('resumenFuentes', () => {
     expect(r.documentosDetectados?.[1].fechas.fechaVencimiento?.valor).toBe(
       '2029-05-09',
     );
+  });
+
+  it('marca para revisar la fecha en conflicto, no las demás', () => {
+    const ia = normalizarRespuesta({
+      fechaEmision: fecha('2024-05-19', '19-05-2024'),
+      fechaVencimiento: fecha('2029-04-05', '05-04-2029'),
+    });
+    const res = combinarConIa(
+      'refrendo',
+      validarFechasDocPersonal('refrendo', ia, HOY),
+      texto(
+        'Fecha de Expedición: 19-05-2024\nFecha de Vencimiento: 19-05-2029',
+      ),
+    );
+    const d = cambiosPorAnalisis({
+      modelo: 'm',
+      resultado: res,
+    })!.detalleFechasIa;
+    expect(resumenFuentes(d, false).fuentesFechas).toEqual({
+      fechaEmision: { fuente: 'texto', coincidente: true, revisar: false },
+      fechaVencimiento: { fuente: 'texto', coincidente: false, revisar: true },
+    });
   });
 
   it('vacío con fechas verificadas o con análisis anteriores', () => {
