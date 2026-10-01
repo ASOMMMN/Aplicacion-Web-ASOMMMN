@@ -11,6 +11,7 @@ import {
   TIPOS_DOC_PERSONAL,
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
+import { ETIQUETAS_POR_TIPO_DESCRIPCION } from './etiquetas';
 
 export const SYSTEM_PROMPT_DOC_PERSONAL = `
 Eres un extractor experto de fechas de documentos oficiales mexicanos e
@@ -140,13 +141,21 @@ Devuelve exactamente esta estructura:
 - "textoLiteral": copia exacta del fragmento con la fecha (p. ej. "19/12/2027" o "VIGENCIA 2031").
 - Si una fecha no aparece, su objeto lleva valor null, textoLiteral null y confianza "baja".`;
 
+/** Etiquetas reales del tipo (las mismas que usa el extractor determinista). */
+function etiquetasDelTipo(tipo: TipoDocPersonal): string {
+  const d = ETIQUETAS_POR_TIPO_DESCRIPCION[tipo];
+  return d
+    ? `\nETIQUETAS QUE ACOMPAÑAN A LAS FECHAS EN ESTE TIPO:\n- ${d}\n`
+    : '';
+}
+
 function encabezado(tipo: TipoDocPersonal): string {
   return `
 TIPO DE DOCUMENTO QUE INDICÓ EL USUARIO: ${tipo} (${LABEL_TIPO_DOC[tipo]})
 
 REGLAS ESPECÍFICAS DEL TIPO:
 ${REGLAS_POR_TIPO[tipo]}
-
+${etiquetasDelTipo(tipo)}
 Si el contenido NO corresponde a ese tipo, indícalo en "tipoDetectado" y aplica
 las reglas generales para extraer las fechas.`;
 }

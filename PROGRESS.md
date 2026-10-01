@@ -33,16 +33,30 @@ SEMAR/DGMM…), combinando fuentes deterministas con la IA:
   `lectura-documento.ts`, que llena `paginas[].estructuradas`.
 - `ia/combinar-fuentes.ts`: módulo puro que combina lecturas deterministas
   e IA (prioridad, Coincidente, grupos, principal, motivos). 10 tests.
+- Motor conectado (`extraer-fechas-doc-personal.ts`): etiquetas por página +
+  `paginas[].estructuradas` → `combinarConIa` después de la validación de la
+  IA, y se vuelve a validar el resultado combinado (orden, rango, fechas
+  futuras, tipos que no vencen). `detalleFechasIa` guarda `fuentes`,
+  `grupos`, `principal` y `evidenciaEstructurada` (texto del QR/cadena).
+  El prompt incluye `ETIQUETAS_POR_TIPO_DESCRIPCION`.
+- API: `fuentesFechas` (fuente y coincidente por fecha) y
+  `documentosDetectados` (si hay más de uno) en `DocPersonalResponseDto` y en
+  `docPersonal` del resumen de fechas. Se omiten con fechas verificadas y en
+  documentos analizados antes de este cambio. 10 tests de integración
+  (`combinar-con-ia.spec.ts`, incluye un QR real con OpenAI simulado).
 
-Estado al 2026-10-01: typecheck de API y web OK, Jest 18 suites / 154 tests
-OK, ESLint sin errores en los archivos tocados. Commits subidos a
-`origin/main` (hasta `839f6f2`).
+Estado al 2026-10-01: typecheck de API y web OK, Jest 20 suites / 174 tests
+OK, ESLint sin errores en los archivos tocados.
 
 ## Falta
 
-Las fuentes deterministas existen, pero **no llegan al resultado final**:
-`extraer-fechas-doc-personal.ts` no llama a `extraerPorEtiquetas` ni lee
-`paginas[].estructuradas`. Falta la combinación de fuentes (diseño abajo).
+- Interfaz: badges de fuente/estado y documentos detectados.
+- Script de diagnóstico con lecturas por fuente y grupo.
+- Prueba con documentos reales.
+- Si la IA falla (sin saldo, JSON inválido), hoy no se guarda nada aunque
+  haya QR o etiquetas legibles. Posible mejora: usar solo las deterministas.
+- Los documentos ya analizados no tienen `fuentes` hasta volver a
+  analizarlos (análisis global o "Volver a analizar").
 
 ## Diseño: combinación de fuentes (decidido 2026-10-01)
 
@@ -94,19 +108,16 @@ Las fuentes deterministas existen, pero **no llegan al resultado final**:
 
 ## Siguientes pasos
 
-1. Conectar `combinar-fuentes.ts` en `extraer-fechas-doc-personal.ts`, guardar grupos, fuentes y
-   evidencia en `detalleFechasIa`, campo opcional en el DTO y prompt con
-   `ETIQUETAS_POR_TIPO_DESCRIPCION`.
-2. Badges de fuente y estado en `ResumenFechasTabla.tsx`; lecturas por
+1. Badges de fuente y estado en `ResumenFechasTabla.tsx`; lecturas por
    fuente y grupo en `probar-extraccion-archivo.ts`.
-3. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
+2. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
    constancia FIDENA, PDF con varios documentos).
 
 ## Otros hallazgos
 
-- `qr-cadena.spec.ts` falló una vez por tiempo con la suite completa en
-  paralelo (decodifica imágenes de 1700×2200; pasa solo y en la segunda
-  corrida). Posible timeout de 5 s de Jest bajo carga.
+- `qr-cadena.spec.ts` fallaba de forma intermitente con la suite completa
+  (decodificar un QR cuesta ~5 s de CPU, justo el timeout de Jest). Resuelto
+  con timeout de 30 s (`85c070d`).
 
 - `apps/web/` contiene un `.git` anidado antiguo (último commit 31-jul) con
   cambios propios; el repo principal ya controla `apps/web`. Revisar o
@@ -118,3 +129,4 @@ Las fuentes deterministas existen, pero **no llegan al resultado final**:
   `f155e90` y `839f6f2`; se crea este archivo.
 - 2026-10-01: plan de combinación de fuentes.
 - 2026-10-01: `combinar-fuentes.ts` con tests (`7088fa7`).
+- 2026-10-01: motor conectado, DTO y prompt.

@@ -420,3 +420,83 @@ export function combinarFuentes(
     confianza,
   };
 }
+
+// ── Lectura de lo guardado (detalleFechasIa) para la API ───────────────────
+
+/** Fuente y estado de una fecha, tal como se expone en la API. */
+export interface FuenteFechaResumen {
+  fuente: FuenteFecha;
+  coincidente: boolean;
+}
+
+/** Fecha de un documento detectado en el archivo, para la API. */
+export interface DocumentoDetectado {
+  principal: boolean;
+  paginas: number[];
+  fechas: Partial<
+    Record<
+      CampoFecha,
+      { valor: string; precision: PrecisionFecha; fuente: FuenteFecha }
+    >
+  >;
+}
+
+export interface ResumenFuentes {
+  fuentesFechas?: Partial<Record<CampoFecha, FuenteFechaResumen>>;
+  /** Solo si se detectó más de un documento en el archivo. */
+  documentosDetectados?: DocumentoDetectado[];
+}
+
+const esFuente = (v: unknown): v is FuenteFecha =>
+  typeof v === 'string' && v in PRIORIDAD;
+
+/**
+ * Fuente y "Coincidente" por fecha, y los documentos detectados, a partir de
+ * `detalleFechasIa`. Vacío en documentos analizados antes de la combinación
+ * de fuentes y en los que tienen fechas verificadas (sus fechas ya no son
+ * las del análisis).
+ */
+export function resumenFuentes(
+  detalleFechasIa: unknown,
+  fechasVerificadas: boolean,
+): ResumenFuentes {
+  if (fechasVerificadas || !detalleFechasIa) return {};
+  const d = detalleFechasIa as {
+    fuentes?: Partial<Record<CampoFecha, Partial<FuenteCampo>>>;
+    grupos?: GrupoFechas[];
+  };
+  const r: ResumenFuentes = {};
+  if (d.fuentes && typeof d.fuentes === 'object') {
+    const fuentes: ResumenFuentes['fuentesFechas'] = {};
+    for (const campo of CAMPOS) {
+      const f = d.fuentes[campo];
+      if (f?.valor && esFuente(f.fuente)) {
+        fuentes[campo] = {
+          fuente: f.fuente,
+          coincidente: Boolean(f.coincidente),
+        };
+      }
+    }
+    r.fuentesFechas = fuentes;
+  }
+  if (Array.isArray(d.grupos) && d.grupos.length > 1) {
+    r.documentosDetectados = d.grupos.map((g) => ({
+      principal: Boolean(g.principal),
+      paginas: Array.isArray(g.paginas) ? g.paginas : [],
+      fechas: Object.fromEntries(
+        CAMPOS.flatMap((c) => {
+          const f = g.fechas?.[c];
+          return f
+            ? [
+                [
+                  c,
+                  { valor: f.valor, precision: f.precision, fuente: f.fuente },
+                ],
+              ]
+            : [];
+        }),
+      ),
+    }));
+  }
+  return r;
+}

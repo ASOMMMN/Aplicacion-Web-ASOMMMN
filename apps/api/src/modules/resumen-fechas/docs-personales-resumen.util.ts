@@ -10,6 +10,7 @@ import {
   EstadoExtraccion,
   estadoExtraccion,
 } from '../docs-personales/ia/estado-extraccion';
+import { resumenFuentes } from '../docs-personales/ia/combinar-fuentes';
 
 export interface DocPersonalFechas {
   _id?: { toString(): string };
@@ -26,6 +27,7 @@ export interface DocPersonalFechas {
   precisionFechas?: PrecisionFechas;
   extraccionError?: string | null;
   analisisIa?: { error?: string } | null;
+  detalleFechasIa?: unknown;
 }
 
 const aISO = (valor: Date | string | null | undefined): string | null => {
@@ -86,6 +88,10 @@ export function resumenDocumentosPersonales(
                 fechasVerificadas: Boolean(doc.fechasVerificadas),
                 extraccionEstado: extraccion.estado,
                 extraccionError: extraccion.error,
+                ...resumenFuentes(
+                  doc.detalleFechasIa,
+                  Boolean(doc.fechasVerificadas),
+                ),
               },
             }
           : {}),

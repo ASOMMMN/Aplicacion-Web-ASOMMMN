@@ -87,8 +87,19 @@ export function cambiosPorAnalisis(
           }
         : { extraccionEstado: 'sin_fechas', extraccionError: null };
 
+  // Evidencia por fecha y, si hubo lecturas deterministas, la combinación:
+  // fuentes[campo], todos los documentos detectados y el texto de QR/cadena.
   const detalleFechasIa = res.detalle
-    ? (res.detalle as unknown as Record<string, unknown>)
+    ? ({
+        ...res.detalle,
+        ...(res.fuentes ? { fuentes: res.fuentes } : {}),
+        ...(res.grupos?.length
+          ? { grupos: res.grupos, principal: res.principal ?? null }
+          : {}),
+        ...(res.evidenciaEstructurada?.length
+          ? { evidenciaEstructurada: res.evidenciaEstructurada }
+          : {}),
+      } as Record<string, unknown>)
     : undefined;
   if (opciones.fechasVerificadas) {
     return {

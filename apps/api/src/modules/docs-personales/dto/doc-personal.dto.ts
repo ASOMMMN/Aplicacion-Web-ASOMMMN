@@ -15,6 +15,10 @@ import {
 } from '../constants/tipos-doc-personal';
 import { ESTADOS_EXTRACCION, EstadoExtraccion } from '../ia/estado-extraccion';
 import type { PrecisionFechas } from '../schemas/doc-personal.schema';
+import type {
+  DocumentoDetectado,
+  FuenteFechaResumen,
+} from '../ia/combinar-fuentes';
 
 export class SubirDocPersonalDto {
   @ApiProperty({
@@ -94,6 +98,27 @@ export class DocPersonalResponseDto {
     nullable: true,
   })
   tipoSospechoso: { tipoElegido: string; tipoDetectado: string } | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Por fecha: de dónde salió (qr | texto | ia) y si una fuente determinista la confirma (coincidente). Ausente en documentos analizados antes o con fechas verificadas.',
+    example: {
+      fechaEmision: { fuente: 'qr', coincidente: true },
+      fechaVencimiento: { fuente: 'texto', coincidente: false },
+    },
+  })
+  fuentesFechas?: Partial<
+    Record<
+      'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      FuenteFechaResumen
+    >
+  >;
+
+  @ApiPropertyOptional({
+    description:
+      'Solo si el archivo trae más de un documento: las fechas de cada uno; las oficiales son las del principal (vencimiento más reciente).',
+  })
+  documentosDetectados?: DocumentoDetectado[];
 
   @ApiPropertyOptional({
     description: 'Último análisis con IA; ausente = nunca se analizó.',

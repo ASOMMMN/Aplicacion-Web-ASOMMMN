@@ -2,6 +2,7 @@ import type { CursoCV } from '../ingest-ia/schemas/extraccion.schema';
 import type { EstadoVigencia } from './vigencia.util';
 import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
 import type { PrecisionFechas } from '../docs-personales/schemas/doc-personal.schema';
+import type { ResumenFuentes } from '../docs-personales/ia/combinar-fuentes';
 
 /**
  * Origen del dato:
@@ -55,7 +56,7 @@ export interface ResumenFechaItem {
   docPersonal?: DocPersonalResumen;
 }
 
-export interface DocPersonalResumen {
+export interface DocPersonalResumen extends ResumenFuentes {
   id: string;
   /** La validación marcó alguna fecha para revisión. */
   revisarFechas: boolean;

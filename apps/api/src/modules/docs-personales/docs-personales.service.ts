@@ -20,6 +20,7 @@ import { configLecturaDesdeEnv } from './ia/lectura-documento';
 import { configReintentosDesdeEnv } from '../../common/utils/openai-errores.util';
 import { cambiosPorAnalisis } from './ia/cambios-analisis';
 import { estadoExtraccion } from './ia/estado-extraccion';
+import { resumenFuentes } from './ia/combinar-fuentes';
 import type { ResultadoExtraccionFechas } from './ia/extraer-fechas-doc-personal';
 
 import { StorageService } from '../storage/storage.service';
@@ -128,6 +129,7 @@ export class DocsPersonalesService {
       revisarFechas: Boolean(doc.revisarFechas),
       motivosRevision: doc.motivosRevision ?? [],
       tipoSospechoso: doc.tipoSospechoso ?? null,
+      ...resumenFuentes(doc.detalleFechasIa, Boolean(doc.fechasVerificadas)),
       analizadoEn: doc.analisisIa?.analizadoEn,
       errorAnalisis: doc.analisisIa?.error,
       fechasVerificadas: Boolean(doc.fechasVerificadas),
@@ -737,13 +739,14 @@ export class DocsPersonalesService {
         | 'extraccionEstado'
         | 'extraccionError'
         | 'precisionFechas'
+        | 'detalleFechasIa'
       > & { _id: Types.ObjectId }
     >
   > {
     return this.docModel
       .find({ postulanteId: new Types.ObjectId(postulanteId) })
       .select(
-        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError precisionFechas',
+        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError precisionFechas detalleFechasIa',
       )
       .sort({ subidasEn: -1 })
       .lean();

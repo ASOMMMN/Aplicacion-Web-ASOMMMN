@@ -34,6 +34,8 @@ import {
   TipoSospechoso,
   validarFechasDocPersonal,
 } from './validar-fechas-doc-personal';
+import { combinarFuentes, FuenteCampo, GrupoFechas } from './combinar-fuentes';
+import { extraerPorEtiquetas, LecturaFecha } from './extractor-etiquetas';
 
 export {
   construirPromptDocPersonal,
@@ -110,8 +112,23 @@ export interface ExtraerDocPersonalIaResponse {
   tipoSospechoso?: TipoSospechoso | null;
   /** Fechas propuestas por el modelo que la validación descartó (motivos). */
   fechasDescartadas?: string[];
+  /**
+   * Combinación con las lecturas deterministas (combinar-fuentes.ts): fuente
+   * y "Coincidente" por fecha, documentos detectados y el principal.
+   */
+  fuentes?: Record<CampoFecha, FuenteCampo>;
+  grupos?: GrupoFechas[];
+  principal?: number | null;
+  /** Texto de los QR y de la cadena original (evidencia, aunque sea una URL). */
+  evidenciaEstructurada?: EvidenciaEstructurada[];
   iaDisponible: boolean;
   errorMensaje?: string;
+}
+
+export interface EvidenciaEstructurada {
+  pagina: number;
+  origen: 'qr' | 'cadena_original';
+  texto: string;
 }
 
 // ── Normalización de la respuesta ──────────────────────────────────────────
@@ -239,6 +256,104 @@ function quitarCercoJson(texto: string): string {
     .trim();
 }
 
+// ── Combinación con las fuentes deterministas ──────────────────────────────
+
+/** Etiquetas del texto de cada página + QR y cadena original. */
+export function lecturasDeterministas(
+  doc: Pick<DocumentoLeido, 'paginas'>,
+  formatoIndicado?: string | null,
+): LecturaFecha[] {
+  return doc.paginas.flatMap((p) => [
+    ...p.estructuradas.flatMap((e) => e.lecturas),
+    ...extraerPorEtiquetas(p.texto, {
+      pagina: p.numero,
+      fuente: 'texto',
+      formatoIndicado,
+    }),
+  ]);
+}
+
+const sinRepetir = (xs: string[]) => [...new Set(xs)];
+
+/**
+ * Combina la respuesta de la IA ya validada con las lecturas deterministas
+ * y vuelve a aplicar la validación (orden, rango, fechas futuras, tipos que
+ * no vencen) a las fechas combinadas. Sin lecturas deterministas, la
+ * respuesta de la IA queda igual (solo se agrega la fuente "ia").
+ */
+export function combinarConIa(
+  tipo: TipoDocPersonal,
+  validado: ExtraerDocPersonalIaResponse,
+  lecturas: LecturaFecha[],
+  evidencia: EvidenciaEstructurada[] = [],
+): ExtraerDocPersonalIaResponse {
+  const comb = combinarFuentes({ lecturas, ia: validado });
+  const extra = {
+    grupos: comb.grupos,
+    principal: comb.principal,
+    ...(evidencia.length ? { evidenciaEstructurada: evidencia } : {}),
+  };
+  if (comb.principal === null) {
+    return { ...validado, fuentes: comb.fuentes, ...extra };
+  }
+
+  const detalle = Object.fromEntries(
+    CAMPOS_FECHA.map((c) => {
+      const f = comb.fuentes[c];
+      const elegida = f.lecturas.find((l) => l.fuente === f.fuente);
+      const fecha: FechaDetectada = {
+        valor: f.valor,
+        textoLiteral: elegida?.textoLiteral ?? null,
+        etiqueta: elegida?.etiqueta ?? null,
+        confianza: comb.confianza[c],
+        precision: f.precision,
+      };
+      return [c, fecha];
+    }),
+  ) as Record<CampoFecha, FechaDetectada>;
+
+  const final = validarFechasDocPersonal(
+    tipo,
+    respuestaDesdeDetalle(detalle, {
+      tipoDetectado: validado.tipoDetectado,
+      formatoFechaIndicado: validado.formatoFechaIndicado,
+    }),
+  );
+
+  // Las fechas que la validación dejó vacías tampoco cuentan como fuente.
+  const fuentes = { ...comb.fuentes };
+  for (const c of CAMPOS_FECHA) {
+    if (fuentes[c].valor && !final.detalle?.[c].valor) {
+      fuentes[c] = {
+        ...fuentes[c],
+        valor: null,
+        fuente: null,
+        coincidente: false,
+      };
+    }
+  }
+  // Los motivos de la validación de la IA solo importan si se usó alguna
+  // fecha de la IA; las deterministas ya se validaron arriba.
+  const usaIa = CAMPOS_FECHA.some((c) => fuentes[c].fuente === 'ia');
+  const motivos = sinRepetir([
+    ...comb.motivosRevision,
+    ...(usaIa ? (validado.motivosRevision ?? []) : []),
+    ...(final.motivosRevision ?? []),
+  ]);
+  return {
+    ...final,
+    revisar: motivos.length > 0,
+    motivosRevision: motivos,
+    tipoSospechoso: final.tipoSospechoso ?? validado.tipoSospechoso ?? null,
+    fechasDescartadas: sinRepetir([
+      ...(validado.fechasDescartadas ?? []),
+      ...(final.fechasDescartadas ?? []),
+    ]),
+    fuentes,
+    ...extra,
+  };
+}
+
 // ── Extracción ─────────────────────────────────────────────────────────────
 
 /** Cómo se leyó el archivo (útil para auditoría y estimación de costo). */
@@ -263,6 +378,8 @@ export interface ResultadoExtraccionFechas {
   imagenesDetalle?: Array<Omit<ImagenPreparada, 'dataUrl'>>;
   /** Lo que propuso el modelo, antes de la validación en código. */
   propuestaModelo?: ExtraerDocPersonalIaResponse;
+  /** Lecturas deterministas (QR, cadena original y etiquetas por página). */
+  lecturasDeterministas?: LecturaFecha[];
   /** Tokens: estimados antes de enviar y reales (usage) de la respuesta. */
   tokens?: {
     estimadoEntrada: number;
@@ -594,13 +711,24 @@ export async function extraerFechasDocPersonal(
     };
   }
 
-  // El modelo propone; el código verifica (día/mes, INE, orden, duración, tipo).
+  // El modelo propone; el código verifica (día/mes, INE, orden, duración,
+  // tipo) y luego se combina con QR, cadena original y etiquetas del texto.
   const propuestaModelo = normalizarRespuesta(parsed);
+  const validado = validarFechasDocPersonal(tipo, propuestaModelo);
+  const lecturas = lecturasDeterministas(doc, validado.formatoFechaIndicado);
+  const evidencia = doc.paginas.flatMap((p) =>
+    p.estructuradas.map((e) => ({
+      pagina: e.pagina,
+      origen: e.origen,
+      texto: e.texto.slice(0, 2000),
+    })),
+  );
   return {
     ...meta,
     tokens,
     respuestaCruda: raw,
     propuestaModelo,
-    resultado: validarFechasDocPersonal(tipo, propuestaModelo),
+    lecturasDeterministas: lecturas,
+    resultado: combinarConIa(tipo, validado, lecturas, evidencia),
   };
 }
