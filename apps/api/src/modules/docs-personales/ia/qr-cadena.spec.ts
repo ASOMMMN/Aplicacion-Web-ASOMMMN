@@ -9,6 +9,8 @@ import {
 
 // Sin datos personales: folios y fechas de ejemplo.
 const CADENA = '||FOLIO:0000000|DICTAMEN:19/12/2025|VIGENCIA:19/12/2027||';
+/** Decodificar QR cuesta ~2-5 s de CPU; con la suite en paralelo pasa de 5 s. */
+const QR_TIMEOUT_MS = 30000;
 
 /** Hoja carta con un QR abajo a la izquierda y "texto" alrededor. */
 async function hojaConQr(contenido: string) {
@@ -26,33 +28,49 @@ async function hojaConQr(contenido: string) {
 }
 
 describe('QR y cadena original', () => {
-  it('lee el QR de una página y sus fechas (DICTAMEN/VIGENCIA)', async () => {
-    const qrs = leerQrs(await hojaConQr(CADENA));
-    expect(qrs).toEqual([CADENA]);
-    const [fuente] = fuentesEstructuradas(1, qrs, '');
-    expect(fuente.origen).toBe('qr');
-    expect(fuente.texto).toBe(CADENA); // evidencia
-    expect(fuente.lecturas.map((l) => `${l.campo}=${l.clave}`)).toEqual([
-      'fechaEmision=2025-12-19',
-      'fechaVencimiento=2027-12-19',
-    ]);
-    expect(fuente.lecturas.every((l) => l.fuente === 'qr')).toBe(true);
-  });
+  it(
+    'lee el QR de una página y sus fechas (DICTAMEN/VIGENCIA)',
+    async () => {
+      const qrs = leerQrs(await hojaConQr(CADENA));
+      expect(qrs).toEqual([CADENA]);
+      const [fuente] = fuentesEstructuradas(1, qrs, '');
+      expect(fuente.origen).toBe('qr');
+      expect(fuente.texto).toBe(CADENA); // evidencia
+      expect(fuente.lecturas.map((l) => `${l.campo}=${l.clave}`)).toEqual([
+        'fechaEmision=2025-12-19',
+        'fechaVencimiento=2027-12-19',
+      ]);
+      expect(fuente.lecturas.every((l) => l.fuente === 'qr')).toBe(true);
+    },
+    QR_TIMEOUT_MS,
+  );
 
-  it('un QR con solo una URL no aporta fechas (se guarda como evidencia)', async () => {
-    const url = 'https://ejemplo.gob.mx/validacion?id=abc';
-    const [fuente] = fuentesEstructuradas(1, leerQrs(await hojaConQr(url)), '');
-    expect(fuente.texto).toBe(url);
-    expect(fuente.lecturas).toEqual([]);
-  });
+  it(
+    'un QR con solo una URL no aporta fechas (se guarda como evidencia)',
+    async () => {
+      const url = 'https://ejemplo.gob.mx/validacion?id=abc';
+      const [fuente] = fuentesEstructuradas(
+        1,
+        leerQrs(await hojaConQr(url)),
+        '',
+      );
+      expect(fuente.texto).toBe(url);
+      expect(fuente.lecturas).toEqual([]);
+    },
+    QR_TIMEOUT_MS,
+  );
 
-  it('página sin QR → ninguno', () => {
-    const c = createCanvas(800, 1000);
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, 800, 1000);
-    expect(leerQrs(c)).toEqual([]);
-  });
+  it(
+    'página sin QR → ninguno',
+    () => {
+      const c = createCanvas(800, 1000);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 800, 1000);
+      expect(leerQrs(c)).toEqual([]);
+    },
+    QR_TIMEOUT_MS,
+  );
 
   it('cadena original en la capa de texto del PDF', () => {
     const texto = `CERTIFICADO MÉDICO\nSello digital: abc123\nCadena Original:\n${CADENA}\nPágina 1 de 1`;
