@@ -31,6 +31,8 @@ SEMAR/DGMM…), combinando fuentes deterministas con la IA:
   en una hoja (`extractor-etiquetas.ts`, `etiquetas.ts`).
 - Lectura de QR y cadena original (`qr-cadena.ts`), llamada desde
   `lectura-documento.ts`, que llena `paginas[].estructuradas`.
+- `ia/combinar-fuentes.ts`: módulo puro que combina lecturas deterministas
+  e IA (prioridad, Coincidente, grupos, principal, motivos). 10 tests.
 
 Estado al 2026-10-01: typecheck de API y web OK, Jest 18 suites / 154 tests
 OK, ESLint sin errores en los archivos tocados. Commits subidos a
@@ -85,21 +87,26 @@ Las fuentes deterministas existen, pero **no llegan al resultado final**:
   el primero en orden de aparición.
 - Confianza: coincidente → alta; conflicto → baja; solo `texto` sin dato de
   la IA → media; solo IA → la que dejó la validación.
+- Si la IA da un campo que el principal no tiene y esa fecha es de otro
+  grupo, no se usa (no se mezclan documentos) y se marca "Revisar".
 - Las validaciones de orden, rango y fechas futuras se aplican al resultado
   combinado, no solo a la propuesta de la IA.
 
 ## Siguientes pasos
 
-1. `ia/combinar-fuentes.ts` (módulo puro) con tests.
-2. Conectarlo en `extraer-fechas-doc-personal.ts`, guardar grupos, fuentes y
+1. Conectar `combinar-fuentes.ts` en `extraer-fechas-doc-personal.ts`, guardar grupos, fuentes y
    evidencia en `detalleFechasIa`, campo opcional en el DTO y prompt con
    `ETIQUETAS_POR_TIPO_DESCRIPCION`.
-3. Badges de fuente y estado en `ResumenFechasTabla.tsx`; lecturas por
+2. Badges de fuente y estado en `ResumenFechasTabla.tsx`; lecturas por
    fuente y grupo en `probar-extraccion-archivo.ts`.
-4. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
+3. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
    constancia FIDENA, PDF con varios documentos).
 
 ## Otros hallazgos
+
+- `qr-cadena.spec.ts` falló una vez por tiempo con la suite completa en
+  paralelo (decodifica imágenes de 1700×2200; pasa solo y en la segunda
+  corrida). Posible timeout de 5 s de Jest bajo carga.
 
 - `apps/web/` contiene un `.git` anidado antiguo (último commit 31-jul) con
   cambios propios; el repo principal ya controla `apps/web`. Revisar o
@@ -110,3 +117,4 @@ Las fuentes deterministas existen, pero **no llegan al resultado final**:
 - 2026-10-01: diagnóstico de la sesión cortada; push de `b4ae5da`,
   `f155e90` y `839f6f2`; se crea este archivo.
 - 2026-10-01: plan de combinación de fuentes.
+- 2026-10-01: `combinar-fuentes.ts` con tests (`7088fa7`).
