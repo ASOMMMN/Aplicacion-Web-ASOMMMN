@@ -161,6 +161,35 @@ OCR (2) e `ia2` (3).
   en el web (`react-hooks/set-state-in-effect` en `NotificacionesBell.tsx`).
   Ojo: `npm run lint` de la API usa `--fix` y reescribe archivos.
 
+## Bug de sesión en producción (2026-10-01)
+
+Síntoma: tras un deploy, un usuario con sesión abierta veía "Sesión
+expirada", luego "ThrottlerException: Too Many Requests" en el panel y "No
+se pudo cerrar la sesión"; en incógnito funcionaba.
+
+Causa: el deploy no invalida tokens (`JWT_SECRET` de entorno; refresh tokens
+aleatorios en Mongo); solo provoca una recarga que pierde el access token en
+memoria. Tras recargar, el layout y el interceptor renovaban en paralelo con
+la misma cookie; la rotación invalida la cookie en el primer uso y el
+segundo recibía 401. El fallo redirigía a /login sin borrar `user_role`, el
+proxy devolvía al panel y se repetía hasta el 429. El logout exigía access
+token y `clearCookie` no repetía `SameSite=None; Secure`, así que en
+producción la cookie vieja nunca se borraba.
+
+Corregido:
+- `c05472a`: `refrescarSesion()` compartida (web/`lib/auth`), solo un 401
+  del refresh limpia la sesión y redirige una vez; 429 o red solo informan.
+  `cerrarSesion()` siempre limpia lo local. Interceptor sin reintento en
+  `/auth/*` ni ante 429. `/auth/logout` sin `JwtAuthGuard` y con
+  `@SkipThrottle`; `clearCookie` con las opciones de `COOKIE_OPTS`.
+- `3e97caa`: rotación atómica (`findOneAndDelete`) y tests HTTP de logout y
+  refresh (`auth.controller.spec.ts`, 5).
+
+Pendiente: verificación manual en el navegador tras el deploy (pasos en la
+conversación del 2026-10-01: un solo `/auth/refresh` al recargar, logout con
+token vencido, sin bucle ante 401/429). `apps/web` no tiene tests
+automatizados. `useAuth` no se usa en ninguna página (se migró igual).
+
 ## Historial
 
 - 2026-10-01: diagnóstico de la sesión cortada; push de `b4ae5da`,
@@ -171,3 +200,4 @@ OCR (2) e `ia2` (3).
 - 2026-10-01: badges en la interfaz y diagnóstico por fuente en el script
   (`62b69dc`).
 - 2026-10-01: revisión del `.git` anidado, verificación completa y push.
+- 2026-10-01: bug de sesión en producción (`c05472a`, `3e97caa`).
