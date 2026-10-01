@@ -8,9 +8,7 @@ Extraer de forma confiable las fechas (emisión, inicio, vencimiento) de los
 documentos personales de los candidatos (refrendos, INE, constancias
 SEMAR/DGMM…), combinando fuentes deterministas con la IA:
 
-**QR / cadena original > extractor por etiquetas > OCR > IA**
-
-Si una fuente determinista y la IA coinciden, la fecha es **"Coincidente"**.
+**QR / cadena original > extractor por etiquetas (capa de texto) > IA**
 
 ## Terminado
 
@@ -41,33 +39,65 @@ OK, ESLint sin errores en los archivos tocados. Commits subidos a
 ## Falta
 
 Las fuentes deterministas existen, pero **no llegan al resultado final**:
+`extraer-fechas-doc-personal.ts` no llama a `extraerPorEtiquetas` ni lee
+`paginas[].estructuradas`. Falta la combinación de fuentes (diseño abajo).
 
-- `extraer-fechas-doc-personal.ts` no llama a `extraerPorEtiquetas` ni lee
-  `paginas[].estructuradas`: los QR se decodifican (1.2–1.6 s de CPU por
-  página) y se descartan. El commit `f155e90` anunciaba "se conecta al motor
-  de extracción en el commit de varios documentos"; ese commit no existe.
-- Falta la combinación por prioridad de fuentes y el estado "Coincidente"
-  (no existe en el schema, los DTO ni la UI).
-- Falta el soporte para varios documentos en un mismo archivo: el extractor
-  ya agrupa, pero `DocPersonal` guarda un solo juego de fechas.
-- `FuenteLectura` declara `'ocr'`, `'ia1'` e `'ia2'`, pero no hay OCR ni
-  segunda pasada de IA (posible fase posterior).
+## Diseño: combinación de fuentes (decidido 2026-10-01)
+
+### Ya decidido en el código (se respeta)
+
+- Prioridad por campo: `qr` (QR o cadena original) > `texto` (etiquetas
+  sobre la capa de texto) > `ia`.
+- Una lectura `qr` basta sola para "Coincidente".
+- Las lecturas se comparan por `clave` (`claveFecha`), que conserva la
+  precisión: "2016" ≠ "2016-01-01".
+- `fechasVerificadas` siempre gana: un análisis nunca toca las fechas ni la
+  marca "Revisar" de un documento verificado (solo guarda evidencia).
+
+### Decisiones nuevas
+
+1. **Varios documentos.** Todos los grupos se guardan en `detalleFechasIa`
+   (sin migrar el schema). Los campos oficiales (`fechaEmision`,
+   `fechaInicio`, `fechaVencimiento`, `precisionFechas`) toman el grupo con
+   el **vencimiento más reciente**. Si hay más de 1 grupo: motivo "Se
+   detectaron N documentos en el archivo" y `revisarFechas = true`.
+2. **Conflicto.** Por campo gana la fuente de mayor prioridad; se marca
+   `revisarFechas` y el motivo incluye ambos valores y sus fuentes.
+3. **Coincidente.** Por campo, en
+   `detalleFechasIa.fuentes[campo] = { valor, precision, fuente, coincidente, lecturas[] }`.
+   Es coincidente si la fuente es `qr`, o si una lectura determinista y la
+   IA tienen la misma `clave`. Una fecha coincidente sube a confianza alta.
+4. **IA contra grupos.** La IA se compara contra el grupo principal. Si
+   coincide con otro grupo, se marca "Revisar". Sin lecturas deterministas,
+   el flujo queda como hoy.
+5. **Alcance.** `ocr`, `ia1` e `ia2` no se implementan ahora (OCR es fase 2).
+   `ETIQUETAS_POR_TIPO_DESCRIPCION` se conecta al prompt. La URL de un QR
+   solo se guarda como evidencia (no se abre).
+
+### Detalles de implementación (elegidos al implementar)
+
+- Los grupos del extractor son locales a cada texto (página y fuente). Para
+  formar los documentos del archivo, se unen las lecturas de una misma
+  página con fuentes distintas si comparten alguna `clave` en el mismo
+  campo, y se unen grupos sin campos en conflicto (se complementan, p. ej.
+  emisión en la página 1 y vencimiento en la 2).
+- Principal: vencimiento más reciente; si ningún grupo tiene vencimiento,
+  el primero en orden de aparición.
+- Confianza: coincidente → alta; conflicto → baja; solo `texto` sin dato de
+  la IA → media; solo IA → la que dejó la validación.
+- Las validaciones de orden, rango y fechas futuras se aplican al resultado
+  combinado, no solo a la propuesta de la IA.
 
 ## Siguientes pasos
 
-1. **Conectar el motor**: en `extraerFechasDocPersonal`, correr
-   `extraerPorEtiquetas` sobre el texto de cada página (fuente `texto`) y
-   juntarlo con `paginas[].estructuradas` (fuente `qr`).
-2. **Combinar con la IA**: aplicar la prioridad, marcar "Coincidente" cuando
-   una fuente determinista y la IA coinciden, y "Revisar" cuando no.
-   Reaprovechar `validar-fechas-doc-personal.ts`.
-3. **Decidir el modelo de datos para varios documentos** (pendiente de
-   decisión): guardarlos todos (schema, DTO, tabla del resumen) o conservar
-   uno y avisar.
-4. Mostrar la fuente / "Coincidente" en `ResumenFechasTabla.tsx` y las
-   lecturas por fuente en `probar-extraccion-archivo.ts`.
-5. Tests de la combinación de fuentes y prueba con documentos reales
-   (constancia SEMAR, refrendo, INE).
+1. `ia/combinar-fuentes.ts` (módulo puro) con tests.
+2. Conectarlo en `extraer-fechas-doc-personal.ts`, guardar grupos, fuentes y
+   evidencia en `detalleFechasIa`, campo opcional en el DTO y prompt con
+   `ETIQUETAS_POR_TIPO_DESCRIPCION`.
+3. Badges de fuente y estado en `ResumenFechasTabla.tsx`; lecturas por
+   fuente y grupo en `probar-extraccion-archivo.ts`.
+4. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
+   constancia FIDENA, PDF con varios documentos).
 
 ## Otros hallazgos
 
@@ -79,3 +109,4 @@ Las fuentes deterministas existen, pero **no llegan al resultado final**:
 
 - 2026-10-01: diagnóstico de la sesión cortada; push de `b4ae5da`,
   `f155e90` y `839f6f2`; se crea este archivo.
+- 2026-10-01: plan de combinación de fuentes.
