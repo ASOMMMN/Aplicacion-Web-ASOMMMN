@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Swal from 'sweetalert2';
-import api from '@/lib/api/client';
+import { cerrarSesion, refrescarSesion, tokenActual } from '@/lib/auth/refrescarSesion';
+import { avisarFalloSesion } from '@/lib/auth/avisarFalloSesion';
 import NavbarENMV from '@/components/layout/NavbarENMV';
 import FooterENMV from '@/components/layout/FooterENMV';
 import { NotificacionesBell } from '@/components/layout/NotificacionesBell';
@@ -21,33 +21,17 @@ export default function EvaluadorLayout({
 }) {
   const router = useRouter();
 
+  // Tras recargar no hay token en memoria: se renueva con la cookie (la
+  // misma petición que usa el interceptor). Si expiró, refrescarSesion ya
+  // limpia la sesión y redirige a /login.
   useEffect(() => {
-    if (typeof window !== 'undefined' && !(window as Window & { __asommmn_token?: string | null }).__asommmn_token) {
-      api
-        .post<{ accessToken: string; rol: string }>('/auth/refresh')
-        .then(({ data }) => {
-          (window as Window & { __asommmn_token?: string | null }).__asommmn_token = data.accessToken;
-          // Re-sincroniza el cookie de rol con el rol actual en BD: si cambió
-          // desde el último login, evita que el proxy siga enrutando con el rol viejo.
-          document.cookie = `user_role=${data.rol}; path=/; SameSite=Strict`;
-          if (data.rol !== 'evaluador') {
-            router.replace(ROLE_HOME[data.rol] ?? '/login');
-          }
-        })
-        .catch(() => router.push('/login'));
-    }
+    if (tokenActual()) return;
+    refrescarSesion()
+      .then(({ rol }) => {
+        if (rol !== 'evaluador') router.replace(ROLE_HOME[rol] ?? '/login');
+      })
+      .catch(avisarFalloSesion);
   }, [router]);
-
-  const handleLogout = async () => {
-    try {
-      await api.post('/auth/logout');
-      (window as Window & { __asommmn_token?: string | null }).__asommmn_token = null;
-      document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
-      router.push('/login');
-    } catch {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cerrar la sesión.' });
-    }
-  };
 
   return (
     <div className="d-flex flex-column min-vh-100">
@@ -55,7 +39,7 @@ export default function EvaluadorLayout({
         brandHref="/candidatos"
         rolLabel="Evaluador"
         navItems={NAV_ITEMS}
-        onLogout={handleLogout}
+        onLogout={cerrarSesion}
         rightContent={<NotificacionesBell />}
       />
       <main className="flex-grow-1">{children}</main>

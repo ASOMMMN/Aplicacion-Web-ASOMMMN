@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api/client';
 import { session } from '@/lib/auth/session';
+import { cerrarSesion, refrescarSesion } from '@/lib/auth/refrescarSesion';
 import { ROLE_HOME } from '@/lib/auth/roleHome';
 
 export function useAuth() {
@@ -17,15 +18,14 @@ export function useAuth() {
     apellidos: string;
   } | null>(null);
 
-  // Al montar, intenta renovar el access token con el refresh cookie
+  // Al montar, intenta renovar el access token con el refresh cookie (la
+  // misma petición compartida que usan el interceptor y los layouts). Solo
+  // un 401 limpia la sesión; eso lo hace refrescarSesion.
   const initSession = useCallback(async () => {
     try {
-      const { data } = await api.post<{ accessToken: string; rol: string }>('/auth/refresh');
-      // El rol viene del backend (usuario actual en BD), no del cookie local,
-      // para que un cambio de rol se refleje sin tener que volver a hacer login.
-      session.set(data.accessToken, data.rol);
+      await refrescarSesion();
     } catch {
-      session.clear();
+      // 401: sesión ya limpiada; 429 o red: se conserva para reintentar luego.
     } finally {
       setLoading(false);
     }
@@ -78,15 +78,11 @@ export function useAuth() {
     [router],
   );
 
+  // Siempre limpia la sesión local y va a /login, aunque el servidor falle.
   const logout = useCallback(async () => {
-    try {
-      await api.post('/auth/logout');
-    } finally {
-      session.clear();
-      setUser(null);
-      router.push('/login');
-    }
-  }, [router]);
+    setUser(null);
+    await cerrarSesion();
+  }, []);
 
   return { user, loading, login, logout };
 }

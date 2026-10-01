@@ -47,6 +47,15 @@ const COOKIE_OPTS = {
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
+// Para borrarla hay que repetir secure y sameSite: en producción el navegador
+// ignora un Set-Cookie cross-site sin "SameSite=None; Secure" y la cookie
+// vieja seguía ahí ("Sesión expirada" en la siguiente visita).
+const CLEAR_COOKIE_OPTS = {
+  httpOnly: COOKIE_OPTS.httpOnly,
+  secure: COOKIE_OPTS.secure,
+  sameSite: COOKIE_OPTS.sameSite,
+  path: COOKIE_OPTS.path,
+};
 
 @ApiTags('auth')
 @Controller('auth')
@@ -123,12 +132,12 @@ export class AuthController {
     const result = await this.authService.login(dto, ip, ua);
 
     if (result.requiresPasswordChange) {
-      res.clearCookie(COOKIE_NAME, { path: '/' });
+      res.clearCookie(COOKIE_NAME, CLEAR_COOKIE_OPTS);
       return result;
     }
 
     if (result.requiresMfa) {
-      res.clearCookie(COOKIE_NAME, { path: '/' });
+      res.clearCookie(COOKIE_NAME, CLEAR_COOKIE_OPTS);
       return result;
     }
 
@@ -219,15 +228,18 @@ export class AuthController {
     return { accessToken: result.accessToken, rol: result.rol };
   }
 
+  // Sin JwtAuthGuard: con el access token vencido o perdido (p. ej. tras
+  // recargar) el logout fallaba con 401 y la sesión quedaba abierta. El
+  // refresh token se identifica por la cookie httpOnly: solo quien la tiene
+  // puede revocarlo. Sin límite, para que cerrar sesión nunca dé 429.
   @Post('logout')
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access-token')
+  @SkipThrottle()
   @ApiOperation({ summary: 'Cerrar sesión (revoca refresh token actual)' })
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = req.cookies?.[COOKIE_NAME] as string | undefined;
     if (token) await this.authService.logout(token);
-    res.clearCookie(COOKIE_NAME, { path: '/' });
+    res.clearCookie(COOKIE_NAME, CLEAR_COOKIE_OPTS);
     return { message: 'Sesión cerrada.' };
   }
 
@@ -241,7 +253,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.authService.logoutAll(user.userId);
-    res.clearCookie(COOKIE_NAME, { path: '/' });
+    res.clearCookie(COOKIE_NAME, CLEAR_COOKIE_OPTS);
     return { message: 'Todas las sesiones cerradas.' };
   }
 

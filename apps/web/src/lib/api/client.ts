@@ -1,4 +1,5 @@
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { MENSAJES_FALLO_SESION, refrescarSesion, tokenActual } from '@/lib/auth/refrescarSesion';
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 if (!apiUrl) {
@@ -10,67 +11,52 @@ const api = axios.create({
   withCredentials: true, // envía la cookie refresh_token automáticamente
 });
 
+type ConfigConToken = InternalAxiosRequestConfig & {
+  /** Token con el que salió la petición (null = sin token). */
+  _tokenEnviado?: string | null;
+  _retry?: boolean;
+};
+
 // Inyecta el access token en cada petición
-api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    // La sesión es un singleton; importamos dinámicamente para evitar
-    // el problema de módulos circulares entre client.ts ↔ session.ts
-    // La forma limpia es un módulo de token que solo exporta get/set.
-    const token = (window as Window & { __asommmn_token?: string | null }).__asommmn_token as string | undefined;
-    if (token) config.headers['Authorization'] = `Bearer ${token}`;
-  }
+api.interceptors.request.use((config: ConfigConToken) => {
+  const token = tokenActual();
+  config._tokenEnviado = token;
+  if (token) config.headers['Authorization'] = `Bearer ${token}`;
   return config;
 });
 
-// Renueva el access token transparentemente cuando expira
-let isRefreshing = false;
-let pendingQueue: Array<{
-  
-  resolve: (token: string) => void;
-  reject: (err: unknown) => void;
-}> = [];
+/** El mensaje genérico del Throttler se reemplaza; los propios (p. ej. IA) se conservan. */
+function conMensajeDeLimite(error: AxiosError<{ message?: unknown }>) {
+  const data = error.response?.data;
+  const mensaje = typeof data?.message === 'string' ? data.message : '';
+  if (error.response && (!mensaje || /ThrottlerException|Too Many Requests/i.test(mensaje))) {
+    error.response.data = { ...data, message: MENSAJES_FALLO_SESION.limite };
+  }
+  return error;
+}
 
+// Renueva el access token cuando expira. Nunca reintenta ante un 429 ni en
+// /auth/* (login, refresh, logout… no deben disparar otro refresh).
 api.interceptors.response.use(
   (res) => res,
-  async (error) => {
-    const original = error.config;
-    const url: string = original?.url ?? '';
-    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh');
-
-    if (error.response?.status === 401 && !original._retry && !isAuthEndpoint) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          pendingQueue.push({
-            resolve: (token) => {
-              original.headers['Authorization'] = `Bearer ${token}`;
-              resolve(api(original));
-            },
-            reject,
-          });
-        });
-      }
-
-      original._retry = true;
-      isRefreshing = true;
-
-      try {
-        const { data } = await api.post<{ accessToken: string }>('/auth/refresh');
-        const newToken = data.accessToken;
-        (window as Window & { __asommmn_token?: string | null }).__asommmn_token = newToken;
-        pendingQueue.forEach(({ resolve }) => resolve(newToken));
-        pendingQueue = [];
-        original.headers['Authorization'] = `Bearer ${newToken}`;
-        return api(original);
-      } catch (refreshError) {
-        pendingQueue.forEach(({ reject }) => reject(refreshError));
-        pendingQueue = [];
-        if (typeof window !== 'undefined') window.location.href = '/login';
-        return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
-      }
+  async (error: AxiosError<{ message?: unknown }>) => {
+    const original = error.config as ConfigConToken | undefined;
+    const status = error.response?.status;
+    if (status === 429) return Promise.reject(conMensajeDeLimite(error));
+    if (status !== 401 || !original || original._retry || (original.url ?? '').includes('/auth/')) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+    original._retry = true;
+
+    // Salió sin token (p. ej. justo tras recargar) y otra parte de la página
+    // ya renovó la sesión: basta reenviarla, sin otro /auth/refresh.
+    const actual = tokenActual();
+    const token =
+      actual && actual !== original._tokenEnviado
+        ? actual
+        : (await refrescarSesion()).accessToken; // ErrorSesion se propaga con su mensaje
+    original.headers['Authorization'] = `Bearer ${token}`;
+    return api(original);
   },
 );
 

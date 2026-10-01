@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Swal from 'sweetalert2';
-import api from '@/lib/api/client';
+import { cerrarSesion, refrescarSesion, tokenActual } from '@/lib/auth/refrescarSesion';
+import { avisarFalloSesion } from '@/lib/auth/avisarFalloSesion';
 import NavbarENMV from '@/components/layout/NavbarENMV';
 import type { NavItem } from '@/components/layout/NavbarENMV';
 import FooterENMV from '@/components/layout/FooterENMV';
@@ -66,37 +66,18 @@ export default function MiNubeLayout({
     return () => window.clearTimeout(timer);
   }, [router]);
 
+  // Tras recargar no hay token en memoria: se renueva con la cookie (la
+  // misma petición que usa el interceptor). Si expiró, refrescarSesion ya
+  // limpia la sesión y redirige a /login.
   useEffect(() => {
-    if (
-      typeof window !== 'undefined' &&
-      !(window as Window & { __asommmn_token?: string | null }).__asommmn_token
-    ) {
-      api
-        .post<{ accessToken: string; rol: string }>('/auth/refresh')
-        .then(({ data }) => {
-          (window as Window & { __asommmn_token?: string | null }).__asommmn_token = data.accessToken;
-          // Re-sincroniza el cookie de rol con el rol actual en BD: si cambió
-          // desde el último login, evita que se siga usando el rol viejo.
-          document.cookie = `user_role=${data.rol}; path=/; SameSite=Strict`;
-          setRol(esRolConNube(data.rol) ? data.rol : null);
-          if (!esRolConNube(data.rol)) {
-            router.push('/dashboard');
-          }
-        })
-        .catch(() => router.push('/login'));
-    }
+    if (tokenActual()) return;
+    refrescarSesion()
+      .then(({ rol: rolBd }) => {
+        setRol(esRolConNube(rolBd) ? rolBd : null);
+        if (!esRolConNube(rolBd)) router.push('/dashboard');
+      })
+      .catch(avisarFalloSesion);
   }, [router]);
-
-  const handleLogout = async () => {
-    try {
-      await api.post('/auth/logout');
-      (window as Window & { __asommmn_token?: string | null }).__asommmn_token = null;
-      document.cookie = 'user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
-      router.push('/login');
-    } catch {
-      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cerrar la sesión.' });
-    }
-  };
 
   if (!rol) return null;
 
@@ -108,7 +89,7 @@ export default function MiNubeLayout({
         brandHref={brandHref}
         rolLabel={rolLabel}
         navItems={navItems}
-        onLogout={handleLogout}
+        onLogout={cerrarSesion}
       />
       <main className="flex-grow-1">{children}</main>
       <FooterENMV />

@@ -1,14 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-const PUBLIC_PREFIXES = [
-  "/login",
-  "/cambiar-contrasena",
-  "/registro",
-  "/recuperar-contrasena",
-  "/restablecer-contrasena",
-  "/verificar-email",
-];
+import { esRutaPublica } from "@/lib/auth/rutasPublicas";
 
 const ROLE_HOME: Record<string, string> = {
   postulante: "/dashboard",
@@ -44,7 +36,7 @@ export function proxy(request: NextRequest) {
   const rawRole = request.cookies.get("user_role")?.value;
   const role = rawRole && VALID_ROLES.has(rawRole) ? rawRole : undefined;
 
-  const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+  const isPublic = esRutaPublica(pathname);
 
   const withClearedRoleCookie = (response: NextResponse) => {
     if (rawRole && !role) {
