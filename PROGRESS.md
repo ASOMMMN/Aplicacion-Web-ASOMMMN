@@ -57,17 +57,34 @@ SEMAR/DGMM…), combinando fuentes deterministas con la IA:
   ven aunque la IA falle.
 
 Estado al 2026-10-01: typecheck de API y web OK, Jest 20 suites / 175 tests
-OK, ESLint sin errores en los archivos tocados. La interfaz no se probó en
-el navegador (necesita la app con base de datos y documentos re-analizados).
+OK. ESLint completo: 196 problemas en la API y 1 en el web, todos previos y
+en archivos que este trabajo no toca (ver "Otros hallazgos"). La interfaz
+no se probó en el navegador (necesita la app con base de datos y
+documentos re-analizados).
 
 ## Falta
 
-- Prueba con documentos reales (faltan las rutas de los archivos).
-- Ver la interfaz funcionando con documentos re-analizados.
-- Si la IA falla (sin saldo, JSON inválido), hoy no se guarda nada aunque
-  haya QR o etiquetas legibles. Posible mejora: usar solo las deterministas.
-- Los documentos ya analizados no tienen `fuentes` hasta volver a
-  analizarlos (análisis global o "Volver a analizar").
+1. **Prueba con documentos reales** (bloqueada: faltan las rutas). Correr
+   `probar-extraccion-archivo.ts` con la constancia SEMAR/DGMM, el refrendo
+   escaneado, la INE, la constancia FIDENA y un PDF con varios documentos;
+   tabla esperado vs. obtenido, fuente, estado, principal y ms/página.
+   Contar cuántos fallan por falta de capa de texto: eso decide si entra
+   OCR.
+2. **OCR (fase 2, `fuente: 'ocr'`)**: para escaneos sin capa de texto, el
+   único lector determinista hoy es el QR, y en refrendos escaneados no se
+   alcanza a leer (pequeño y borroso). Depende del punto 1. Ya está previsto
+   en `FuenteLectura` y en la prioridad (`qr > texto > ocr > ia`).
+3. **Segunda pasada de IA (`ia2`)**: no implementada. Idea: segunda lectura
+   independiente (otro recorte o modelo) cuando no hay fuente determinista,
+   para poder dar "Coincidente" sin QR ni texto. Hoy `ia1`/`ia2` se tratan
+   como `ia` en `combinar-fuentes.ts`. Decidir después del punto 1 (cuesta
+   el doble de tokens por documento).
+4. Ver la interfaz funcionando con documentos re-analizados.
+5. Si la IA falla (sin saldo, JSON inválido), hoy no se guarda nada aunque
+   haya QR o etiquetas legibles. Posible mejora: usar solo las
+   deterministas (las lecturas ya se calculan antes de llamar al modelo).
+6. Los documentos ya analizados no tienen `fuentes` hasta volver a
+   analizarlos (análisis global o "Volver a analizar").
 
 ## Diseño: combinación de fuentes (decidido 2026-10-01)
 
@@ -119,8 +136,8 @@ el navegador (necesita la app con base de datos y documentos re-analizados).
 
 ## Siguientes pasos
 
-1. Prueba con documentos reales (constancia SEMAR/DGMM, refrendo, INE,
-   constancia FIDENA, PDF con varios documentos).
+Ver "Falta": primero la prueba con documentos reales (1); de ella dependen
+OCR (2) e `ia2` (3).
 
 ## Otros hallazgos
 
@@ -128,9 +145,21 @@ el navegador (necesita la app con base de datos y documentos re-analizados).
   (decodificar un QR cuesta ~5 s de CPU, justo el timeout de Jest). Resuelto
   con timeout de 30 s (`85c070d`).
 
-- `apps/web/` contiene un `.git` anidado antiguo (último commit 31-jul) con
-  cambios propios; el repo principal ya controla `apps/web`. Revisar o
-  eliminar más adelante.
+- `apps/web/.git` (repo anidado, revisado 2026-10-01): 2 commits (23 y
+  31-jul), sin stash ni ramas extra, `main` = `origin/main`
+  (`MarcoAntonioLagunes/ASOMMMN-APP-WEB`, ya subido). De los 77 archivos de
+  cada commit, 76 existen idénticos en el repo principal; el único que no
+  es `dev.log` (749 bytes de log de `next dev`, ignorado por `*.log`). No es
+  submódulo (sin `.gitmodules` ni gitlink) y no tiene hooks. Sus "cambios"
+  son el directorio de trabajo, que el repo principal siguió modificando.
+  Conclusión: **se puede borrar sin perder datos**; no se borró. Única
+  precaución: si algún sitio de Netlify está enlazado a `ASOMMMN-APP-WEB`,
+  sigue en la versión del 31-jul (borrar el `.git` local no lo cambia).
+- ESLint completo (sin `--fix`), previo a este trabajo: 196 problemas en la
+  API en 23 archivos (sobre todo `no-unsafe-*` en `evaluaciones.service.ts`,
+  `main.ts`, `postulantes.service.ts`, `mfa.service.ts`; 51 de formato) y 1
+  en el web (`react-hooks/set-state-in-effect` en `NotificacionesBell.tsx`).
+  Ojo: `npm run lint` de la API usa `--fix` y reescribe archivos.
 
 ## Historial
 
@@ -139,4 +168,6 @@ el navegador (necesita la app con base de datos y documentos re-analizados).
 - 2026-10-01: plan de combinación de fuentes.
 - 2026-10-01: `combinar-fuentes.ts` con tests (`7088fa7`).
 - 2026-10-01: motor conectado, DTO y prompt (`3fb1397`).
-- 2026-10-01: badges en la interfaz y diagnóstico por fuente en el script.
+- 2026-10-01: badges en la interfaz y diagnóstico por fuente en el script
+  (`62b69dc`).
+- 2026-10-01: revisión del `.git` anidado, verificación completa y push.
