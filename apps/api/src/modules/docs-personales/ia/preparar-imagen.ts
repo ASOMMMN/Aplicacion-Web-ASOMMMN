@@ -29,11 +29,39 @@ export interface OpcionesPreparacion {
   ladoMaxPx: number;
   /** Rotación extra en grados horarios (la sugiere un intento anterior). */
   rotacionExtra?: 0 | 90 | 180 | 270;
+  /**
+   * Multiplica el alto de cada banda: < 1 = bandas más bajas, más ampliadas
+   * y con cortes en otros renglones (lecturas 2 y 3).
+   */
+  factorBanda?: number;
+  /** Vista general en detalle "high" (página completa legible). */
+  vistaGeneralAlta?: boolean;
 }
 
 export const OPCIONES_PREPARACION_POR_DEFECTO: OpcionesPreparacion = {
   maxPartes: 6,
   ladoMaxPx: 2048,
+};
+
+/**
+ * Preparaciones distintas del mismo documento para la doble lectura:
+ * - normal: la de siempre.
+ * - alterna: página completa en detalle alto + bandas más bajas (otros
+ *   cortes y más ampliación).
+ * - desempate: bandas aún más bajas (máxima ampliación de los dígitos).
+ */
+export type VariantePreparacion = 'normal' | 'alterna' | 'desempate';
+
+export const AJUSTES_VARIANTE: Record<
+  VariantePreparacion,
+  Pick<OpcionesPreparacion, 'factorBanda' | 'vistaGeneralAlta'> & {
+    /** Multiplica maxPartes para que las bandas más bajas no se descarten. */
+    factorPartes: number;
+  }
+> = {
+  normal: { factorBanda: 1, vistaGeneralAlta: false, factorPartes: 1 },
+  alterna: { factorBanda: 0.7, vistaGeneralAlta: true, factorPartes: 1.5 },
+  desempate: { factorBanda: 0.5, vistaGeneralAlta: false, factorPartes: 2 },
 };
 
 /** OpenAI (detail "high") reduce cada imagen a 768 px de lado corto. */
@@ -49,6 +77,8 @@ export interface ImagenPreparada {
   partes: number;
   /** Rotación aplicada en grados horarios. */
   rotacion: number;
+  /** Detalle con que se envía a OpenAI (por defecto: general "low", partes "high"). */
+  detalle?: 'low' | 'high';
 }
 
 interface Caja {
@@ -244,7 +274,7 @@ export function dividirEnBandas(
   y: number,
   h: number,
   anchoBloque: number,
-  opciones: { anchoRealPx?: number; ladoMax?: number } = {},
+  opciones: { anchoRealPx?: number; ladoMax?: number; factor?: number } = {},
 ): Array<{ y: number; h: number }> {
   // anchoRealPx: ancho del bloque en la imagen original (si y/h/anchoBloque
   // vienen de la copia reducida de análisis).
@@ -255,7 +285,10 @@ export function dividirEnBandas(
     LADO_CORTO_OPENAI / ladoMax,
     LADO_CORTO_OPENAI / Math.min(real, ladoMax),
   );
-  const altoBanda = Math.round(anchoBloque * proporcion);
+  const altoBanda = Math.max(
+    1,
+    Math.round(anchoBloque * proporcion * (opciones.factor ?? 1)),
+  );
   if (h <= altoBanda * 1.15) return [{ y, h }];
   const n = Math.ceil((h - altoBanda * 0.1) / (altoBanda * 0.9));
   const paso = (h - altoBanda) / (n - 1);
@@ -327,6 +360,7 @@ export function prepararPagina(
       for (const banda of dividirEnBandas(b.y, b.h, cajaA.w, {
         anchoRealPx: cajaA.w / escala,
         ladoMax: opciones.ladoMaxPx,
+        factor: opciones.factorBanda,
       })) {
         partes.push(
           aOriginal({ x: cajaA.x, y: banda.y, w: cajaA.w, h: banda.h }),
@@ -341,7 +375,7 @@ export function prepararPagina(
   const finales = partes.length > opciones.maxPartes ? [cajaPagina] : partes;
 
   const resultado: ImagenPreparada[] = [];
-  const agregar = (c: Canvas, parte: number) =>
+  const agregar = (c: Canvas, parte: number, detalle?: 'low' | 'high') =>
     resultado.push({
       dataUrl: aDataUrl(c),
       ancho: c.width,
@@ -350,11 +384,21 @@ export function prepararPagina(
       parte,
       partes: finales.length,
       rotacion,
+      ...(detalle ? { detalle } : {}),
     });
 
-  if (finales.length > 1) {
-    // Vista general reducida: el modelo ve qué parte es de qué documento.
-    agregar(recortar(fuente, cajaPagina, 1024, rotacion), 0);
+  if (finales.length > 1 || opciones.vistaGeneralAlta) {
+    // Vista general: el modelo ve qué parte es de qué documento. En la
+    // variante "alterna" va completa y en detalle alto (otra lectura).
+    if (opciones.vistaGeneralAlta) {
+      agregar(
+        recortar(fuente, cajaPagina, opciones.ladoMaxPx, rotacion),
+        0,
+        'high',
+      );
+    } else {
+      agregar(recortar(fuente, cajaPagina, 1024, rotacion), 0);
+    }
   }
   finales.forEach((c, i) =>
     agregar(recortar(fuente, c, opciones.ladoMaxPx, rotacion), i + 1),

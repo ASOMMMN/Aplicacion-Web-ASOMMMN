@@ -14,9 +14,11 @@
 import { loadImage } from '@napi-rs/canvas';
 import { PDFParse } from 'pdf-parse';
 import {
+  AJUSTES_VARIANTE,
   ImagenPreparada,
   OPCIONES_PREPARACION_POR_DEFECTO,
   prepararPagina,
+  VariantePreparacion,
 } from './preparar-imagen';
 import {
   FuenteEstructurada,
@@ -26,7 +28,10 @@ import {
 } from './qr-cadena';
 
 export interface ConfiguracionLectura {
-  /** Menos caracteres que esto (en las páginas leídas) = PDF escaneado. */
+  /**
+   * Menos caracteres que esto EN UNA PÁGINA = página escaneada: recibe el
+   * tratamiento visual completo aunque otras páginas del PDF tengan texto.
+   */
   umbralCaracteresTexto: number;
   /** Máximo de páginas que se leen y renderizan. */
   maxPaginas: number;
@@ -40,11 +45,13 @@ export interface ConfiguracionLectura {
   rotacionExtra?: 0 | 90 | 180 | 270;
   /** Páginas en las que se buscan QR (0 = no buscar). */
   maxPaginasQr: number;
+  /** Preparación de las imágenes (lecturas 2 y 3 usan otra). */
+  variante?: VariantePreparacion;
 }
 
 export const CONFIG_LECTURA_POR_DEFECTO: ConfiguracionLectura = {
   umbralCaracteresTexto: 200,
-  maxPaginas: 4,
+  maxPaginas: 8,
   anchoPx: 2400,
   maxCaracteresTexto: 12000,
   maxPartes: OPCIONES_PREPARACION_POR_DEFECTO.maxPartes,
@@ -124,6 +131,8 @@ export interface PaginaLeida {
   numero: number;
   /** Capa de texto de la página ('' si es escaneada o imagen). */
   texto: string;
+  /** Poco o nada de texto: se envía como imagen con partes ampliadas. */
+  escaneada?: boolean;
   /** QR y cadena original con sus fechas (fuente de mayor prioridad). */
   estructuradas: FuenteEstructurada[];
 }
@@ -152,11 +161,16 @@ function qrsSeguros(img: Parameters<typeof leerQrs>[0]): string[] {
   }
 }
 
-const opcionesPreparacion = (cfg: ConfiguracionLectura) => ({
-  ...OPCIONES_PREPARACION_POR_DEFECTO,
-  maxPartes: cfg.maxPartes,
-  rotacionExtra: cfg.rotacionExtra,
-});
+const opcionesPreparacion = (cfg: ConfiguracionLectura) => {
+  const v = AJUSTES_VARIANTE[cfg.variante ?? 'normal'];
+  return {
+    ...OPCIONES_PREPARACION_POR_DEFECTO,
+    maxPartes: Math.round(cfg.maxPartes * v.factorPartes),
+    rotacionExtra: cfg.rotacionExtra,
+    factorBanda: v.factorBanda,
+    vistaGeneralAlta: v.vistaGeneralAlta,
+  };
+};
 
 export async function leerDocumento(
   buffer: Buffer,
@@ -192,19 +206,23 @@ export async function leerDocumento(
 
     const resultadoTexto = await parser.getText({ first: paginasLeidas });
     const textos = textosPorPagina(resultadoTexto, paginasLeidas);
-    // Sin los separadores "-- 1 of 3 --" que agrega pdf-parse.
-    const texto = (resultadoTexto.text ?? '')
-      .replace(/^\s*-- \d+ of \d+ --\s*$/gm, '')
-      .trim();
+    // Clasificación POR PÁGINA: en un PDF mixto (anverso con texto y
+    // reverso escaneado) la página escaneada recibe partes ampliadas.
     const paginas: PaginaLeida[] = textos.map((t, i) => ({
       numero: i + 1,
       texto: t,
+      escaneada: t.trim().length < cfg.umbralCaracteresTexto,
       estructuradas: fuentesEstructuradas(i + 1, [], t),
     }));
-    const escaneado = texto.length < cfg.umbralCaracteresTexto;
+    const escaneado = paginas.every((p) => p.escaneada);
+    // Solo el texto de las páginas con texto, sin los separadores de pdf-parse.
     const textoEnviado = escaneado
       ? ''
-      : texto.slice(0, cfg.maxCaracteresTexto);
+      : paginas
+          .filter((p) => !p.escaneada)
+          .map((p) => p.texto.replace(/^\s*-- \d+ of \d+ --\s*$/gm, '').trim())
+          .join('\n\n')
+          .slice(0, cfg.maxCaracteresTexto);
 
     try {
       const imagenes: ImagenPreparada[] = [];
@@ -229,13 +247,13 @@ export async function leerDocumento(
             textos[p - 1],
           );
         }
-        // Con capa de texto, las fechas salen del texto: basta una imagen
-        // por página (recortada) para ver qué etiqueta acompaña a cada una.
-        // Escaneado: partes ampliadas para que se lean los dígitos.
+        // Página con capa de texto: las fechas salen del texto; basta una
+        // imagen (recortada) para ver qué etiqueta acompaña a cada una.
+        // Página escaneada: partes ampliadas para que se lean los dígitos.
         imagenes.push(
           ...prepararPagina(img, p, {
             ...opcionesPreparacion(cfg),
-            ...(escaneado ? {} : { maxPartes: 1 }),
+            ...(paginas[p - 1].escaneada ? {} : { maxPartes: 1 }),
           }),
         );
       }

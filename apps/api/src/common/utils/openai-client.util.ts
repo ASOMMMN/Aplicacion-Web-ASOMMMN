@@ -11,6 +11,13 @@ import OpenAI from 'openai';
  */
 export const OPENAI_KEY_AUSENTE = 'OPENAI_API_KEY-no-configurada';
 
+/**
+ * Modelo general (chatbot y CV) cuando OPENAI_MODEL no está definido: un
+ * snapshot fechado, no el alias "gpt-4o-mini", que cambia de versión sin
+ * aviso. Disponible en la cuenta según models.list (2026-10-05).
+ */
+export const MODELO_GENERAL_POR_DEFECTO = 'gpt-4o-mini-2024-07-18';
+
 export function crearClienteOpenAI(apiKey: string | undefined): OpenAI {
   return new OpenAI({ apiKey: apiKey?.trim() || OPENAI_KEY_AUSENTE });
 }

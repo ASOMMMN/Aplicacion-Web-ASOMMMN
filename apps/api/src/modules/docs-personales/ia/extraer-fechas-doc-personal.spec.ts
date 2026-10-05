@@ -9,6 +9,10 @@ import {
   normalizarFechaIa,
 } from './extraer-fechas-doc-personal';
 
+// Preparar imágenes (dos variantes por documento) cuesta CPU; con la suite
+// completa en paralelo 5 s no alcanzan.
+jest.setTimeout(30_000);
+
 describe('normalizarFechaIa', () => {
   it('acepta YYYY-MM-DD de calendario válido', () => {
     expect(normalizarFechaIa('2031-01-15')).toBe('2031-01-15');
@@ -120,11 +124,13 @@ describe('extraerFechasDocPersonal: errores 429 de OpenAI', () => {
       error429('rate_limit_exceeded'),
     ]);
     const r = await extraerFechasDocPersonal({ ...base, openai });
-    expect(crear).toHaveBeenCalledTimes(3);
+    // 2 reintentos + 2 lecturas (una imagen siempre lleva doble lectura;
+    // como coinciden, no hay tercera).
+    expect(crear).toHaveBeenCalledTimes(4);
     expect(r.resultado.errorMensaje).toBeUndefined();
     expect(r.tokens).toMatchObject({
-      entrada: 1234,
-      salida: 56,
+      entrada: 2 * 1234,
+      salida: 2 * 56,
       reintentos429: 2,
     });
     expect(r.tokens!.estimadoEntrada).toBeGreaterThan(0);
@@ -218,5 +224,178 @@ describe('lecturasDeterministas: MRZ de la capa de texto', () => {
         fuente: 'texto',
       }),
     ]);
+  });
+});
+
+describe('extraerFechasDocPersonal: doble lectura con consenso', () => {
+  // Imagen sintética (sin datos reales).
+  const png = (() => {
+    const c = createCanvas(600, 400);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 600, 400);
+    ctx.fillStyle = '#000';
+    for (let y = 50; y < 350; y += 30) ctx.fillRect(50, y, 500, 12);
+    return c.toBuffer('image/png');
+  })();
+
+  const fecha = (valor: string | null, literal: string | null = valor) => ({
+    valor,
+    textoLiteral: literal,
+    etiqueta: null,
+    confianza: valor ? 'alta' : 'baja',
+    precision: 'dia',
+  });
+  const respuesta = (
+    venc: string | null,
+    extra: Record<string, unknown> = {},
+  ) =>
+    JSON.stringify({
+      tipoDetectado: 'visa',
+      confianzaTipo: 'alta',
+      formatoFechaIndicado: null,
+      fechaEmision: fecha('2019-05-10', '10 MAY 2019'),
+      fechaInicio: fecha(null),
+      fechaVencimiento: venc ? fecha(venc, venc) : fecha(null),
+      ...extra,
+    });
+
+  /** Cliente que responde, en orden, las respuestas dadas. */
+  const cliente = (respuestas: string[]) => {
+    const crear = jest.fn(() =>
+      Promise.resolve({
+        choices: [{ message: { content: respuestas.shift() ?? '{}' } }],
+        usage: { prompt_tokens: 100, completion_tokens: 10 },
+      }),
+    );
+    return {
+      crear,
+      openai: { chat: { completions: { create: crear } } } as unknown as OpenAI,
+    };
+  };
+
+  const base = {
+    buffer: png,
+    mimeType: 'image/png',
+    tipo: 'visa' as const,
+    apiKey: 'sk-test',
+    modelo: 'gpt-4o-2024-11-20',
+    onError: () => undefined,
+    dormir: () => Promise.resolve(),
+  };
+
+  it('envía json_schema estricto, seed y temperature 0', async () => {
+    const { crear, openai } = cliente([
+      respuesta('2029-05-09'),
+      respuesta('2029-05-09'),
+    ]);
+    await extraerFechasDocPersonal({ ...base, openai, seed: 42 });
+    const params = (crear.mock.calls[0] as unknown[])[0] as Record<
+      string,
+      unknown
+    >;
+    expect(params).toMatchObject({
+      temperature: 0,
+      seed: 42,
+      model: 'gpt-4o-2024-11-20',
+    });
+    expect(params.response_format).toMatchObject({
+      type: 'json_schema',
+      json_schema: { strict: true },
+    });
+  });
+
+  it('dos lecturas que coinciden → confianza alta, sin Revisar', async () => {
+    const { crear, openai } = cliente([
+      respuesta('2029-05-09'),
+      respuesta('2029-05-09'),
+    ]);
+    const r = await extraerFechasDocPersonal({ ...base, openai });
+    expect(crear).toHaveBeenCalledTimes(2);
+    expect(r.resultado.fechaVencimiento).toBe('2029-05-09');
+    expect(r.resultado.confianza.fechaVencimiento).toBe('alta');
+    expect(r.resultado.consenso?.fechaVencimiento.estado).toBe('unanime');
+    expect(r.resultado.lecturasIa?.map((l) => [l.id, l.variante])).toEqual([
+      ['ia1', 'normal'],
+      ['ia2', 'alterna'],
+    ]);
+  });
+
+  it('no coinciden → tercera lectura; la mayoría gana con confianza media', async () => {
+    const { crear, openai } = cliente([
+      respuesta('2029-05-09'),
+      respuesta('2029-09-05'),
+      respuesta('2029-05-09'),
+    ]);
+    const r = await extraerFechasDocPersonal({ ...base, openai });
+    expect(crear).toHaveBeenCalledTimes(3);
+    expect(r.resultado.fechaVencimiento).toBe('2029-05-09');
+    expect(r.resultado.confianza.fechaVencimiento).toBe('media');
+    expect(r.resultado.consenso?.fechaVencimiento).toMatchObject({
+      estado: 'mayoria',
+    });
+    expect(r.respuestasCrudas).toHaveLength(3);
+  });
+
+  it('tres lecturas distintas → la más probable, confianza baja y Revisar', async () => {
+    const { openai } = cliente([
+      respuesta('2029-05-09'),
+      respuesta('2029-09-05'),
+      respuesta('2030-05-09'),
+    ]);
+    const r = await extraerFechasDocPersonal({ ...base, openai });
+    expect(r.resultado.confianza.fechaVencimiento).toBe('baja');
+    expect(r.resultado.revisar).toBe(true);
+    expect(r.resultado.motivosRevision?.join(' ')).toMatch(/no coinciden/);
+  });
+
+  it('la segunda lectura falla → se usa la primera, sin confianza alta y con Revisar', async () => {
+    const { openai } = cliente([respuesta('2029-05-09'), 'no es json']);
+    const r = await extraerFechasDocPersonal({ ...base, openai });
+    expect(r.resultado.fechaVencimiento).toBe('2029-05-09');
+    expect(r.resultado.confianza.fechaVencimiento).toBe('media');
+    expect(r.resultado.revisar).toBe(true);
+  });
+
+  it('tipo equivocado con confianza alta → reextrae con las reglas del detectado', async () => {
+    const pasaporte = (venc: string) =>
+      respuesta(venc, { tipoDetectado: 'pasaporte', confianzaTipo: 'alta' });
+    const { crear, openai } = cliente([
+      pasaporte('2032-05-09'),
+      pasaporte('2032-05-09'),
+      pasaporte('2032-05-09'),
+      pasaporte('2032-05-09'),
+    ]);
+    const r = await extraerFechasDocPersonal({ ...base, openai });
+    expect(crear).toHaveBeenCalledTimes(4);
+    // La 3.ª llamada ya usa las reglas del pasaporte.
+    const prompt = JSON.stringify((crear.mock.calls[2] as unknown[])[0]);
+    expect(prompt).toContain(
+      'TIPO DE DOCUMENTO QUE INDICÓ EL USUARIO: pasaporte',
+    );
+    expect(r.resultado.tipoSospechoso).toEqual({
+      tipoElegido: 'visa',
+      tipoDetectado: 'pasaporte',
+    });
+    expect(r.resultado.reextraccion).toEqual({
+      tipoElegido: 'visa',
+      tipoUsado: 'pasaporte',
+    });
+    expect(r.resultado.revisar).toBe(true);
+  });
+
+  it('tipo distinto con confianza media → no reextrae, solo marca tipoSospechoso', async () => {
+    const otro = respuesta('2029-05-09', {
+      tipoDetectado: 'pasaporte',
+      confianzaTipo: 'media',
+    });
+    const { crear, openai } = cliente([otro, otro]);
+    const r = await extraerFechasDocPersonal({ ...base, openai });
+    expect(crear).toHaveBeenCalledTimes(2);
+    expect(r.resultado.tipoSospechoso).toEqual({
+      tipoElegido: 'visa',
+      tipoDetectado: 'pasaporte',
+    });
+    expect(r.resultado.reextraccion).toBeNull();
   });
 });

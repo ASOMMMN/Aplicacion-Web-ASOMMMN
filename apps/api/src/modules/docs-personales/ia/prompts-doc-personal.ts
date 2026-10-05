@@ -28,8 +28,8 @@ REGLAS GENERALES (obligatorias):
 
 FORMATO DE FECHA (muy importante):
 - En México las fechas numéricas se escriben DÍA/MES/AÑO (dd/mm/aaaa).
-- Si el documento indica el formato ("dd/mm/aaaa", "dd/mm/yyyy", "DD MM YYYY", "mm/dd/yyyy"),
-  respétalo e infórmalo en "formatoFechaIndicado".
+- Si el documento indica el formato POR ESCRITO ("dd/mm/aaaa", "dd/mm/yyyy", "DD MM YYYY",
+  "mm/dd/yyyy"), respétalo e infórmalo en "formatoFechaIndicado"; si no lo indica, null.
 - Si no hay indicación, interpreta SIEMPRE como dd/mm/aaaa, también en documentos en inglés
   emitidos en México.
 - Si día y mes son ambos ≤ 12 y no hay indicación de formato, usa dd/mm y pon confianza "media"
@@ -39,7 +39,7 @@ FORMATO DE FECHA (muy importante):
 - Devuelve el valor normalizado como AAAA-MM-DD.
 - Precisión "anio": solo cuando las reglas del tipo lo indiquen expresamente (INE).
 
-SALIDA: devuelve ÚNICAMENTE JSON válido, sin markdown ni explicaciones.
+SALIDA: JSON con el esquema indicado, sin markdown ni explicaciones.
 `;
 
 /** Reglas específicas con las etiquetas reales de cada tipo. */
@@ -127,18 +127,15 @@ CONSTANCIA DE PARTICIPACIÓN:
 };
 
 const ESQUEMA_SALIDA = `
-Devuelve exactamente esta estructura:
-{
-  "tipoDetectado": "<uno de: ${[...TIPOS_DOC_PERSONAL, 'otro'].join(' | ')}>",
-  "formatoFechaIndicado": "dd/mm/aaaa | mm/dd/aaaa | null",
-  "fechaEmision":     { "valor": "AAAA-MM-DD o null", "textoLiteral": "texto tal cual en el documento o null", "etiqueta": "etiqueta que acompaña a la fecha o null", "confianza": "alta|media|baja", "precision": "dia|anio" },
-  "fechaInicio":      { …misma estructura… },
-  "fechaVencimiento": { …misma estructura… }
-}
-
-- "tipoDetectado": qué documento es REALMENTE según su contenido (no según lo que dijo el usuario).
-  Usa "otro" si no corresponde a ninguno de la lista.
-- "textoLiteral": copia exacta del fragmento con la fecha (p. ej. "19/12/2027" o "VIGENCIA 2031").
+CAMPOS DE LA RESPUESTA (el esquema JSON se aplica automáticamente):
+- "tipoDetectado": qué documento es REALMENTE según su contenido (no según lo que dijo el usuario),
+  uno de: ${[...TIPOS_DOC_PERSONAL, 'curso', 'otro'].join(', ')}. Usa "otro" si no corresponde a ninguno.
+- "confianzaTipo": "alta" solo si el contenido identifica el tipo sin lugar a dudas.
+- "formatoFechaIndicado": solo si el documento declara por escrito el formato de sus fechas; si no, null.
+- "fechaEmision", "fechaInicio", "fechaVencimiento": cada una con "valor" (AAAA-MM-DD),
+  "textoLiteral", "etiqueta", "confianza" (alta|media|baja) y "precision" (dia|mes|anio).
+- "textoLiteral": copia exacta SOLO del fragmento con esa fecha (p. ej. "19/12/2027" o
+  "VIGENCIA 2031"), sin las fechas de los otros campos.
 - Si una fecha no aparece, su objeto lleva valor null, textoLiteral null y confianza "baja".`;
 
 /** Etiquetas reales del tipo (las mismas que usa el extractor determinista). */

@@ -45,8 +45,26 @@ Fases:
   `detectarIndicadorFormato` + `formatoComprobado` (el mm/dd del modelo ya no
   cuenta), "hoy" de México en la validación (`common/utils/fecha-mexico.util.ts`)
   y en `fechaCurso` del web. Jest 23 suites / 227 tests.
-- [ ] Fase 2 — consistencia (snapshot, seed, json_schema estricto, doble
-  lectura con consenso, clasificación por página, tipo equivocado, caché).
+- [x] **Fase 2 — consistencia.** Snapshot fechado `gpt-4o-2024-11-20`
+  (documentos) y `gpt-4o-mini-2024-07-18` (chatbot y CV) como defaults y en
+  `.env.example`; advertencia al arrancar si `OPENAI_MODEL_DOCS` es un alias.
+  `seed` (`OPENAI_SEED`, por defecto 20261005). `json_schema` estricto en
+  documentos (`esquema-respuesta.ts`, con `confianzaTipo` y variante "curso"),
+  respaldo pdf-crudo (`text.format` + `max_output_tokens`) y CV
+  (`ingest-ia/esquema-cv.ts`); verificados contra OpenAI con
+  `scripts/verificar-esquemas-openai.ts` (archivos sintéticos). Doble lectura
+  (`consenso-lecturas.ts`): imagen/escaneo/pdf-crudo siempre 2 lecturas
+  (normal + alterna), 3.ª de desempate si no coinciden; PDF con texto solo si
+  la IA y las deterministas difieren. Unánime → alta; mayoría → media; sin
+  mayoría → baja + Revisar; evidencia en `detalleFechasIa.lecturasIa` y
+  `consenso`. Clasificación por página (`PaginaLeida.escaneada`) y hasta 8
+  páginas. Tipo equivocado con `confianzaTipo` alta → reextracción con las
+  reglas del detectado + `tipoSospechoso` + Revisar. Caché por hash
+  (`ExtraccionIaService`, colección `cache_extraccion_ia`, 180 días): la
+  usan la subida y la vista previa; "Volver a analizar" y el lote la omiten
+  y la actualizan. `VERSION_CANALIZACION` = 2026-10-05. Jest 25 / 250.
+  En Render hay que poner `OPENAI_MODEL=gpt-4o-mini-2024-07-18` (hoy es el
+  alias) y, opcional, `OPENAI_MODEL_DOCS=gpt-4o-2024-11-20`.
 - [ ] Fase 3 — protección de datos (reanálisis, resumen multi-archivo).
 - [ ] Fase 4 — cursos (canalización unificada, schema, regla de 5 años,
   migración).
@@ -252,3 +270,4 @@ automatizados. `useAuth` no se usa en ninguna página (se migró igual).
 - 2026-10-01: revisión del `.git` anidado, verificación completa y push.
 - 2026-10-01: bug de sesión en producción (`c05472a`, `3e97caa`).
 - 2026-10-05: plan de exactitud y consistencia; fase 1 (parser).
+- 2026-10-05: fase 2 (consistencia: snapshot, seed, esquema estricto, doble lectura, caché).

@@ -29,6 +29,7 @@ import {
   extraerFechasDocPersonal,
   ExtraerDocPersonalIaResponse,
   modeloDocsDesdeEnv,
+  seedDesdeEnv,
 } from '../src/modules/docs-personales/ia/extraer-fechas-doc-personal';
 import {
   configLecturaDesdeEnv,
@@ -250,6 +251,7 @@ async function main() {
     apiKey: env.OPENAI_API_KEY ?? '',
     modelo,
     lectura,
+    seed: seedDesdeEnv((k) => env[k]),
     onError: (m) => console.error(`  [error] ${m}`),
   });
 
@@ -289,6 +291,33 @@ async function main() {
     }
   } else {
     console.log('  No se llegó a llamar al modelo.');
+  }
+
+  if (r.resultado.lecturasIa?.length) {
+    titulo('Lecturas de la IA (doble lectura y consenso)');
+    for (const l of r.resultado.lecturasIa) {
+      const fechas = (
+        ['fechaEmision', 'fechaInicio', 'fechaVencimiento'] as const
+      )
+        .map(
+          (c) =>
+            `${c.replace('fecha', '')}: ${l.fechas[c].valor ?? '—'} (${l.fechas[c].confianza})`,
+        )
+        .join(' · ');
+      console.log(
+        `  ${l.id} [${l.variante}] tipo ${l.tipoDetectado ?? '—'} (${l.confianzaTipo ?? '—'}) · ${fechas}`,
+      );
+    }
+    if (r.resultado.consenso) {
+      for (const [c, k] of Object.entries(r.resultado.consenso)) {
+        console.log(`  Consenso ${c}: ${k.estado}, se usó ${k.elegida}`);
+      }
+    }
+    if (r.resultado.reextraccion) {
+      console.log(
+        `  Reextraído como ${r.resultado.reextraccion.tipoUsado} (elegido: ${r.resultado.reextraccion.tipoElegido})`,
+      );
+    }
   }
 
   titulo('Respuesta cruda del modelo');

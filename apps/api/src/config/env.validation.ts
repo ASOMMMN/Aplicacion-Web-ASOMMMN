@@ -85,12 +85,17 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  OPENAI_MODEL: string = 'gpt-4o-mini';
+  OPENAI_MODEL: string = 'gpt-4o-mini-2024-07-18';
 
   // Modelo para documentos personales (ver extraer-fechas-doc-personal.ts)
   @IsOptional()
   @IsString()
-  OPENAI_MODEL_DOCS: string = '';
+  OPENAI_MODEL_DOCS: string = 'gpt-4o-2024-11-20';
+
+  // Semilla para OpenAI (repetibilidad de la extracción de fechas)
+  @IsOptional()
+  @IsString()
+  OPENAI_SEED: string = '';
 
   // Lectura de documentos para la IA (ver docs-personales/ia/lectura-documento.ts)
   @IsOptional()

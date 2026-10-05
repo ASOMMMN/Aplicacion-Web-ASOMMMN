@@ -153,3 +153,41 @@ describe('configLecturaDesdeEnv', () => {
     ).toBe(0);
   });
 });
+
+describe('leerDocumento: clasificación por página', () => {
+  it('PDF mixto: la página escaneada se marca y su texto no se envía', async () => {
+    const { crear } = lectorFalso([TEXTO_CERTIFICADO, '  ']);
+    const r = await leerDocumento(PDF, 'application/pdf', cfg, crear);
+    expect(r.modo).toBe('pdf-texto');
+    expect(r.paginas.map((p) => p.escaneada)).toEqual([false, true]);
+    expect(r.texto).toContain('19/12/2027');
+  });
+
+  it('una página con poco texto (un pie de página) cuenta como escaneada aunque otra tenga texto', async () => {
+    const { crear } = lectorFalso([
+      TEXTO_CERTIFICADO,
+      'Documento firmado electrónicamente',
+    ]);
+    const r = await leerDocumento(PDF, 'application/pdf', cfg, crear);
+    expect(r.paginas[1].escaneada).toBe(true);
+    expect(r.texto).not.toContain('firmado electrónicamente');
+  });
+
+  it('por defecto se leen hasta 8 páginas', async () => {
+    const { crear, pedidas } = lectorFalso(
+      Array.from({ length: 10 }, () => ''),
+    );
+    const r = await leerDocumento(PDF, 'application/pdf', cfg, crear);
+    expect(CONFIG_LECTURA_POR_DEFECTO.maxPaginas).toBe(8);
+    expect(r.paginasLeidas).toBe(8);
+    expect(pedidas.capturas).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  }, 30_000);
+
+  it('variante "alterna": agrega la página completa en detalle alto', async () => {
+    const r = await leerDocumento(Buffer.from(paginaPng()), 'image/png', {
+      ...cfg,
+      variante: 'alterna',
+    });
+    expect(r.imagenes[0]).toMatchObject({ parte: 0, detalle: 'high' });
+  });
+});

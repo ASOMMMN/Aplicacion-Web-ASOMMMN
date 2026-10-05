@@ -1,8 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
+import {
+  crearClienteOpenAI,
+  MODELO_GENERAL_POR_DEFECTO,
+} from '../../common/utils/openai-client.util';
 import { PDFParse } from 'pdf-parse';
+import { FORMATO_CV } from './esquema-cv';
+import { seedDesdeEnv } from '../docs-personales/ia/extraer-fechas-doc-personal';
 import type {
   ConfianzaIa,
   CursoCV,
@@ -76,7 +81,10 @@ export class OpenAiIaService {
     this.client = crearClienteOpenAI(
       this.config.get<string>('OPENAI_API_KEY', ''),
     );
-    this.model = this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
+    this.model = this.config.get<string>(
+      'OPENAI_MODEL',
+      MODELO_GENERAL_POR_DEFECTO,
+    );
   }
 
   async extraerTextoPdf(buffer: Buffer): Promise<string> {
@@ -89,13 +97,15 @@ export class OpenAiIaService {
   async extraerDatosCV(texto: string): Promise<DatosCV> {
     const response = await this.client.chat.completions.create({
       model: this.model,
-      response_format: { type: 'json_object' },
+      // Structured Outputs: siempre la misma forma, sin JSON truncado o mal formado.
+      response_format: FORMATO_CV,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: USER_PROMPT_TEMPLATE(texto) },
       ],
       temperature: 0,
-      max_tokens: 3000,
+      seed: seedDesdeEnv((k) => this.config.get<string>(k)),
+      max_tokens: 4000,
     });
 
     const raw = response.choices[0]?.message?.content ?? '{}';

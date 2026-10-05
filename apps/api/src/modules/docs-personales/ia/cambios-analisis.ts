@@ -99,6 +99,16 @@ export function cambiosPorAnalisis(
         ...(res.evidenciaEstructurada?.length
           ? { evidenciaEstructurada: res.evidenciaEstructurada }
           : {}),
+        // Cada lectura del modelo y el consenso por campo (auditoría).
+        ...(res.lecturasIa?.length ? { lecturasIa: res.lecturasIa } : {}),
+        ...(res.consenso ? { consenso: res.consenso } : {}),
+        ...(res.reextraccion ? { reextraccion: res.reextraccion } : {}),
+        ...(res.tipoDetectado
+          ? {
+              tipoDetectado: res.tipoDetectado,
+              confianzaTipo: res.confianzaTipo ?? null,
+            }
+          : {}),
       } as Record<string, unknown>)
     : undefined;
   if (opciones.fechasVerificadas) {

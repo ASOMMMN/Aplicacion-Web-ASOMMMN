@@ -7,6 +7,7 @@
  */
 import OpenAI from 'openai';
 import {
+  CONFIG_LECTURA_POR_DEFECTO,
   ConfiguracionLectura,
   DocumentoLeido,
   leerDocumento,
@@ -38,6 +39,14 @@ import { combinarFuentes, FuenteCampo, GrupoFechas } from './combinar-fuentes';
 import { extraerPorEtiquetas, LecturaFecha } from './extractor-etiquetas';
 import { detectarIndicadorFormato, FormatoNumerico } from './formatos-fecha';
 import { leerMrz } from './mrz';
+import {
+  ConsensoCampo,
+  consensoLecturas,
+  IdLectura,
+} from './consenso-lecturas';
+import type { VariantePreparacion } from './preparar-imagen';
+import { formatoChat, formatoResponses } from './esquema-respuesta';
+import { TIPOS_DOC_PERSONAL } from '../constants/tipos-doc-personal';
 
 export {
   construirPromptDocPersonal,
@@ -47,16 +56,42 @@ export {
 } from './prompts-doc-personal';
 
 /**
- * Modelo para leer documentos: OPENAI_MODEL_DOCS, por defecto gpt-4o.
+ * Modelo para leer documentos: OPENAI_MODEL_DOCS, por defecto un snapshot
+ * FECHADO de gpt-4o (el más reciente que devolvió models.list el
+ * 2026-10-05). Un alias como "gpt-4o" cambia de versión sin aviso y con él
+ * cambian las fechas leídas.
  * Medido con documentos reales: gpt-4o-mini cobra ~33× más tokens por
  * imagen (114 000–198 000 tokens de entrada por documento contra 4 400–7 900
  * con gpt-4o), agota el límite por minuto y leyó peor los escaneos.
- * OPENAI_MODEL se sigue usando para chatbot, CV y cursos.
+ * OPENAI_MODEL se sigue usando para chatbot y CV.
  */
-export const MODELO_DOCS_POR_DEFECTO = 'gpt-4o';
+export const MODELO_DOCS_POR_DEFECTO = 'gpt-4o-2024-11-20';
 export const modeloDocsDesdeEnv = (
   leer: (clave: string) => string | undefined,
 ): string => leer('OPENAI_MODEL_DOCS')?.trim() || MODELO_DOCS_POR_DEFECTO;
+
+/** "gpt-4o-2024-11-20" sí; "gpt-4o" (alias que cambia de versión) no. */
+export const esSnapshotFechado = (modelo: string) =>
+  /-\d{4}-\d{2}-\d{2}$/.test(modelo.trim());
+
+/** Semilla fija para que OpenAI repita la misma salida (best effort). */
+export const SEED_POR_DEFECTO = 20261005;
+export const seedDesdeEnv = (
+  leer: (clave: string) => string | undefined,
+): number => {
+  const n = Number(leer('OPENAI_SEED'));
+  return leer('OPENAI_SEED')?.trim() && Number.isInteger(n)
+    ? n
+    : SEED_POR_DEFECTO;
+};
+
+/**
+ * Versión de la canalización (lectura + prompts + validación + consenso).
+ * Forma parte de la clave de la caché y se guarda en cada análisis: un
+ * análisis de una versión anterior se puede reemplazar al reanalizar.
+ * Subirla cuando un cambio altere las fechas que se obtienen.
+ */
+export const VERSION_CANALIZACION = '2026-10-05';
 
 /** Formatos que la extracción IA sabe leer. */
 export const MIMES_EXTRACCION_IA = [
@@ -106,6 +141,14 @@ export interface ExtraerDocPersonalIaResponse {
   detalle?: Record<CampoFecha, FechaDetectada>;
   /** Tipo que el modelo reconoce en el contenido (puede diferir del elegido). */
   tipoDetectado?: string | null;
+  /** Qué tan seguro está el modelo del tipo detectado. */
+  confianzaTipo?: Confianza;
+  /** Cada lectura del modelo (doble lectura) con sus fechas validadas. */
+  lecturasIa?: ResumenLecturaIa[];
+  /** Consenso por campo entre lecturas (si hubo más de una). */
+  consenso?: Record<CampoFecha, ConsensoCampo>;
+  /** Se reextrajo con las reglas del tipo detectado (no del elegido). */
+  reextraccion?: { tipoElegido: string; tipoUsado: string } | null;
   /** Formato declarado en el documento ("dd/mm/aaaa"…), si lo hay. */
   formatoFechaIndicado?: string | null;
   /** Validación en código (validar-fechas-doc-personal.ts). */
@@ -125,6 +168,18 @@ export interface ExtraerDocPersonalIaResponse {
   evidenciaEstructurada?: EvidenciaEstructurada[];
   iaDisponible: boolean;
   errorMensaje?: string;
+}
+
+/** Lo que dijo una lectura del modelo (evidencia para auditoría). */
+export interface ResumenLecturaIa {
+  id: IdLectura;
+  variante: VariantePreparacion;
+  tipoDetectado: string | null;
+  confianzaTipo: Confianza | null;
+  fechas: Record<
+    CampoFecha,
+    Pick<FechaDetectada, 'valor' | 'precision' | 'textoLiteral' | 'confianza'>
+  >;
 }
 
 export interface EvidenciaEstructurada {
@@ -217,7 +272,7 @@ export function respuestaDesdeDetalle(
   detalle: Record<CampoFecha, FechaDetectada>,
   extra: Pick<
     ExtraerDocPersonalIaResponse,
-    'tipoDetectado' | 'formatoFechaIndicado'
+    'tipoDetectado' | 'formatoFechaIndicado' | 'confianzaTipo'
   > = {},
 ): ExtraerDocPersonalIaResponse {
   return {
@@ -247,6 +302,7 @@ export function normalizarRespuesta(
   return respuestaDesdeDetalle(detalle, {
     tipoDetectado: texto(parsed.tipoDetectado),
     formatoFechaIndicado: texto(parsed.formatoFechaIndicado),
+    confianzaTipo: normalizarConfianza(parsed.confianzaTipo),
   });
 }
 
@@ -370,6 +426,7 @@ export function combinarConIa(
     respuestaDesdeDetalle(detalle, {
       tipoDetectado: validado.tipoDetectado,
       formatoFechaIndicado: validado.formatoFechaIndicado,
+      confianzaTipo: validado.confianzaTipo,
     }),
   );
 
@@ -449,6 +506,12 @@ export interface ResultadoExtraccionFechas {
     status: number;
     codigo: string | null;
   };
+  /** Respuesta cruda de cada lectura (ia1, ia2, ia3). */
+  respuestasCrudas?: string[];
+  /** Versión de la canalización que produjo este resultado. */
+  versionCanalizacion?: string;
+  /** Semilla enviada a OpenAI. */
+  seed?: number;
 }
 
 export interface OpcionesExtraccionFechas {
@@ -467,6 +530,12 @@ export interface OpcionesExtraccionFechas {
   reintentos?: ConfigReintentos;
   /** Para pruebas: sustituye la espera entre reintentos. */
   dormir?: (ms: number) => Promise<void>;
+  /** Semilla para OpenAI (por defecto SEED_POR_DEFECTO). */
+  seed?: number;
+  /** Interno: no volver a extraer con el tipo detectado (evita bucles). */
+  sinReextraer?: boolean;
+  /** Interno: documento ya leído (la reextracción no lo vuelve a leer). */
+  documentoLeido?: DocumentoLeido;
 }
 
 /** Tokens de entrada aproximados de una petición (para el log y el costo). */
@@ -515,6 +584,7 @@ async function llamarVision(
   modelo: string,
   tipo: TipoDocPersonal,
   doc: DocumentoLeido,
+  seed: number,
 ): Promise<RespuestaDelModelo> {
   const nota =
     doc.imagenes.length === 0
@@ -531,7 +601,8 @@ async function llamarVision(
   const completion = await openai.chat.completions.create(
     {
       model: modelo,
-      response_format: { type: 'json_object' },
+      // Structured Outputs: el modelo solo puede devolver este esquema.
+      response_format: formatoChat(tipo),
       messages: [
         { role: 'system', content: SYSTEM_PROMPT_DOC_PERSONAL },
         {
@@ -542,15 +613,19 @@ async function llamarVision(
               type: 'image_url' as const,
               image_url: {
                 url: img.dataUrl,
-                // La vista general solo da contexto: basta la resolución baja.
-                detail: img.parte === 0 ? ('low' as const) : ('high' as const),
+                // La vista general solo da contexto: basta la resolución baja
+                // (salvo en la variante "alterna", que la pide en alta).
+                detail:
+                  img.detalle ??
+                  (img.parte === 0 ? ('low' as const) : ('high' as const)),
               },
             })),
           ],
         },
       ],
       temperature: 0,
-      max_tokens: 800,
+      seed,
+      max_tokens: 1000,
     },
     // Los reintentos los maneja conReintentosOpenAI: el SDK reintentaría
     // también "insufficient_quota", que no se arregla esperando.
@@ -563,7 +638,11 @@ async function llamarVision(
   };
 }
 
-/** Respaldo cuando no se pudo renderizar: el PDF completo a la Responses API. */
+/**
+ * Respaldo cuando no se pudo renderizar: el PDF completo a la Responses API,
+ * con el mismo esquema estricto y un tope de tokens de salida. Esta API no
+ * acepta `seed`: la repetibilidad aquí depende del consenso y de la caché.
+ */
 async function llamarResponsesConPdf(
   apiKey: string,
   modelo: string,
@@ -594,7 +673,9 @@ async function llamarResponsesConPdf(
           ],
         },
       ],
+      text: { format: formatoResponses(tipo) },
       temperature: 0,
+      max_output_tokens: 1200,
     }),
   });
 
@@ -636,23 +717,102 @@ async function llamarResponsesConPdf(
 }
 
 /**
- * Analiza un documento personal y devuelve solo las fechas que aparecen
+ * ¿La IA dice otra cosa que las lecturas deterministas en algún campo?
+ * (Solo campos donde ambas tienen fecha.)
+ */
+export function iaDifiereDeDeterministas(
+  ia: ExtraerDocPersonalIaResponse,
+  lecturas: LecturaFecha[],
+): boolean {
+  if (lecturas.length === 0) return false;
+  const { fuentes } = combinarFuentes({ lecturas, ia });
+  return CAMPOS_FECHA.some((c) => {
+    const delIa = fuentes[c].lecturas.find((l) => l.fuente === 'ia');
+    const det = fuentes[c].lecturas.find((l) => l.fuente !== 'ia');
+    return Boolean(delIa && det && delIa.clave !== det.clave);
+  });
+}
+
+/** Lo que se guarda como evidencia de una lectura. */
+function resumenLectura(
+  id: IdLectura,
+  variante: VariantePreparacion,
+  r: ExtraerDocPersonalIaResponse,
+): ResumenLecturaIa {
+  return {
+    id,
+    variante,
+    tipoDetectado: r.tipoDetectado ?? null,
+    confianzaTipo: r.confianzaTipo ?? null,
+    fechas: Object.fromEntries(
+      CAMPOS_FECHA.map((c) => {
+        const f = r.detalle?.[c];
+        return [
+          c,
+          {
+            valor: f?.valor ?? null,
+            precision: f?.precision ?? 'dia',
+            textoLiteral: f?.textoLiteral ?? null,
+            confianza: f?.confianza ?? 'baja',
+          },
+        ];
+      }),
+    ) as ResumenLecturaIa['fechas'],
+  };
+}
+
+/** Resultado de una llamada al modelo ya interpretado y validado. */
+interface LecturaModelo {
+  id: IdLectura;
+  variante: VariantePreparacion;
+  raw: string;
+  propuesta: ExtraerDocPersonalIaResponse;
+  validado: ExtraerDocPersonalIaResponse;
+}
+
+type FalloLectura =
+  | { fallo: 'openai'; error: ReturnType<typeof clasificarErrorOpenAI> }
+  | { fallo: 'json'; raw: string };
+
+const LECTURAS: Array<{ id: IdLectura; variante: VariantePreparacion }> = [
+  { id: 'ia1', variante: 'normal' },
+  { id: 'ia2', variante: 'alterna' },
+  { id: 'ia3', variante: 'desempate' },
+];
+
+/**
+ * Analiza un documento y devuelve solo las fechas que aparecen
  * explícitamente. Nunca lanza: los errores vuelven en `errorMensaje`.
+ *
+ * Lecturas del modelo:
+ * - Imagen, foto o escaneo: siempre dos lecturas con preparaciones
+ *   distintas; si no coinciden, una tercera de desempate (consenso).
+ * - PDF con texto: una lectura; dos o tres solo si la IA y las lecturas
+ *   deterministas (etiquetas, QR, MRZ) no coinciden.
+ * - Si el modelo reconoce otro tipo de documento con confianza alta, se
+ *   vuelve a extraer con las reglas de ese tipo y se marca tipoSospechoso.
  */
 export async function extraerFechasDocPersonal(
   opciones: OpcionesExtraccionFechas,
 ): Promise<ResultadoExtraccionFechas> {
   const { buffer, mimeType, tipo, apiKey, modelo } = opciones;
   const onError = opciones.onError ?? ((m: string) => console.error(m));
+  const seed = opciones.seed ?? SEED_POR_DEFECTO;
+  const cfgLectura = opciones.lectura ?? CONFIG_LECTURA_POR_DEFECTO;
+  const comun = { versionCanalizacion: VERSION_CANALIZACION, seed };
 
   if (!apiKey?.trim()) {
     const msg =
       'Falta la API key de OpenAI: OPENAI_API_KEY no está configurada en el servidor.';
     onError(`extraerFechasDocPersonal (${tipo}): ${msg}`);
-    return { resultado: sinFechas(false, msg), modelo };
+    return { resultado: sinFechas(false, msg), modelo, ...comun };
   }
   if (!buffer || buffer.length === 0) {
-    return { resultado: sinFechas(false, 'El archivo está vacío.'), modelo };
+    return {
+      resultado: sinFechas(false, 'El archivo está vacío.'),
+      modelo,
+      ...comun,
+    };
   }
   if (!MIMES_EXTRACCION_IA.includes(mimeType)) {
     return {
@@ -661,6 +821,7 @@ export async function extraerFechasDocPersonal(
         'Tipo de archivo no compatible con la extracción IA.',
       ),
       modelo,
+      ...comun,
     };
   }
 
@@ -669,17 +830,22 @@ export async function extraerFechasDocPersonal(
   let doc: DocumentoLeido;
   const inicioLectura = Date.now();
   try {
-    doc = await leerDocumento(buffer, mimeType, opciones.lectura);
+    doc =
+      opciones.documentoLeido ??
+      (await leerDocumento(buffer, mimeType, {
+        ...cfgLectura,
+        variante: 'normal',
+      }));
   } catch (err) {
     const msg = `${mimeType === 'application/pdf' ? 'PDF ilegible' : 'Imagen ilegible'}: ${(err as Error).message}`;
     onError(msg);
-    return { resultado: sinFechas(true, msg), modelo };
+    return { resultado: sinFechas(true, msg), modelo, ...comun };
   }
   if (doc.aviso) onError(doc.aviso);
 
-  const lecturaMs = Date.now() - inicioLectura;
   const tiempos: NonNullable<ResultadoExtraccionFechas['tiempos']> = {
-    lecturaMs,
+    lecturaMs: Date.now() - inicioLectura,
+    modeloMs: 0,
   };
   // Antes de llamar al modelo: así también quedan en el diagnóstico si la
   // IA falla. Se recalculan si el formato comprobado cambia con lo que el
@@ -687,6 +853,7 @@ export async function extraerFechasDocPersonal(
   const formatoDoc = formatoComprobado(doc);
   const lecturasPrevias = lecturasDeterministas(doc, formatoDoc, tipo);
   const meta = {
+    ...comun,
     tiempos,
     lecturasDeterministas: lecturasPrevias,
     origen: doc.modo,
@@ -719,79 +886,278 @@ export async function extraerFechasDocPersonal(
               : construirPromptImagenDocPersonal(tipo)),
           doc.imagenes,
         );
-  let reintentos429 = 0;
-  const contexto = `modelo ${modelo}, ~${estimadoEntrada} tokens de entrada, ${doc.imagenes.length} imagen(es), tipo ${tipo}`;
-
-  let respuesta: RespuestaDelModelo;
-  const inicioModelo = Date.now();
-  try {
-    respuesta = await conReintentosOpenAI(
-      () =>
-        doc.modo === 'pdf-crudo'
-          ? llamarResponsesConPdf(apiKey, modelo, tipo, buffer)
-          : llamarVision(openai, modelo, tipo, doc),
-      opciones.reintentos ?? CONFIG_REINTENTOS_POR_DEFECTO,
-      (e, espera, intento) => {
-        reintentos429++;
-        onError(
-          `OpenAI ${e.tipo} (${e.codigo ?? 'sin code'}, HTTP ${e.status}) — ${contexto} — intento ${intento}, se reintenta en ${Math.round(espera / 1000)} s`,
-        );
-      },
-      opciones.dormir,
-    );
-  } catch (err: unknown) {
-    const e = clasificarErrorOpenAI(err);
-    onError(
-      `OpenAI ${e.tipo} (${e.codigo ?? 'sin code'}, HTTP ${e.status}) — ${contexto}${
-        reintentos429 ? ` — tras ${reintentos429} reintento(s)` : ''
-      } — ${e.detalle}`,
-    );
-    return {
-      ...meta,
-      tokens: { estimadoEntrada, reintentos429 },
-      errorOpenAI: { tipo: e.tipo, status: e.status, codigo: e.codigo },
-      resultado: sinFechas(true, e.mensaje),
-    };
-  }
-  tiempos.modeloMs = Date.now() - inicioModelo;
-  const raw = respuesta.raw;
-  const tokens = {
+  const tokens: NonNullable<ResultadoExtraccionFechas['tokens']> = {
     estimadoEntrada,
-    entrada: respuesta.entrada,
-    salida: respuesta.salida,
-    reintentos429,
+    entrada: 0,
+    salida: 0,
+    reintentos429: 0,
+  };
+  const contexto = `modelo ${modelo}, ~${estimadoEntrada} tokens de entrada por lectura, ${doc.imagenes.length} imagen(es), tipo ${tipo}`;
+
+  /** Una lectura del modelo: llamada (con reintentos 429), JSON y validación. */
+  const leerConModelo = async (
+    id: IdLectura,
+    variante: VariantePreparacion,
+    d: DocumentoLeido,
+  ): Promise<LecturaModelo | FalloLectura> => {
+    let respuesta: RespuestaDelModelo;
+    const inicio = Date.now();
+    try {
+      respuesta = await conReintentosOpenAI(
+        () =>
+          d.modo === 'pdf-crudo'
+            ? llamarResponsesConPdf(apiKey, modelo, tipo, buffer)
+            : llamarVision(openai, modelo, tipo, d, seed),
+        opciones.reintentos ?? CONFIG_REINTENTOS_POR_DEFECTO,
+        (e, espera, intento) => {
+          tokens.reintentos429++;
+          onError(
+            `OpenAI ${e.tipo} (${e.codigo ?? 'sin code'}, HTTP ${e.status}) — ${contexto} — ${id}, intento ${intento}, se reintenta en ${Math.round(espera / 1000)} s`,
+          );
+        },
+        opciones.dormir,
+      );
+    } catch (err: unknown) {
+      const e = clasificarErrorOpenAI(err);
+      onError(
+        `OpenAI ${e.tipo} (${e.codigo ?? 'sin code'}, HTTP ${e.status}) — ${contexto} — ${id}${
+          tokens.reintentos429
+            ? ` — tras ${tokens.reintentos429} reintento(s)`
+            : ''
+        } — ${e.detalle}`,
+      );
+      return { fallo: 'openai', error: e };
+    } finally {
+      tiempos.modeloMs = (tiempos.modeloMs ?? 0) + (Date.now() - inicio);
+    }
+    tokens.entrada = (tokens.entrada ?? 0) + (respuesta.entrada ?? 0);
+    tokens.salida = (tokens.salida ?? 0) + (respuesta.salida ?? 0);
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(quitarCercoJson(respuesta.raw)) as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      onError(
+        `La IA devolvió JSON inválido (${d.modo}, ${id}) para documento ${tipo}.`,
+      );
+      return { fallo: 'json', raw: respuesta.raw };
+    }
+    // El modelo propone; el código verifica (día/mes, INE, orden, duración,
+    // tipo) contra el texto literal, con el formato comprobado.
+    const propuesta = normalizarRespuesta(parsed);
+    const validado = validarFechasDocPersonal(tipo, {
+      ...propuesta,
+      formatoFechaIndicado: formatoComprobado(doc, propuesta),
+    });
+    return { id, variante, raw: respuesta.raw, propuesta, validado };
   };
 
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(quitarCercoJson(raw)) as Record<string, unknown>;
-  } catch {
-    onError(
-      `La IA devolvió JSON inválido (${doc.modo}) para documento ${tipo}.`,
-    );
-    return {
-      ...meta,
-      tokens,
-      respuestaCruda: raw,
-      resultado: sinFechas(
-        true,
-        'Error de OpenAI: la respuesta no pudo interpretarse como JSON.',
-      ),
-    };
+  /** Documento con otra preparación de imágenes (sin volver a buscar QR). */
+  const releer = async (
+    variante: VariantePreparacion,
+  ): Promise<DocumentoLeido | null> => {
+    if (doc.modo === 'pdf-crudo') return doc;
+    const inicio = Date.now();
+    try {
+      return await leerDocumento(buffer, mimeType, {
+        ...cfgLectura,
+        variante,
+        maxPaginasQr: 0,
+      });
+    } catch (err) {
+      onError(
+        `No se pudo preparar la lectura ${variante}: ${(err as Error).message}`,
+      );
+      return null;
+    } finally {
+      tiempos.lecturaMs += Date.now() - inicio;
+    }
+  };
+
+  // ── Lectura 1 ──
+  const r1 = await leerConModelo('ia1', 'normal', doc);
+  if ('fallo' in r1) {
+    return r1.fallo === 'openai'
+      ? {
+          ...meta,
+          tokens,
+          errorOpenAI: {
+            tipo: r1.error.tipo,
+            status: r1.error.status,
+            codigo: r1.error.codigo,
+          },
+          resultado: sinFechas(true, r1.error.mensaje),
+        }
+      : {
+          ...meta,
+          tokens,
+          respuestaCruda: r1.raw,
+          resultado: sinFechas(
+            true,
+            'Error de OpenAI: la respuesta no pudo interpretarse como JSON.',
+          ),
+        };
   }
 
-  // El modelo propone; el código verifica (día/mes, INE, orden, duración,
-  // tipo) y luego se combina con QR, cadena original y etiquetas del texto.
-  const propuestaModelo = normalizarRespuesta(parsed);
-  const formato = formatoComprobado(doc, propuestaModelo);
-  const validado = validarFechasDocPersonal(tipo, {
-    ...propuestaModelo,
-    formatoFechaIndicado: formato,
-  });
-  const lecturas =
-    formato !== formatoDoc
-      ? lecturasDeterministas(doc, formato, tipo)
+  // ── Lecturas 2 y 3 (consenso) ──
+  const hechas: LecturaModelo[] = [r1];
+  const motivosLectura: string[] = [];
+  const lecturasDe = (f: string | null | undefined) =>
+    (f ?? null) !== formatoDoc
+      ? lecturasDeterministas(doc, f, tipo)
       : lecturasPrevias;
+  const visual = doc.modo !== 'pdf-texto';
+  const pedirSegunda =
+    visual ||
+    iaDifiereDeDeterministas(
+      r1.validado,
+      lecturasDe(r1.validado.formatoFechaIndicado),
+    );
+
+  const intentar = async (n: 1 | 2): Promise<LecturaModelo | null> => {
+    const { id, variante } = LECTURAS[n];
+    const d = await releer(variante);
+    if (!d) return null;
+    const r = await leerConModelo(id, variante, d);
+    if ('fallo' in r) {
+      motivosLectura.push(
+        r.fallo === 'openai'
+          ? `No se pudo hacer la lectura de confirmación (${id}): ${r.error.mensaje}`
+          : `La lectura de confirmación (${id}) no devolvió JSON válido.`,
+      );
+      return null;
+    }
+    return r;
+  };
+
+  let consenso: ReturnType<typeof consensoLecturas> | null = null;
+  if (pedirSegunda) {
+    const r2 = await intentar(1);
+    if (r2) {
+      hechas.push(r2);
+      consenso = consensoLecturas(
+        hechas.map((l) => ({ id: l.id, resultado: l.validado })),
+      );
+      if (consenso.requiereDesempate) {
+        const r3 = await intentar(2);
+        if (r3) {
+          hechas.push(r3);
+          consenso = consensoLecturas(
+            hechas.map((l) => ({ id: l.id, resultado: l.validado })),
+          );
+        } else {
+          motivosLectura.push(
+            'Las dos lecturas de la IA no coinciden y no se pudo desempatar; se usó la primera.',
+          );
+        }
+      }
+    } else if (visual) {
+      motivosLectura.push(
+        'La fecha no se confirmó con una segunda lectura de la IA.',
+      );
+    }
+  }
+
+  // Resultado de la IA: el consenso (vuelto a validar) o la única lectura.
+  let validado: ExtraerDocPersonalIaResponse;
+  if (consenso) {
+    const v = validarFechasDocPersonal(tipo, consenso.resultado);
+    validado = {
+      ...v,
+      motivosRevision: [
+        ...new Set([...consenso.motivos, ...(v.motivosRevision ?? [])]),
+      ],
+    };
+  } else {
+    validado = r1.validado;
+  }
+  if (motivosLectura.length) {
+    // Sin confirmación, ninguna fecha de la IA queda en "alta".
+    const detalle = validado.detalle
+      ? (Object.fromEntries(
+          CAMPOS_FECHA.map((c) => {
+            const f = validado.detalle![c];
+            return [
+              c,
+              {
+                ...f,
+                confianza: f.confianza === 'alta' ? 'media' : f.confianza,
+              },
+            ];
+          }),
+        ) as Record<CampoFecha, FechaDetectada>)
+      : undefined;
+    validado = {
+      ...validado,
+      ...(detalle
+        ? {
+            detalle,
+            confianza: {
+              fechaEmision: detalle.fechaEmision.confianza,
+              fechaInicio: detalle.fechaInicio.confianza,
+              fechaVencimiento: detalle.fechaVencimiento.confianza,
+            },
+          }
+        : {}),
+      motivosRevision: [
+        ...new Set([...(validado.motivosRevision ?? []), ...motivosLectura]),
+      ],
+    };
+  }
+  validado.revisar = (validado.motivosRevision ?? []).length > 0;
+
+  // ── Tipo equivocado: reextraer con las reglas del tipo detectado ──
+  const detectado = validado.tipoDetectado?.trim();
+  if (
+    !opciones.sinReextraer &&
+    detectado &&
+    detectado !== tipo &&
+    validado.confianzaTipo === 'alta' &&
+    (TIPOS_DOC_PERSONAL as readonly string[]).includes(detectado)
+  ) {
+    const otro = await extraerFechasDocPersonal({
+      ...opciones,
+      tipo: detectado as TipoDocPersonal,
+      sinReextraer: true,
+      documentoLeido: doc,
+    });
+    if (!otro.resultado.errorMensaje) {
+      const motivo = `El contenido corresponde a ${detectado}, no a ${tipo}: las fechas se extrajeron con las reglas de ${detectado}. Confirma el tipo.`;
+      const motivos = [
+        ...new Set([...(otro.resultado.motivosRevision ?? []), motivo]),
+      ];
+      return {
+        ...otro,
+        tokens: {
+          estimadoEntrada,
+          entrada: (tokens.entrada ?? 0) + (otro.tokens?.entrada ?? 0),
+          salida: (tokens.salida ?? 0) + (otro.tokens?.salida ?? 0),
+          reintentos429:
+            tokens.reintentos429 + (otro.tokens?.reintentos429 ?? 0),
+        },
+        respuestasCrudas: [
+          ...hechas.map((l) => l.raw),
+          ...(otro.respuestasCrudas ?? []),
+        ],
+        resultado: {
+          ...otro.resultado,
+          tipoSospechoso: { tipoElegido: tipo, tipoDetectado: detectado },
+          reextraccion: { tipoElegido: tipo, tipoUsado: detectado },
+          motivosRevision: motivos,
+          revisar: true,
+        },
+      };
+    }
+    onError(
+      `No se pudo reextraer como ${detectado}: ${otro.resultado.errorMensaje}`,
+    );
+  }
+
+  // ── Combinación con las lecturas deterministas ──
+  const lecturas = lecturasDe(validado.formatoFechaIndicado);
   const evidencia = doc.paginas.flatMap((p) =>
     p.estructuradas.map((e) => ({
       pagina: e.pagina,
@@ -799,12 +1165,22 @@ export async function extraerFechasDocPersonal(
       texto: e.texto.slice(0, 2000),
     })),
   );
+  const combinado = combinarConIa(tipo, validado, lecturas, evidencia);
   return {
     ...meta,
     tokens,
-    respuestaCruda: raw,
-    propuestaModelo,
+    respuestaCruda: r1.raw,
+    respuestasCrudas: hechas.map((l) => l.raw),
+    propuestaModelo: r1.propuesta,
     lecturasDeterministas: lecturas,
-    resultado: combinarConIa(tipo, validado, lecturas, evidencia),
+    resultado: {
+      ...combinado,
+      confianzaTipo: validado.confianzaTipo,
+      lecturasIa: hechas.map((l) =>
+        resumenLectura(l.id, l.variante, l.validado),
+      ),
+      ...(consenso ? { consenso: consenso.porCampo } : {}),
+      reextraccion: null,
+    },
   };
 }

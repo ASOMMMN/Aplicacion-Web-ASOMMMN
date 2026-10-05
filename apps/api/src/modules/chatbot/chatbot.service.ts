@@ -10,7 +10,10 @@ import { Model, Types } from 'mongoose';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import OpenAI from 'openai';
-import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
+import {
+  crearClienteOpenAI,
+  MODELO_GENERAL_POR_DEFECTO,
+} from '../../common/utils/openai-client.util';
 
 import {
   ChatConversacion,
@@ -58,7 +61,10 @@ export class ChatbotService implements OnModuleInit {
     this.openai = crearClienteOpenAI(
       this.configService.get<string>('OPENAI_API_KEY', ''),
     );
-    this.model = this.configService.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
+    this.model = this.configService.get<string>(
+      'OPENAI_MODEL',
+      MODELO_GENERAL_POR_DEFECTO,
+    );
   }
 
   /** Carga el manual una sola vez en memoria al iniciar el módulo. */

@@ -8,16 +8,12 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
-import OpenAI from 'openai';
-import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
 import {
   ExtraerDocPersonalIaResponse,
-  extraerFechasDocPersonal,
   modeloDocsDesdeEnv,
   sinFechas,
 } from './ia/extraer-fechas-doc-personal';
-import { configLecturaDesdeEnv } from './ia/lectura-documento';
-import { configReintentosDesdeEnv } from '../../common/utils/openai-errores.util';
+import { ExtraccionIaService } from './extraccion-ia.service';
 import { cambiosPorAnalisis } from './ia/cambios-analisis';
 import { estadoExtraccion } from './ia/estado-extraccion';
 import { resumenFuentes } from './ia/combinar-fuentes';
@@ -63,7 +59,6 @@ export type DisparadorAnalisis = 'subida' | 'reanalisis' | 'lote';
 @Injectable()
 export class DocsPersonalesService {
   private readonly logger = new Logger(DocsPersonalesService.name);
-  private readonly openai: OpenAI;
 
   constructor(
     @InjectModel(DocPersonal.name)
@@ -80,11 +75,9 @@ export class DocsPersonalesService {
     private readonly auditoria: AuditoriaService,
 
     private readonly configService: ConfigService,
-  ) {
-    this.openai = crearClienteOpenAI(
-      this.configService.get<string>('OPENAI_API_KEY', ''),
-    );
-  }
+
+    private readonly extraccionIa: ExtraccionIaService,
+  ) {}
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -193,19 +186,11 @@ export class DocsPersonalesService {
     mimeType: string,
     actorEmail: string,
   ): Promise<ExtraerDocPersonalIaResponse> {
-    const modelo = modeloDocsDesdeEnv((k) => this.configService.get<string>(k));
-    const { resultado, origen } = await extraerFechasDocPersonal({
+    const { resultado, origen, modelo } = await this.extraccionIa.extraer({
       buffer: fileBuffer,
       mimeType,
       tipo: tipoDocumento,
-      apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
-      modelo,
-      openai: this.openai,
-      lectura: configLecturaDesdeEnv((k) => this.configService.get<string>(k)),
-      reintentos: configReintentosDesdeEnv((k) =>
-        this.configService.get<string>(k),
-      ),
-      onError: (m) => this.logger.error(m),
+      usarCache: true,
     });
 
     if (resultado.iaDisponible && !resultado.errorMensaje) {
@@ -243,18 +228,14 @@ export class DocsPersonalesService {
     actor: AuthUser,
     disparadoPor: DisparadorAnalisis,
   ): Promise<ResultadoExtraccionFechas> {
-    const r = await extraerFechasDocPersonal({
+    // Al subir se usa la caché (mismo archivo = mismas fechas). "Volver a
+    // analizar" y el análisis por lotes la omiten y la actualizan.
+    const r = await this.extraccionIa.extraer({
       buffer,
       mimeType: doc.tipoMime,
       tipo: doc.tipo,
-      apiKey: this.configService.get<string>('OPENAI_API_KEY', ''),
-      modelo: modeloDocsDesdeEnv((k) => this.configService.get<string>(k)),
-      openai: this.openai,
-      lectura: configLecturaDesdeEnv((k) => this.configService.get<string>(k)),
-      reintentos: configReintentosDesdeEnv((k) =>
-        this.configService.get<string>(k),
-      ),
-      onError: (m) => this.logger.error(`[doc ${doc._id.toString()}] ${m}`),
+      usarCache: disparadoPor === 'subida',
+      contextoLog: `[doc ${doc._id.toString()}]`,
     });
     await this.guardarAnalisis(doc, r, actor, disparadoPor);
     return r;

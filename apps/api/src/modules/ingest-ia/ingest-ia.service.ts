@@ -14,6 +14,7 @@ import {
   DatosCV,
 } from './schemas/extraccion.schema';
 import { OpenAiIaService } from './openai-ia.service';
+import { MODELO_GENERAL_POR_DEFECTO } from '../../common/utils/openai-client.util';
 import { StorageService } from '../storage/storage.service';
 import {
   Documento,
@@ -68,7 +69,10 @@ export class IngestIaService {
       postulanteId: new Types.ObjectId(postulanteId),
       documentoId: documento._id,
       estado: 'propuesto',
-      modeloUsado: this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
+      modeloUsado: this.config.get<string>(
+        'OPENAI_MODEL',
+        MODELO_GENERAL_POR_DEFECTO,
+      ),
     });
 
     // Procesar en background sin bloquear la respuesta

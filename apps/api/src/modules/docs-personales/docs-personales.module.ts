@@ -6,6 +6,11 @@ import { DocsPersonalesService } from './docs-personales.service';
 import { AnalisisGlobalService } from './analisis-global.service';
 import { DocPersonal, DocPersonalSchema } from './schemas/doc-personal.schema';
 import {
+  CacheExtraccionIa,
+  CacheExtraccionIaSchema,
+} from './schemas/cache-extraccion-ia.schema';
+import { ExtraccionIaService } from './extraccion-ia.service';
+import {
   Postulante,
   PostulanteSchema,
 } from '../postulantes/schemas/postulante.schema';
@@ -17,6 +22,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
   imports: [
     MongooseModule.forFeature([
       { name: DocPersonal.name, schema: DocPersonalSchema },
+      { name: CacheExtraccionIa.name, schema: CacheExtraccionIaSchema },
       { name: Postulante.name, schema: PostulanteSchema },
       { name: Usuario.name, schema: UsuarioSchema },
     ]),
@@ -24,7 +30,11 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
     AuditoriaModule,
   ],
   controllers: [DocsPersonalesController],
-  providers: [DocsPersonalesService, AnalisisGlobalService],
-  exports: [DocsPersonalesService],
+  providers: [
+    DocsPersonalesService,
+    AnalisisGlobalService,
+    ExtraccionIaService,
+  ],
+  exports: [DocsPersonalesService, ExtraccionIaService],
 })
 export class DocsPersonalesModule {}
