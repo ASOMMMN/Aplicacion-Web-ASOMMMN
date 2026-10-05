@@ -9,3 +9,6 @@ dist/
 apps/api/uploads/
 tmp-test-cv.pdf 
 verify-email.js
+# Datos personales reales: muestras para pruebas de IA y reportes de reanálisis
+apps/api/muestras-ia/
+apps/api/reportes-ia/

@@ -14,6 +14,7 @@ import type {
   FuenteFecha,
   FuenteFechaResumen,
   PrecisionFecha,
+  PropuestaFechas,
   OrigenResumen,
   ResumenFechaItem,
   ResumenFechasResponse,
@@ -209,6 +210,46 @@ function tituloVigencia(item: ResumenFechaItem): string | undefined {
   return `Vence en ${dias} día(s)`;
 }
 
+/** Fechas que un reanálisis leyó distintas: no se aplican hasta aceptarlas. */
+function PropuestaPendiente({
+  propuesta,
+  ocupado,
+  onAceptar,
+  onDescartar,
+}: {
+  propuesta: PropuestaFechas;
+  ocupado: boolean;
+  onAceptar: () => void;
+  onDescartar: () => void;
+}) {
+  const cambios = (Object.keys(propuesta.fechas) as CampoFecha[]).map((campo) => {
+    const f = propuesta.fechas[campo]!;
+    return `${NOMBRE_CAMPO[campo]}: ${formatearFechaConPrecision(f.anterior)} → ${formatearFechaConPrecision(f.valor, f.precision)}`;
+  });
+  return (
+    <div
+      className="border border-warning-subtle bg-warning-subtle rounded px-2 py-1 mt-1 text-warning-emphasis"
+      style={{ fontSize: '0.72rem', maxWidth: 300 }}
+    >
+      <div className="fw-semibold">
+        <i className="bi bi-lightbulb me-1" />
+        Nueva lectura pendiente de confirmar
+      </div>
+      {cambios.map((t) => (
+        <div key={t}>{t}</div>
+      ))}
+      <div className="d-flex gap-2 mt-1">
+        <Button size="sm" variant="warning" className="py-0 px-2" disabled={ocupado} onClick={onAceptar}>
+          Aceptar
+        </Button>
+        <Button size="sm" variant="outline-secondary" className="py-0 px-2" disabled={ocupado} onClick={onDescartar}>
+          Descartar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function ResumenFechasTabla({
   postulanteId,
   recargarKey,
@@ -238,6 +279,21 @@ export function ResumenFechasTabla({
       else sig.add(id);
       return sig;
     });
+
+  /** Aplica o descarta las fechas propuestas por un reanálisis. */
+  const resolverPropuesta = async (docId: string, aceptar: boolean) => {
+    setAnalizando(docId);
+    setAvisoAccion('');
+    try {
+      if (aceptar) await api.post(`/docs-personales/${docId}/propuesta/aceptar`);
+      else await api.delete(`/docs-personales/${docId}/propuesta`);
+    } catch (err) {
+      setAvisoAccion(mensajeError(err, 'No se pudo actualizar la propuesta.'));
+    } finally {
+      setAnalizando(null);
+      recargar();
+    }
+  };
 
   const volverAAnalizar = async (docId: string) => {
     setAnalizando(docId);
@@ -357,6 +413,24 @@ export function ResumenFechasTabla({
                       <i className="bi bi-patch-check-fill me-1" />
                       Verificada
                     </span>
+                  )}
+                  {c.docPersonal?.propuesta && (
+                    <PropuestaPendiente
+                      propuesta={c.docPersonal.propuesta}
+                      ocupado={analizando !== null}
+                      onAceptar={() => resolverPropuesta(c.docPersonal!.id, true)}
+                      onDescartar={() => resolverPropuesta(c.docPersonal!.id, false)}
+                    />
+                  )}
+                  {c.docPersonal?.fechasDeOtroArchivo && (
+                    <div className="text-muted" style={{ fontSize: '0.7rem' }}>
+                      {Object.entries(c.docPersonal.fechasDeOtroArchivo).map(([campo, a]) => (
+                        <div key={campo} title="Mismo documento (anverso/reverso o subido junto)">
+                          <i className="bi bi-link-45deg me-1" />
+                          {NOMBRE_CAMPO[campo as CampoFecha]} de {a!.nombre}
+                        </div>
+                      ))}
+                    </div>
                   )}
                   {documentos.length > 1 && (
                     <div>

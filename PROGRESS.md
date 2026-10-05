@@ -65,7 +65,26 @@ Fases:
   y la actualizan. `VERSION_CANALIZACION` = 2026-10-05. Jest 25 / 250.
   En Render hay que poner `OPENAI_MODEL=gpt-4o-mini-2024-07-18` (hoy es el
   alias) y, opcional, `OPENAI_MODEL_DOCS=gpt-4o-2024-11-20`.
-- [ ] Fase 3 — protección de datos (reanálisis, resumen multi-archivo).
+- [x] **Fase 3 — protección de datos.** `cambios-analisis.ts`: una fecha
+  existente nunca se pisa con null (queda en `analisisIa.conservadas`); con
+  un análisis de esta misma versión, una fecha distinta va a
+  `propuestaFechasIa` (+ Revisar) y la evidencia de cada campo es la del
+  análisis que produjo su valor; con versión vieja o sin versión se
+  reemplaza y queda en `analisisIa.reemplazo`. Endpoints
+  `POST /docs-personales/:id/propuesta/aceptar` y
+  `DELETE /docs-personales/:id/propuesta` (auditados); la corrección manual
+  borra la propuesta. Resumen por tipo (`docs-personales-resumen.util.ts`):
+  documento ganador (verificado > vencimiento más lejano con confianza ≥
+  media > más reciente con fechas) con sus fechas en bloque; los campos
+  vacíos solo se completan con el mismo documento físico (mismo
+  vencimiento, o subidos con ≤ 15 min de diferencia y sin contradicciones),
+  con `fechasDeOtroArchivo` y `archivosDelTipo`. Tabla actual: aviso "Nueva
+  lectura pendiente de confirmar" con Aceptar/Descartar. Script
+  `scripts/reanalizar-docs-personales.ts`: dry-run (llama a OpenAI, no
+  escribe; reporte JSON + CSV anterior → nueva en `apps/api/reportes-ia/`,
+  fuera de git) y `--ejecutar --reporte` que aplica exactamente lo revisado
+  (salta los que cambiaron desde el reporte). `muestras-ia/` y
+  `reportes-ia/` en .gitignore. Jest 25 / 264.
 - [ ] Fase 4 — cursos (canalización unificada, schema, regla de 5 años,
   migración).
 - [ ] Fase 5 — script de consistencia.
@@ -271,3 +290,4 @@ automatizados. `useAuth` no se usa en ninguna página (se migró igual).
 - 2026-10-01: bug de sesión en producción (`c05472a`, `3e97caa`).
 - 2026-10-05: plan de exactitud y consistencia; fase 1 (parser).
 - 2026-10-05: fase 2 (consistencia: snapshot, seed, esquema estricto, doble lectura, caché).
+- 2026-10-05: fase 3 (protección de datos, resumen multi-archivo, script de reanálisis).

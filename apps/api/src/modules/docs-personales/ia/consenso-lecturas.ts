@@ -28,9 +28,9 @@ const CAMPOS: CampoFecha[] = [
 ];
 
 const NOMBRE_CAMPO: Record<CampoFecha, string> = {
-  fechaEmision: 'emisión',
-  fechaInicio: 'inicio',
-  fechaVencimiento: 'vencimiento',
+  fechaEmision: 'la emisión',
+  fechaInicio: 'el inicio',
+  fechaVencimiento: 'el vencimiento',
 };
 
 export type IdLectura = 'ia1' | 'ia2' | 'ia3';
@@ -135,7 +135,7 @@ export function consensoLecturas(lecturas: LecturaIa[]): ResultadoConsenso {
       );
       confianza = 'baja';
       motivos.push(
-        `Las lecturas de la IA no coinciden en la ${NOMBRE_CAMPO[campo]} (${lecturas
+        `Las lecturas de la IA no coinciden en ${NOMBRE_CAMPO[campo]} (${lecturas
           .map((l, i) => `${l.id}: ${mostrar(fechas[i])}`)
           .join('; ')}); se usó la más confiable.`,
       );

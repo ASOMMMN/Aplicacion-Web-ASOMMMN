@@ -79,7 +79,7 @@ describe('consensoLecturas', () => {
     });
     expect(r.resultado.fechaVencimiento).toBe('2030-09-01');
     expect(r.resultado.confianza.fechaVencimiento).toBe('baja');
-    expect(r.motivos.join(' ')).toMatch(/no coinciden en la vencimiento/);
+    expect(r.motivos.join(' ')).toMatch(/no coinciden en el vencimiento/);
   });
 
   it('cada campo se decide por separado', () => {

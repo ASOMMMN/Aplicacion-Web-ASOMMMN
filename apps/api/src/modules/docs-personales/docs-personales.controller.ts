@@ -393,6 +393,35 @@ export class DocsPersonalesController {
     return this.svc.verificarFechas(user, id, body);
   }
 
+  @Post(':id/propuesta/aceptar')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary: 'Evaluador/Admin: aplica las fechas propuestas por un reanálisis',
+    description:
+      'Un reanálisis que leyó fechas distintas no las aplica solo: las deja como propuesta. Esto las aplica.',
+  })
+  @ApiResponse({ status: 201, type: DocPersonalResponseDto })
+  aceptarPropuesta(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<DocPersonalResponseDto> {
+    return this.svc.resolverPropuesta(user, id, 'aceptar');
+  }
+
+  @Delete(':id/propuesta')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary:
+      'Evaluador/Admin: descarta las fechas propuestas por un reanálisis',
+  })
+  @ApiResponse({ status: 200, type: DocPersonalResponseDto })
+  descartarPropuesta(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ): Promise<DocPersonalResponseDto> {
+    return this.svc.resolverPropuesta(user, id, 'descartar');
+  }
+
   @Get('postulante/:postulanteId')
   @Roles('evaluador', 'administrador')
   @ApiOperation({

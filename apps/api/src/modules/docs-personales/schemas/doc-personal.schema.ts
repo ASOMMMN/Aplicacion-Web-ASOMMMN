@@ -6,6 +6,10 @@ import {
 } from '../constants/tipos-doc-personal';
 import { ESTADOS_EXTRACCION, EstadoExtraccion } from '../ia/estado-extraccion';
 import type { PrecisionFecha } from '../ia/formatos-fecha';
+import type {
+  CambiosAnalisis,
+  PropuestaFechasIa,
+} from '../ia/cambios-analisis';
 
 export type DocPersonalDocument = HydratedDocument<DocPersonal>;
 
@@ -107,7 +111,23 @@ export class DocPersonal {
     paginasTotales?: number;
     /** Mensaje si la lectura o la IA fallaron (las fechas no se tocaron). */
     error?: string;
+    /**
+     * Versión de la canalización (VERSION_CANALIZACION). Ausente = análisis
+     * anterior al 2026-10-05: un reanálisis lo puede reemplazar.
+     */
+    versionCanalizacion?: string;
+    /** El reanálisis reemplazó fechas de una versión anterior. */
+    reemplazo?: CambiosAnalisis['analisisIa']['reemplazo'];
+    /** Fechas que el reanálisis no encontró y se conservaron. */
+    conservadas?: CambiosAnalisis['analisisIa']['conservadas'];
   };
+
+  /**
+   * Fechas que un reanálisis leyó distintas a las guardadas. No se aplican
+   * solas: el evaluador las acepta o las descarta. null = sin propuesta.
+   */
+  @Prop({ type: Object, default: null })
+  propuestaFechasIa?: PropuestaFechasIa | null;
 
   /**
    * Corrección manual del evaluador. Si existe, fechaEmision/fechaInicio/

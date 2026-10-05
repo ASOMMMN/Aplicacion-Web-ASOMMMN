@@ -3,6 +3,7 @@ import type { EstadoVigencia } from './vigencia.util';
 import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
 import type { PrecisionFechas } from '../docs-personales/schemas/doc-personal.schema';
 import type { ResumenFuentes } from '../docs-personales/ia/combinar-fuentes';
+import type { PropuestaFechasResumen } from '../docs-personales/ia/cambios-analisis';
 
 /**
  * Origen del dato:
@@ -65,6 +66,17 @@ export interface DocPersonalResumen extends ResumenFuentes {
   fechasVerificadas: boolean;
   extraccionEstado: EstadoExtraccion;
   extraccionError: string | null;
+  /** Fechas de un reanálisis pendientes de aceptar (null = ninguna). */
+  propuesta?: PropuestaFechasResumen | null;
+  /** Cuántos archivos hay de este tipo (las fechas salen del ganador). */
+  archivosDelTipo?: number;
+  /** Campos vacíos del ganador que se completaron con otro archivo del mismo documento físico. */
+  fechasDeOtroArchivo?: Partial<
+    Record<
+      'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      { id: string; nombre: string }
+    >
+  >;
 }
 
 export type ConteoVigencia = Record<EstadoVigencia, number>;

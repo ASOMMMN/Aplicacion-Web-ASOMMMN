@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import type { PropuestaFechasResumen } from '../ia/cambios-analisis';
 import {
   IsIn,
   IsISO8601,
@@ -98,6 +99,13 @@ export class DocPersonalResponseDto {
     nullable: true,
   })
   tipoSospechoso: { tipoElegido: string; tipoDetectado: string } | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Fechas que un reanálisis leyó distintas a las guardadas; no se aplican hasta que el evaluador las acepte.',
+  })
+  propuestaFechas?: PropuestaFechasResumen | null;
 
   @ApiPropertyOptional({
     description:

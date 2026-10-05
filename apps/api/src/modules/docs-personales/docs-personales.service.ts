@@ -14,7 +14,7 @@ import {
   sinFechas,
 } from './ia/extraer-fechas-doc-personal';
 import { ExtraccionIaService } from './extraccion-ia.service';
-import { cambiosPorAnalisis } from './ia/cambios-analisis';
+import { cambiosPorAnalisis, resumenPropuesta } from './ia/cambios-analisis';
 import { estadoExtraccion } from './ia/estado-extraccion';
 import { resumenFuentes } from './ia/combinar-fuentes';
 import type { ResultadoExtraccionFechas } from './ia/extraer-fechas-doc-personal';
@@ -122,6 +122,7 @@ export class DocsPersonalesService {
       revisarFechas: Boolean(doc.revisarFechas),
       motivosRevision: doc.motivosRevision ?? [],
       tipoSospechoso: doc.tipoSospechoso ?? null,
+      propuestaFechas: resumenPropuesta(doc.propuestaFechasIa),
       ...resumenFuentes(doc.detalleFechasIa, Boolean(doc.fechasVerificadas)),
       analizadoEn: doc.analisisIa?.analizadoEn,
       errorAnalisis: doc.analisisIa?.error,
@@ -251,6 +252,8 @@ export class DocsPersonalesService {
     try {
       const cambios = cambiosPorAnalisis(r, {
         fechasVerificadas: Boolean(doc.fechasVerificadas),
+        // Protección: nunca pisar con null ni reemplazar en silencio.
+        anterior: doc,
       });
       // null = límite por minuto de OpenAI: el documento queda como estaba
       // (p. ej. "pendiente") para reintentarlo, no como error.
@@ -457,6 +460,8 @@ export class DocsPersonalesService {
       ...nuevas,
       revisarFechas: false,
       motivosRevision: [],
+      // La corrección manual resuelve cualquier propuesta pendiente.
+      propuestaFechasIa: null,
       // El evaluador captura fechas completas.
       precisionFechas: {
         fechaEmision: 'dia',
@@ -492,6 +497,87 @@ export class DocsPersonalesService {
       },
     });
 
+    return this.toResponseDto(doc);
+  }
+
+  // ── Evaluador / Admin: propuesta de un reanálisis ─────────────────────────
+
+  /**
+   * Aplica o descarta las fechas que un reanálisis leyó distintas a las
+   * guardadas. Al aceptar, cada fecha propuesta reemplaza a la guardada con
+   * su evidencia; las demás fechas no cambian.
+   */
+  async resolverPropuesta(
+    actor: AuthUser,
+    docId: string,
+    accion: 'aceptar' | 'descartar',
+  ): Promise<DocPersonalResponseDto> {
+    const doc = await this.docModel.findById(docId);
+    if (!doc) throw new NotFoundException('Documento no encontrado.');
+    const propuesta = doc.propuestaFechasIa;
+    if (!propuesta) {
+      throw new BadRequestException('El documento no tiene fechas propuestas.');
+    }
+    if (doc.fechasVerificadas && accion === 'aceptar') {
+      throw new BadRequestException(
+        'Las fechas están verificadas por un evaluador; corrígelas a mano.',
+      );
+    }
+
+    const iso = (d?: Date | null) =>
+      d ? new Date(d).toISOString().slice(0, 10) : null;
+    const antes = {
+      fechaEmision: iso(doc.fechaEmision),
+      fechaInicio: iso(doc.fechaInicio),
+      fechaVencimiento: iso(doc.fechaVencimiento),
+    };
+
+    if (accion === 'aceptar') {
+      const detalle = { ...(doc.detalleFechasIa ?? {}) };
+      const fuentes = {
+        ...((detalle.fuentes ?? {}) as Record<string, unknown>),
+      };
+      const precision = { ...(doc.precisionFechas ?? {}) };
+      for (const [campo, f] of Object.entries(propuesta.fechas)) {
+        if (!f) continue;
+        const c = campo as keyof typeof antes;
+        doc.set(c, f.valor ? new Date(f.valor) : null);
+        precision[c] = f.precision;
+        if (f.detalle !== undefined) detalle[c] = f.detalle;
+        if (f.fuente !== undefined) fuentes[c] = f.fuente;
+      }
+      if (detalle.fuentes) detalle.fuentes = fuentes;
+      doc.set({ detalleFechasIa: detalle, precisionFechas: precision });
+    }
+    // Aceptar o descartar es la revisión del evaluador: se quita la marca.
+    doc.set({
+      propuestaFechasIa: null,
+      revisarFechas: false,
+      motivosRevision: [],
+    });
+    await doc.save();
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion:
+        accion === 'aceptar'
+          ? 'doc_personal_propuesta_aceptada'
+          : 'doc_personal_propuesta_descartada',
+      recurso: 'DocPersonal',
+      recursoId: docId,
+      metadata: {
+        tipoDocumento: doc.tipo,
+        postulanteId: doc.postulanteId?.toString(),
+        antes,
+        propuesta: Object.fromEntries(
+          Object.entries(propuesta.fechas).map(([c, f]) => [
+            c,
+            iso(f?.valor ?? null),
+          ]),
+        ),
+      },
+    });
     return this.toResponseDto(doc);
   }
 
@@ -721,13 +807,14 @@ export class DocsPersonalesService {
         | 'extraccionError'
         | 'precisionFechas'
         | 'detalleFechasIa'
+        | 'propuestaFechasIa'
       > & { _id: Types.ObjectId }
     >
   > {
     return this.docModel
       .find({ postulanteId: new Types.ObjectId(postulanteId) })
       .select(
-        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError precisionFechas detalleFechasIa',
+        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError precisionFechas detalleFechasIa propuestaFechasIa',
       )
       .sort({ subidasEn: -1 })
       .lean();

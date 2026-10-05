@@ -63,6 +63,20 @@ export interface DocPersonalResumen {
   fuentesFechas?: Partial<Record<CampoFecha, FuenteFechaResumen>>;
   /** Solo si el archivo trae más de un documento. */
   documentosDetectados?: DocumentoDetectado[];
+  /** Fechas de un reanálisis que no se aplicaron solas (null = ninguna). */
+  propuesta?: PropuestaFechas | null;
+  /** Archivos de este tipo; las fechas salen del documento ganador. */
+  archivosDelTipo?: number;
+  /** Campos vacíos que se completaron con otro archivo del mismo documento. */
+  fechasDeOtroArchivo?: Partial<Record<CampoFecha, { id: string; nombre: string }>>;
+}
+
+export interface PropuestaFechas {
+  fechas: Partial<
+    Record<CampoFecha, { valor: string | null; precision: PrecisionFecha; anterior: string | null }>
+  >;
+  motivos: string[];
+  detectadaEn: string | null;
 }
 
 export type CampoFecha = 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento';
