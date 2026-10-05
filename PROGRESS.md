@@ -1,6 +1,56 @@
 # Progreso — extracción de fechas en `docs-personales/ia`
 
-Última actualización: 2026-10-01
+Última actualización: 2026-10-05
+
+## Corrección de exactitud y consistencia (2026-10-05)
+
+Rama `fix/extraccion-fechas-consistencia`. Objetivo: el mismo documento
+devuelve siempre las mismas fechas y son las correctas; ante la duda,
+"Revisar" en vez de adivinar. Diagnóstico y plan en la conversación del
+2026-10-05. Un commit por fase.
+
+Decisiones del usuario:
+1. Caché por hash del archivo (sha256 + modelo + versión de la canalización
+   + tipo). "Volver a analizar" la omite.
+2. Varios archivos del mismo tipo: NO mezclar campos de documentos
+   distintos. Documento ganador = verificado, o el de vencimiento más lejano
+   con confianza ≥ media; sus fechas van en bloque. Solo se completan campos
+   vacíos con el mismo documento físico (anverso/reverso: mismo
+   vencimiento, mismo número de documento o subidos juntos).
+3. Reanálisis: si el análisis anterior es de una `versionCanalizacion`
+   vieja y no está verificado, se reemplaza con motivo; la protección
+   (propuesta en vez de reemplazo) aplica de esta versión en adelante.
+   Antes de reanalizar en lote: reporte dry-run anterior → nueva.
+4. Rango "del X al Y" = vigencia solo con etiqueta de vigencia; el periodo
+   de impartición va a `fechaFinCurso` como evidencia.
+5. Regla de +5 años (reactivada a propósito): SOLO cursos registrados con
+   documento. Los del CV quedan sin vencimiento calculado ("Sin
+   documento"). El vencimiento calculado se muestra SIEMPRE como "estimado
+   (5 años)", nunca como del documento.
+6. Doble lectura aceptada. Snapshot fechado más reciente de gpt-4o según
+   `models.list`, en env.
+7. Script de consistencia autorizado; muestras en `apps/api/muestras-ia/<tipo>/`
+   (fuera de git).
+
+Después de este plan (en este orden, cada uno con su commit): visor de
+documentos → rediseño del resumen → expediente unificado. No usar campos
+provisionales: leer `origenVencimiento`, `fechaEmision` y la confianza reales.
+
+Fases:
+- [x] **Fase 1 — parser.** `leerFechasLiteral` (todas las fechas con
+  posición), `elegir-fecha-literal.ts` (MRZ > rango de vigencia > valor del
+  modelo > cercanía a la etiqueta > única > más probable con Revisar), año
+  pegado a la etiqueta, `mrz.ts` (TD3/MRV/TD1 con dígito verificador,
+  vencimiento 20xx), `dd MMM aa`, ambigüedad siempre calculada,
+  `detectarIndicadorFormato` + `formatoComprobado` (el mm/dd del modelo ya no
+  cuenta), "hoy" de México en la validación (`common/utils/fecha-mexico.util.ts`)
+  y en `fechaCurso` del web. Jest 23 suites / 227 tests.
+- [ ] Fase 2 — consistencia (snapshot, seed, json_schema estricto, doble
+  lectura con consenso, clasificación por página, tipo equivocado, caché).
+- [ ] Fase 3 — protección de datos (reanálisis, resumen multi-archivo).
+- [ ] Fase 4 — cursos (canalización unificada, schema, regla de 5 años,
+  migración).
+- [ ] Fase 5 — script de consistencia.
 
 ## Objetivo
 
@@ -201,3 +251,4 @@ automatizados. `useAuth` no se usa en ninguna página (se migró igual).
   (`62b69dc`).
 - 2026-10-01: revisión del `.git` anidado, verificación completa y push.
 - 2026-10-01: bug de sesión en producción (`c05472a`, `3e97caa`).
+- 2026-10-05: plan de exactitud y consistencia; fase 1 (parser).

@@ -15,7 +15,7 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { IconTimon, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
-import { formatearFechaCalendario } from '@/lib/fechas';
+import { formatearFechaCalendario, hoyMexicoISO } from '@/lib/fechas';
 import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ export default function MisCursosPage() {
       setError('El nombre del curso es obligatorio.');
       return;
     }
-    const fechaCurso = formInicio || new Date().toISOString().slice(0, 10);
+    const fechaCurso = formInicio || hoyMexicoISO();
 
     try {
       setSaving(true);

@@ -139,3 +139,108 @@ describe('validarFechasDocPersonal', () => {
     });
   });
 });
+
+describe('validarFechasDocPersonal: casos del diagnóstico', () => {
+  it('03/04/2025 sin formato comprobado → 3 de abril, confianza media como máximo', () => {
+    const r = validar('certificado_competencia', {
+      fechaEmision: fecha('2025-04-03', '03/04/2025'),
+    });
+    expect(r.fechaEmision).toBe('2025-04-03');
+    expect(r.confianza.fechaEmision).toBe('media');
+  });
+
+  it('03/04/2025 aunque el modelo declare "mm/dd": sin indicador en el documento sigue siendo dd/mm', () => {
+    // normalizarRespuesta conserva lo que dijo el modelo; extraerFechasDocPersonal
+    // lo reemplaza por el formato comprobado (null si el documento no lo indica).
+    const r = validarFechasDocPersonal(
+      'certificado_competencia',
+      {
+        ...normalizarRespuesta({
+          fechaEmision: fecha('2025-03-04', '03/04/2025'),
+          fechaInicio: fecha(null, null),
+          fechaVencimiento: fecha(null, null),
+        }),
+        formatoFechaIndicado: null,
+      },
+      HOY,
+    );
+    expect(r.fechaEmision).toBe('2025-04-03');
+    expect(r.motivosRevision.join(' ')).toMatch(/día\/mes/);
+  });
+
+  it('03/04/2025 con indicador "mm/dd/aaaa" comprobado en el documento → 4 de marzo', () => {
+    const r = validarFechasDocPersonal(
+      'visa',
+      {
+        ...normalizarRespuesta({
+          fechaEmision: fecha('2025-03-04', '03/04/2025'),
+          fechaInicio: fecha(null, null),
+          fechaVencimiento: fecha(null, null),
+        }),
+        formatoFechaIndicado: 'mm/dd/aaaa',
+      },
+      HOY,
+    );
+    expect(r.fechaEmision).toBe('2025-03-04');
+    expect(r.confianza.fechaEmision).toBe('alta');
+  });
+
+  it('"del 01/02/2023 al 01/02/2028" con etiqueta de vigencia → vencimiento 2028 (antes se guardaba 2023)', () => {
+    const r = validar('certificado_competencia', {
+      fechaEmision: fecha('2023-02-01', '01/02/2023'),
+      fechaVencimiento: fecha('2028-02-01', 'del 01/02/2023 al 01/02/2028', {
+        etiqueta: 'Vigencia',
+      }),
+    });
+    expect(r.fechaVencimiento).toBe('2028-02-01');
+    expect(r.revisar).toBe(false);
+  });
+
+  it('INE "EMISIÓN 2021 VIGENCIA 2031" en ambos literales → emisión 2021, vencimiento 2031-12-31', () => {
+    const literal = 'EMISIÓN 2021 VIGENCIA 2031';
+    const r = validar('INE', {
+      fechaEmision: fecha(null, literal),
+      fechaVencimiento: fecha('2031-12-31', literal),
+    });
+    expect(r.fechaEmision).toBe('2021-01-01');
+    expect(r.detalle?.fechaEmision.precision).toBe('anio');
+    expect(r.fechaVencimiento).toBe('2031-12-31');
+  });
+
+  it('"19 DEC 27" ya no se descarta', () => {
+    const r = validar('visa', {
+      fechaEmision: fecha('2017-12-20', '20 DEC 17'),
+      fechaVencimiento: fecha('2027-12-19', '19 DEC 27'),
+    });
+    expect(r.fechaVencimiento).toBe('2027-12-19');
+    expect(r.fechasDescartadas).toHaveLength(0);
+  });
+
+  it('varias fechas sin forma de distinguirlas → la más probable, confianza baja y Revisar', () => {
+    const r = validar('certificado_competencia', {
+      fechaVencimiento: fecha('2030-01-01', '15/05/2021 15/05/2026'),
+    });
+    expect(r.fechaVencimiento).toBe('2026-05-15');
+    expect(r.confianza.fechaVencimiento).toBe('baja');
+    expect(r.revisar).toBe(true);
+  });
+
+  it('"hoy" por defecto es el de México: la emisión de hoy en México no está en el futuro', () => {
+    // Sin parámetro `hoy`: solo se comprueba que use la fecha local de México
+    // (una emisión de hoy nunca se marca como futura).
+    const { hoyISO } = jest.requireActual<
+      typeof import('../../../common/utils/fecha-mexico.util')
+    >('../../../common/utils/fecha-mexico.util');
+    const hoy = hoyISO();
+    const [y, m, d] = hoy.split('-');
+    const r = validarFechasDocPersonal(
+      'visa',
+      normalizarRespuesta({
+        fechaEmision: fecha(hoy, `${d}/${m}/${y}`),
+        fechaInicio: fecha(null, null),
+        fechaVencimiento: fecha(null, null),
+      }),
+    );
+    expect(r.motivosRevision.join(' ')).not.toMatch(/futuro/);
+  });
+});

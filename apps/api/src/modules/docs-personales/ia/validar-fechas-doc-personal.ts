@@ -17,7 +17,9 @@ import {
   TIPOS_DOC_PERSONAL,
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
-import { leerFechaLiteral, valorGuardado } from './formatos-fecha';
+import { valorGuardado } from './formatos-fecha';
+import { elegirFechaDelLiteral } from './elegir-fecha-literal';
+import { hoyISO } from '../../../common/utils/fecha-mexico.util';
 import type {
   CampoFecha,
   Confianza,
@@ -97,7 +99,7 @@ const NOMBRE_CAMPO: Record<CampoFecha, string> = {
 export function validarFechasDocPersonal(
   tipo: TipoDocPersonal,
   respuesta: ExtraerDocPersonalIaResponse,
-  hoy: string = new Date().toISOString().slice(0, 10),
+  hoy: string = hoyISO(),
 ): ResultadoValidado {
   const motivos: string[] = [];
   const descartadas: string[] = [];
@@ -127,16 +129,20 @@ export function validarFechasDocPersonal(
 
   // 1-2. El valor y la precisión salen SIEMPRE del texto literal, nunca de
   // lo que diga el modelo ("EMISIÓN 2016" es año aunque el modelo dé
-  // 2016-01-01). Sin literal legible, la fecha se descarta.
+  // 2016-01-01). Si el literal tiene varias fechas, elegirFechaDelLiteral
+  // decide cuál es la del campo. Sin literal legible, la fecha se descarta.
+  // El formato que llega aquí ya está comprobado contra el documento.
+  const formato = respuesta.formatoFechaIndicado ?? null;
   for (const campo of Object.keys(detalle) as CampoFecha[]) {
     const f = detalle[campo];
     if (!f.valor && !f.textoLiteral) continue;
 
-    const lectura = leerFechaLiteral(
-      f.textoLiteral,
-      respuesta.formatoFechaIndicado,
-    );
-    if (!lectura) {
+    const eleccion = elegirFechaDelLiteral(f.textoLiteral, campo, {
+      valorModelo: f.valor,
+      formato,
+      etiquetaModelo: f.etiqueta,
+    });
+    if (!eleccion) {
       if (f.valor) {
         const motivo = `La ${NOMBRE_CAMPO[campo]} (${f.valor}) no aparece como fecha en el texto "${f.textoLiteral ?? ''}"; se dejó vacía.`;
         marcar(campo, motivo);
@@ -144,6 +150,24 @@ export function validarFechasDocPersonal(
       }
       f.valor = null;
       f.precision = 'dia';
+      continue;
+    }
+    const lectura = eleccion.fecha;
+    if (eleccion.dudosa) {
+      marcar(
+        campo,
+        `El texto "${f.textoLiteral}" tiene varias fechas y no se pudo saber cuál es la ${NOMBRE_CAMPO[campo]}; se usó la más probable.`,
+      );
+    }
+
+    if (
+      tipo === 'INE' &&
+      eleccion.motivo === 'mrz' &&
+      lectura.iso?.endsWith('-12-31')
+    ) {
+      // MRZ del reverso de la INE: misma vigencia por año que el anverso.
+      f.valor = lectura.iso;
+      f.precision = 'anio';
       continue;
     }
 
@@ -168,19 +192,18 @@ export function validarFechasDocPersonal(
     }
 
     f.precision = 'dia';
-    if (f.valor && f.valor !== lectura.iso) {
-      if (f.valor === lectura.invertida) {
-        f.confianza = minConfianza(f.confianza, 'media');
-        motivos.push(
-          `Se corrigió día/mes de la ${NOMBRE_CAMPO[campo]} ("${f.textoLiteral}" se lee como dd/mm).`,
-        );
-      } else {
-        marcar(
-          campo,
-          `La ${NOMBRE_CAMPO[campo]} (${f.valor}) no coincide con el texto "${f.textoLiteral}"; se usó la del texto.`,
-        );
-      }
-    } else if (lectura.ambigua) {
+    if (eleccion.motivo === 'modelo_invertido') {
+      f.confianza = minConfianza(f.confianza, 'media');
+      motivos.push(
+        `Se corrigió día/mes de la ${NOMBRE_CAMPO[campo]} ("${f.textoLiteral}" se lee como dd/mm).`,
+      );
+    } else if (f.valor && f.valor !== lectura.iso && !eleccion.dudosa) {
+      marcar(
+        campo,
+        `La ${NOMBRE_CAMPO[campo]} (${f.valor}) no coincide con el texto "${f.textoLiteral}"; se usó la del texto.`,
+      );
+    } else if (lectura.ambigua && !formato) {
+      // Día y mes ≤ 12 sin indicador de formato en el documento.
       f.confianza = minConfianza(f.confianza, 'media');
     }
     f.valor = lectura.iso;

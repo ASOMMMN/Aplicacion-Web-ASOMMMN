@@ -23,10 +23,13 @@ export interface FechaLeida {
   iso: string | null;
   /** Numéricas: la lectura con día y mes invertidos (si es válida). */
   invertida: string | null;
-  /** Día y mes ≤ 12 sin formato declarado. */
+  /** Numérica con día y mes ≤ 12 (se calcula siempre, haya o no formato). */
   ambigua: boolean;
-  /** Años sueltos que aparecen ("VIGENCIA 2021 - 2031" → [2021, 2031]). */
+  /** Años de esta fecha ("2021 - 2031" → [2021, 2031]). */
   anios: number[];
+  /** Posición en el texto normalizado (normalizarTexto) del literal. */
+  ini: number;
+  fin: number;
 }
 
 const MESES: Record<string, number> = {
@@ -74,95 +77,221 @@ export function normalizarTexto(t: string): string {
     .replace(/(\d)\s*[°º]/g, '$1');
 }
 
-const aniosDe = (t: string) =>
-  [...t.matchAll(/(?<!\d)(19\d{2}|20\d{2})(?!\d)/g)].map((m) => Number(m[1]));
+/** ¿El formato indicado es mes/día? ("mm/dd/aaaa", "MM DD YYYY"…). */
+const esMesDia = (formato?: string | null) =>
+  /^\s*m/.test(normalizarTexto(formato ?? ''));
 
 /**
- * Lee la primera fecha del texto literal. null si no hay ninguna fecha
- * (ni siquiera un año).
+ * Una coincidencia en el texto normalizado. `fecha` null = tiene forma de
+ * fecha completa pero no es válida ("2021-00-10", "31/02/2024"): bloquea el
+ * tramo para que nunca se degrade a mes o año.
+ */
+interface Coincidencia {
+  ini: number;
+  fin: number;
+  prioridad: number;
+  fecha: FechaLeida | null;
+}
+
+type Lector = (
+  m: RegExpExecArray,
+  mmdd: boolean,
+) => FechaLeida | null | undefined;
+
+const base = (m: RegExpExecArray) => ({
+  ini: m.index,
+  fin: m.index + m[0].length,
+});
+
+/**
+ * Patrones en orden de prioridad (ante solapes gana el de menor índice).
+ * El lector devuelve undefined si la coincidencia no es una fecha (se
+ * ignora) y null si es una fecha completa ilegible (bloquea el tramo).
+ */
+const PATRONES: Array<{ re: RegExp; leer: Lector }> = [
+  // AAAA-MM-DD
+  {
+    re: /(?<!\d)(\d{4})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{1,2})(?!\d)/g,
+    leer: (m) => {
+      const iso = isoValida(+m[1], +m[2], +m[3]);
+      if (!iso) return null;
+      return { precision: 'dia', anio: +m[1], mes: +m[2], dia: +m[3], iso, invertida: null, ambigua: false, anios: [+m[1]], ...base(m) }; // prettier-ignore
+    },
+  },
+  // dd sep mm sep aaaa (o aa)
+  {
+    re: /(?<!\d)(\d{1,2})\s*[-/.\s]\s*(\d{1,2})\s*[-/.\s]\s*(\d{4}|\d{2})(?!\d)/g,
+    leer: (m, mmdd) => {
+      const a = +m[1];
+      const b = +m[2];
+      const y = anioCompleto(+m[3]);
+      const [d, mes] = mmdd ? [b, a] : [a, b];
+      const iso = isoValida(y, mes, d);
+      if (!iso) return null;
+      return {
+        precision: 'dia',
+        anio: y,
+        mes,
+        dia: d,
+        iso,
+        invertida: isoValida(y, d, mes),
+        // Siempre, aunque se declare un formato: decidir si el formato
+        // declarado es confiable le corresponde a quien llama.
+        ambigua: a <= 12 && b <= 12 && a !== b,
+        anios: [y],
+        ...base(m),
+      };
+    },
+  },
+  // dd [de] MES [de|,] aaaa → "11 de abril de 2025", "09MAY2024", "19 dec/dic 2025"
+  {
+    re: new RegExp(
+      `(?<!\\d)(\\d{1,2})\\s*(?:de\\s+|[-/.]\\s*)?(${NOMBRE_MES})\\.?(?:\\s*/\\s*(?:${NOMBRE_MES})\\.?)?\\s*(?:de[l]?\\s+|[-/.,]\\s*)?(\\d{4})(?!\\d)`,
+      'g',
+    ),
+    leer: (m) => {
+      const iso = isoValida(+m[3], MESES[m[2]], +m[1]);
+      return iso
+        ? { precision: 'dia', anio: +m[3], mes: MESES[m[2]], dia: +m[1], iso, invertida: null, ambigua: false, anios: [+m[3]], ...base(m) } // prettier-ignore
+        : undefined;
+    },
+  },
+  // dd MES aa → "19 DEC 27", "09FEB22" (año de 2 dígitos con mes en letra)
+  {
+    re: new RegExp(
+      `(?<!\\d)(\\d{1,2})\\s*(?:[-/.]\\s*)?(${NOMBRE_MES})\\.?(?:\\s*/\\s*(?:${NOMBRE_MES})\\.?)?\\s*(?:[-/.,]\\s*)?(\\d{2})(?!\\d)`,
+      'g',
+    ),
+    leer: (m) => {
+      const y = anioCompleto(+m[3]);
+      const iso = isoValida(y, MESES[m[2]], +m[1]);
+      return iso
+        ? { precision: 'dia', anio: y, mes: MESES[m[2]], dia: +m[1], iso, invertida: null, ambigua: false, anios: [y], ...base(m) } // prettier-ignore
+        : undefined;
+    },
+  },
+  // MES dd[,] aaaa → "may 09 2024", "apr 11 2025", "april 11, 2025"
+  {
+    re: new RegExp(
+      `\\b(${NOMBRE_MES})\\.?\\s*(\\d{1,2})\\s*,?\\s*(\\d{4})(?!\\d)`,
+      'g',
+    ),
+    leer: (m) => {
+      const iso = isoValida(+m[3], MESES[m[1]], +m[2]);
+      return iso
+        ? { precision: 'dia', anio: +m[3], mes: MESES[m[1]], dia: +m[2], iso, invertida: null, ambigua: false, anios: [+m[3]], ...base(m) } // prettier-ignore
+        : undefined;
+    },
+  },
+  // Mes y año: "abril de 2025", "apr 2025"
+  {
+    re: new RegExp(
+      `\\b(${NOMBRE_MES})\\.?\\s*(?:de[l]?\\s+|[-/.,]\\s*)?(\\d{4})(?!\\d)`,
+      'g',
+    ),
+    leer: (m) => ({ precision: 'mes', anio: +m[2], mes: MESES[m[1]], iso: null, invertida: null, ambigua: false, anios: [+m[2]], ...base(m) }), // prettier-ignore
+  },
+  // Mes y año numérico: "04/2025"
+  {
+    re: /(?<![\d/.-])(\d{1,2})\s*[-/.]\s*(\d{4})(?![\d/.-])/g,
+    leer: (m) =>
+      +m[1] >= 1 && +m[1] <= 12
+        ? { precision: 'mes', anio: +m[2], mes: +m[1], iso: null, invertida: null, ambigua: false, anios: [+m[2]], ...base(m) } // prettier-ignore
+        : undefined,
+  },
+  // Rango de años: "VIGENCIA 2021 - 2031" → una sola lectura (el último año)
+  {
+    re: /(?<!\d)(19\d{2}|20\d{2})\s*[-–]\s*(19\d{2}|20\d{2})(?!\d)/g,
+    leer: (m) => ({ precision: 'anio', anio: +m[2], iso: null, invertida: null, ambigua: false, anios: [+m[1], +m[2]], ...base(m) }), // prettier-ignore
+  },
+  // Solo año
+  {
+    re: /(?<!\d)(19\d{2}|20\d{2})(?!\d)/g,
+    leer: (m) => ({ precision: 'anio', anio: +m[1], iso: null, invertida: null, ambigua: false, anios: [+m[1]], ...base(m) }), // prettier-ignore
+  },
+];
+
+/** Todas las coincidencias sin solapes, en orden de aparición. */
+function coincidencias(t: string, mmdd: boolean): Coincidencia[] {
+  const todas: Coincidencia[] = [];
+  PATRONES.forEach(({ re, leer }, prioridad) => {
+    for (const m of t.matchAll(new RegExp(re.source, 'g'))) {
+      const fecha = leer(m, mmdd);
+      if (fecha === undefined) continue;
+      todas.push({ ...base(m), prioridad, fecha });
+    }
+  });
+  todas.sort(
+    (a, b) => a.prioridad - b.prioridad || b.fin - b.ini - (a.fin - a.ini),
+  );
+  const aceptadas: Coincidencia[] = [];
+  for (const c of todas) {
+    if (aceptadas.some((o) => c.ini < o.fin && o.ini < c.fin)) continue;
+    aceptadas.push(c);
+  }
+  return aceptadas.sort((a, b) => a.ini - b.ini);
+}
+
+/**
+ * Todas las fechas legibles del texto literal, en orden de aparición, con su
+ * posición (`ini`/`fin`) sobre `normalizarTexto(literal)`.
+ */
+export function leerFechasLiteral(
+  literal: string | null | undefined,
+  formatoIndicado?: string | null,
+): FechaLeida[] {
+  if (!literal) return [];
+  return coincidencias(normalizarTexto(literal), esMesDia(formatoIndicado))
+    .map((c) => c.fecha)
+    .filter((f): f is FechaLeida => f !== null);
+}
+
+/**
+ * Una sola fecha del literal: la primera con día (o null si es ilegible);
+ * si no hay, la primera de mes; si no, el primer año (o rango de años).
+ * null si no hay ninguna fecha.
  */
 export function leerFechaLiteral(
   literal: string | null | undefined,
   formatoIndicado?: string | null,
 ): FechaLeida | null {
   if (!literal) return null;
-  const t = normalizarTexto(literal);
-  const anios = aniosDe(t);
-  const mmdd = /^\s*m/.test(normalizarTexto(formatoIndicado ?? ''));
-
-  // AAAA-MM-DD
-  let m = /(?<!\d)(\d{4})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{1,2})(?!\d)/.exec(
-    t,
+  const cs = coincidencias(normalizarTexto(literal), esMesDia(formatoIndicado));
+  const dia = cs.find((c) => !c.fecha || c.fecha.precision === 'dia');
+  if (dia) return dia.fecha;
+  return (
+    cs.find((c) => c.fecha?.precision === 'mes')?.fecha ??
+    cs.find((c) => c.fecha?.precision === 'anio')?.fecha ??
+    null
   );
-  if (m) {
-    const iso = isoValida(+m[1], +m[2], +m[3]);
-    // Tiene forma de fecha completa pero no es válida (p. ej. OCR "2021-00-10"):
-    // se rechaza; nunca se degrada a mes o año.
-    if (!iso) return null;
-    return { precision: 'dia', anio: +m[1], mes: +m[2], dia: +m[3], iso, invertida: null, ambigua: false, anios }; // prettier-ignore
-  }
+}
 
-  // dd sep mm sep aaaa (o aa)
-  m =
-    /(?<!\d)(\d{1,2})\s*[-/.\s]\s*(\d{1,2})\s*[-/.\s]\s*(\d{4}|\d{2})(?!\d)/.exec(
-      t,
-    );
-  if (m) {
-    const a = +m[1];
-    const b = +m[2];
-    const y = anioCompleto(+m[3]);
-    const [d, mes] = mmdd ? [b, a] : [a, b];
-    const iso = isoValida(y, mes, d);
-    if (!iso) return null; // "10-00-2021": ilegible, no "año 2021"
-    return {
-      precision: 'dia',
-      anio: y,
-      mes,
-      dia: d,
-      iso,
-      invertida: isoValida(y, d, mes),
-      ambigua: a <= 12 && b <= 12 && a !== b && !formatoIndicado,
-      anios,
-    };
-  }
+export type FormatoNumerico = 'dd/mm/aaaa' | 'mm/dd/aaaa';
 
-  // dd [de] MES [de|,] aaaa  → "11 de abril de 2025", "09MAY2024", "19 dec/dic 2025"
-  m = new RegExp(
-    `(?<!\\d)(\\d{1,2})\\s*(?:de\\s+|[-/.]\\s*)?(${NOMBRE_MES})\\.?(?:\\s*/\\s*(?:${NOMBRE_MES})\\.?)?\\s*(?:de[l]?\\s+|[-/.,]\\s*)?(\\d{4})(?!\\d)`,
-  ).exec(t);
-  if (m) {
-    const iso = isoValida(+m[3], MESES[m[2]], +m[1]);
-    if (iso)
-      return { precision: 'dia', anio: +m[3], mes: MESES[m[2]], dia: +m[1], iso, invertida: null, ambigua: false, anios }; // prettier-ignore
-  }
+const IND_DIA = '(?:dd|dia)';
+const IND_MES = '(?:mm|mes)';
+const IND_ANIO = '(?:aaaa|yyyy|aa|yy|ano|anio)';
+const SEP = '\\s*[-/.\\s]\\s*';
+const INDICADOR_DD_MM = new RegExp(
+  `\\b${IND_DIA}${SEP}${IND_MES}${SEP}${IND_ANIO}\\b`,
+);
+const INDICADOR_MM_DD = new RegExp(
+  `\\b${IND_MES}${SEP}${IND_DIA}${SEP}${IND_ANIO}\\b`,
+);
 
-  // MES dd[,] aaaa → "may 09 2024", "apr 11 2025", "april 11, 2025"
-  m = new RegExp(
-    `\\b(${NOMBRE_MES})\\.?\\s*(\\d{1,2})\\s*,?\\s*(\\d{4})(?!\\d)`,
-  ).exec(t);
-  if (m) {
-    const iso = isoValida(+m[3], MESES[m[1]], +m[2]);
-    if (iso)
-      return { precision: 'dia', anio: +m[3], mes: MESES[m[1]], dia: +m[2], iso, invertida: null, ambigua: false, anios }; // prettier-ignore
-  }
-
-  // Mes y año: "abril de 2025", "apr 2025", "04/2025"
-  m = new RegExp(
-    `\\b(${NOMBRE_MES})\\.?\\s*(?:de[l]?\\s+|[-/.,]\\s*)?(\\d{4})(?!\\d)`,
-  ).exec(t);
-  if (m) {
-    return { precision: 'mes', anio: +m[2], mes: MESES[m[1]], iso: null, invertida: null, ambigua: false, anios }; // prettier-ignore
-  }
-  m = /(?<![\d/.-])(\d{1,2})\s*[-/.]\s*(\d{4})(?![\d/.-])/.exec(t);
-  if (m && +m[1] >= 1 && +m[1] <= 12) {
-    return { precision: 'mes', anio: +m[2], mes: +m[1], iso: null, invertida: null, ambigua: false, anios }; // prettier-ignore
-  }
-
-  // Solo año
-  if (anios.length > 0) {
-    return { precision: 'anio', anio: anios[anios.length - 1], iso: null, invertida: null, ambigua: false, anios }; // prettier-ignore
-  }
-  return null;
+/**
+ * Formato numérico que el documento declara por escrito ("dd/mm/aaaa",
+ * "MM/DD/YYYY", "DD MM YYYY"…). null si no hay indicador o si hay ambos.
+ * Es la única forma de aceptar mm/dd: lo que diga el modelo no basta.
+ */
+export function detectarIndicadorFormato(
+  ...textos: Array<string | null | undefined>
+): FormatoNumerico | null {
+  const t = normalizarTexto(textos.filter(Boolean).join('\n'));
+  const ddmm = INDICADOR_DD_MM.test(t);
+  const mmdd = INDICADOR_MM_DD.test(t);
+  if (ddmm === mmdd) return null;
+  return ddmm ? 'dd/mm/aaaa' : 'mm/dd/aaaa';
 }
 
 /**

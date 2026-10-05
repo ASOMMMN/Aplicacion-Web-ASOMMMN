@@ -1,7 +1,9 @@
 import {
   claveFecha,
   formatearConPrecision,
+  detectarIndicadorFormato,
   leerFechaLiteral,
+  leerFechasLiteral,
   valorGuardado,
 } from './formatos-fecha';
 
@@ -75,5 +77,80 @@ describe('valorGuardado y formato con precisión', () => {
     expect(formatearConPrecision('2016-01-01', 'anio')).toBe('2016');
     expect(formatearConPrecision('2025-04-01', 'mes')).toBe('04/2025');
     expect(formatearConPrecision('2024-05-09', 'dia')).toBe('09/05/2024');
+  });
+});
+
+describe('leerFechasLiteral: todas las fechas, en orden', () => {
+  it('rango "del X al Y" → dos fechas', () => {
+    const fs = leerFechasLiteral('del 01/02/2023 al 01/02/2028');
+    expect(fs.map((f) => f.iso)).toEqual(['2023-02-01', '2028-02-01']);
+    expect(fs[0].ini).toBeLessThan(fs[1].ini);
+  });
+
+  it('"EMISIÓN 2021 VIGENCIA 2031" → dos años separados', () => {
+    const fs = leerFechasLiteral('EMISIÓN 2021 VIGENCIA 2031');
+    expect(fs.map((f) => [f.precision, f.anio])).toEqual([
+      ['anio', 2021],
+      ['anio', 2031],
+    ]);
+  });
+
+  it('"VIGENCIA 2021 - 2031" sigue siendo un solo rango de años', () => {
+    const fs = leerFechasLiteral('VIGENCIA 2021 - 2031');
+    expect(fs).toHaveLength(1);
+    expect(fs[0].anios).toEqual([2021, 2031]);
+  });
+
+  it('una fecha completa ilegible no se degrada a año', () => {
+    expect(leerFechasLiteral('10-00-2021')).toEqual([]);
+  });
+});
+
+describe('dd MMM aa (mes con letra y año de 2 dígitos)', () => {
+  it.each([
+    ['19 DEC 27', '2027-12-19'],
+    ['19DEC27', '2027-12-19'],
+    ['09 FEB 22', '2022-02-09'],
+    ['01-ENE-30', '2030-01-01'],
+  ])('%s → %s', (texto, esperado) => {
+    expect(leerFechaLiteral(texto)?.iso).toBe(esperado);
+  });
+
+  it('no confunde un año de 4 dígitos', () => {
+    expect(leerFechaLiteral('19 DEC 2027')?.iso).toBe('2027-12-19');
+  });
+});
+
+describe('ambigüedad dd/mm: se calcula siempre', () => {
+  it('03/04/2025 sin formato → dd/mm y ambigua', () => {
+    const f = leerFechaLiteral('03/04/2025')!;
+    expect(f.iso).toBe('2025-04-03');
+    expect(f.ambigua).toBe(true);
+  });
+
+  it('03/04/2025 con formato declarado: sigue marcada ambigua', () => {
+    expect(leerFechaLiteral('03/04/2025', 'dd/mm/aaaa')?.ambigua).toBe(true);
+    expect(leerFechaLiteral('03/04/2025', 'mm/dd/aaaa')?.ambigua).toBe(true);
+  });
+
+  it('día > 12 no es ambigua', () => {
+    expect(leerFechaLiteral('13/04/2025')?.ambigua).toBe(false);
+  });
+});
+
+describe('detectarIndicadorFormato', () => {
+  it.each([
+    ['Fecha de expedición (dd/mm/aaaa): 03/04/2025', 'dd/mm/aaaa'],
+    ['DD MM YYYY', 'dd/mm/aaaa'],
+    ['Date of issue (MM/DD/YYYY)', 'mm/dd/aaaa'],
+    ['día/mes/año', 'dd/mm/aaaa'],
+  ])('%s → %s', (texto, esperado) => {
+    expect(detectarIndicadorFormato(texto)).toBe(esperado);
+  });
+
+  it('sin indicador o con ambos → null', () => {
+    expect(detectarIndicadorFormato('Fecha: 03/04/2025')).toBeNull();
+    expect(detectarIndicadorFormato('dd/mm/aaaa', 'mm/dd/yyyy')).toBeNull();
+    expect(detectarIndicadorFormato(null, undefined)).toBeNull();
   });
 });

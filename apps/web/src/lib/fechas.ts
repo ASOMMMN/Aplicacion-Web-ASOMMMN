@@ -35,6 +35,20 @@ export function formatearFechaConPrecision(
 }
 
 /**
+ * Hoy (YYYY-MM-DD) en la hora de México, sin importar la zona del navegador.
+ * `new Date().toISOString()` da la fecha en UTC: después de las 18:00 en
+ * México ya es "mañana".
+ */
+export function hoyMexicoISO(ahora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(ahora);
+}
+
+/**
  * Igual que formatearFechaCalendario pero con mes abreviado: "15 mar 2024".
  * Se formatea en UTC para que la fecha no se corra por la zona del navegador.
  */

@@ -2,6 +2,9 @@ import { createCanvas } from '@napi-rs/canvas';
 import OpenAI, { RateLimitError } from 'openai';
 import {
   extraerFechasDocPersonal,
+  formatoComprobado,
+  lecturasDeterministas,
+  normalizarRespuesta,
   normalizarConfianza,
   normalizarFechaIa,
 } from './extraer-fechas-doc-personal';
@@ -152,5 +155,68 @@ describe('extraerFechasDocPersonal: errores 429 de OpenAI', () => {
     expect(r.resultado.errorMensaje).toMatch(
       /^OpenAI sin saldo: recarga crédito/,
     );
+  });
+});
+
+describe('formatoComprobado: el formato del modelo no basta', () => {
+  const doc = (texto: string) => ({
+    paginas: [{ numero: 1, texto, estructuradas: [] }],
+  });
+  const propuesta = (literal: string, etiqueta: string | null = null) =>
+    normalizarRespuesta({
+      formatoFechaIndicado: 'mm/dd/aaaa',
+      fechaEmision: {
+        valor: '2025-03-04',
+        textoLiteral: literal,
+        etiqueta,
+        confianza: 'alta',
+      },
+    });
+
+  it('el modelo dice mm/dd pero el documento no lo indica → null (dd/mm)', () => {
+    expect(
+      formatoComprobado(
+        doc('Fecha de expedición: 03/04/2025'),
+        propuesta('03/04/2025'),
+      ),
+    ).toBeNull();
+  });
+
+  it('indicador en la capa de texto → se usa', () => {
+    expect(formatoComprobado(doc('Issue date (MM/DD/YYYY): 03/04/2025'))).toBe(
+      'mm/dd/aaaa',
+    );
+  });
+
+  it('indicador en la etiqueta que copió el modelo (imagen sin capa de texto) → se usa', () => {
+    expect(
+      formatoComprobado(
+        doc(''),
+        propuesta('03/04/2025', 'Date of issue (MM/DD/YYYY)'),
+      ),
+    ).toBe('mm/dd/aaaa');
+  });
+});
+
+describe('lecturasDeterministas: MRZ de la capa de texto', () => {
+  it('pasaporte: vencimiento de la MRZ como lectura determinista', () => {
+    const texto = [
+      'PASAPORTE',
+      'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<',
+      'L898902C36UTO7408122F1204159ZE184226B<<<<<10',
+    ].join('\n');
+    const ls = lecturasDeterministas(
+      { paginas: [{ numero: 1, texto, estructuradas: [] }] },
+      null,
+      'pasaporte',
+    );
+    expect(ls).toEqual([
+      expect.objectContaining({
+        campo: 'fechaVencimiento',
+        valor: '2012-04-15',
+        precision: 'dia',
+        fuente: 'texto',
+      }),
+    ]);
   });
 });

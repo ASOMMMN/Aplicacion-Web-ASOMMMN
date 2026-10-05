@@ -36,6 +36,8 @@ import {
 } from './validar-fechas-doc-personal';
 import { combinarFuentes, FuenteCampo, GrupoFechas } from './combinar-fuentes';
 import { extraerPorEtiquetas, LecturaFecha } from './extractor-etiquetas';
+import { detectarIndicadorFormato, FormatoNumerico } from './formatos-fecha';
+import { leerMrz } from './mrz';
 
 export {
   construirPromptDocPersonal,
@@ -258,10 +260,40 @@ function quitarCercoJson(texto: string): string {
 
 // ── Combinación con las fuentes deterministas ──────────────────────────────
 
-/** Etiquetas del texto de cada página + QR y cadena original. */
+/** Vencimiento de la MRZ de la capa de texto (dígito verificador correcto). */
+function lecturaMrz(
+  texto: string,
+  pagina: number,
+  tipo?: TipoDocPersonal,
+): LecturaFecha[] {
+  const mrz = leerMrz(texto);
+  if (!mrz) return [];
+  // INE: la vigencia se maneja como año (31/12); la MRZ dice lo mismo.
+  const anio = tipo === 'INE' && mrz.vencimiento.endsWith('-12-31');
+  return [
+    {
+      fuente: 'texto',
+      campo: 'fechaVencimiento',
+      etiqueta: `MRZ ${mrz.formato}`,
+      textoLiteral: mrz.linea,
+      valor: mrz.vencimiento,
+      precision: anio ? 'anio' : 'dia',
+      clave: anio ? mrz.vencimiento.slice(0, 4) : mrz.vencimiento,
+      pagina,
+      grupo: 0,
+      posicion: Math.max(
+        0,
+        texto.toUpperCase().indexOf(mrz.linea.slice(0, 10)),
+      ),
+    },
+  ];
+}
+
+/** Etiquetas del texto de cada página, MRZ, QR y cadena original. */
 export function lecturasDeterministas(
   doc: Pick<DocumentoLeido, 'paginas'>,
   formatoIndicado?: string | null,
+  tipo?: TipoDocPersonal,
 ): LecturaFecha[] {
   return doc.paginas.flatMap((p) => [
     ...p.estructuradas.flatMap((e) => e.lecturas),
@@ -270,7 +302,28 @@ export function lecturasDeterministas(
       fuente: 'texto',
       formatoIndicado,
     }),
+    ...lecturaMrz(p.texto, p.numero, tipo),
   ]);
+}
+
+/**
+ * Formato numérico comprobado: solo si el documento lo declara por escrito
+ * (capa de texto) o aparece en lo que el modelo copió del documento
+ * (texto literal o etiqueta). Lo que el modelo diga en formatoFechaIndicado
+ * no cuenta: sin indicador, dd/mm.
+ */
+export function formatoComprobado(
+  doc: Pick<DocumentoLeido, 'paginas'>,
+  propuesta?: ExtraerDocPersonalIaResponse,
+): FormatoNumerico | null {
+  const deModelo = CAMPOS_FECHA.flatMap((c) => [
+    propuesta?.detalle?.[c].textoLiteral,
+    propuesta?.detalle?.[c].etiqueta,
+  ]);
+  return (
+    detectarIndicadorFormato(...doc.paginas.map((p) => p.texto)) ??
+    detectarIndicadorFormato(...deModelo)
+  );
 }
 
 const sinRepetir = (xs: string[]) => [...new Set(xs)];
@@ -629,8 +682,10 @@ export async function extraerFechasDocPersonal(
     lecturaMs,
   };
   // Antes de llamar al modelo: así también quedan en el diagnóstico si la
-  // IA falla. Se recalculan si la IA declara el formato de fecha (mm/dd).
-  const lecturasPrevias = lecturasDeterministas(doc);
+  // IA falla. Se recalculan si el formato comprobado cambia con lo que el
+  // modelo copió del documento.
+  const formatoDoc = formatoComprobado(doc);
+  const lecturasPrevias = lecturasDeterministas(doc, formatoDoc, tipo);
   const meta = {
     tiempos,
     lecturasDeterministas: lecturasPrevias,
@@ -728,10 +783,15 @@ export async function extraerFechasDocPersonal(
   // El modelo propone; el código verifica (día/mes, INE, orden, duración,
   // tipo) y luego se combina con QR, cadena original y etiquetas del texto.
   const propuestaModelo = normalizarRespuesta(parsed);
-  const validado = validarFechasDocPersonal(tipo, propuestaModelo);
-  const lecturas = validado.formatoFechaIndicado
-    ? lecturasDeterministas(doc, validado.formatoFechaIndicado)
-    : lecturasPrevias;
+  const formato = formatoComprobado(doc, propuestaModelo);
+  const validado = validarFechasDocPersonal(tipo, {
+    ...propuestaModelo,
+    formatoFechaIndicado: formato,
+  });
+  const lecturas =
+    formato !== formatoDoc
+      ? lecturasDeterministas(doc, formato, tipo)
+      : lecturasPrevias;
   const evidencia = doc.paginas.flatMap((p) =>
     p.estructuradas.map((e) => ({
       pagina: e.pagina,

@@ -4,6 +4,12 @@
  * Se calcula al momento de responder (nunca se guarda en BD) comparando la
  * fecha de vencimiento contra la fecha actual en la zona horaria de México.
  */
+import {
+  hoyISO,
+  ZONA_HORARIA_MEXICO,
+} from '../../common/utils/fecha-mexico.util';
+
+export { hoyISO };
 
 /**
  * sin_fecha: el tipo sí vence pero no se detectó la fecha (dato faltante).
@@ -20,7 +26,7 @@ export type EstadoVigencia =
 export const UMBRAL_POR_VENCER_MESES = 6;
 
 /** Zona horaria para decidir qué día es "hoy" (el servidor corre en UTC). */
-export const ZONA_HORARIA_VIGENCIA = 'America/Mexico_City';
+export const ZONA_HORARIA_VIGENCIA = ZONA_HORARIA_MEXICO;
 
 /** Orden de la tabla: vencidos primero. */
 export const ORDEN_ESTADO_VIGENCIA: Record<EstadoVigencia, number> = {
@@ -32,20 +38,6 @@ export const ORDEN_ESTADO_VIGENCIA: Record<EstadoVigencia, number> = {
 };
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
-
-/** Fecha de hoy (YYYY-MM-DD) en la zona horaria indicada. */
-export function hoyISO(
-  ahora: Date = new Date(),
-  zona = ZONA_HORARIA_VIGENCIA,
-): string {
-  // en-CA formatea como YYYY-MM-DD
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: zona,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(ahora);
-}
 
 function parseISO(fecha: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha);
