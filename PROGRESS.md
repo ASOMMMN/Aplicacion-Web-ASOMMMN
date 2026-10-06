@@ -110,7 +110,14 @@ Fases:
   lógica en `migracion-vencimientos.util.ts`). Verificado contra OpenAI
   (curso con periodo de impartición → fin 25/06/2022, vencimiento null).
   Jest 29 / 295.
-- [ ] Fase 5 — script de consistencia.
+- [x] **Fase 5 — script de consistencia.** `scripts/probar-consistencia.ts`:
+  analiza cada archivo de `apps/api/muestras-ia/<tipo>/` N veces (por
+  defecto 3, sin caché, sin escribir en la base) y reporta por archivo si
+  alguna fecha cambió; JSON dentro de la carpeta (fuera de git). Probado
+  con 3 muestras sintéticas (constancia con 03/04/2022, curso con periodo
+  de impartición, pasaporte con MRZ): 3/3 estables en 3 corridas.
+  **Pendiente:** correrlo con los documentos reales cuando estén en
+  `muestras-ia/`.
 
 ## Objetivo
 
@@ -315,3 +322,4 @@ automatizados. `useAuth` no se usa en ninguna página (se migró igual).
 - 2026-10-05: fase 2 (consistencia: snapshot, seed, esquema estricto, doble lectura, caché).
 - 2026-10-05: fase 3 (protección de datos, resumen multi-archivo, script de reanálisis).
 - 2026-10-06: fase 4 (cursos: canalización unificada, regla de 5 años, migración).
+- 2026-10-06: fase 5 (script de consistencia; probado con muestras sintéticas).
