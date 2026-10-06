@@ -24,7 +24,7 @@ import {
   tokensTexto,
 } from '../../../common/utils/openai-errores.util';
 
-import type { TipoDocPersonal } from '../constants/tipos-doc-personal';
+import type { TipoDocumentoIa } from './tipos-documento-ia';
 import {
   construirPromptDocPersonal,
   construirPromptImagenDocPersonal,
@@ -149,6 +149,8 @@ export interface ExtraerDocPersonalIaResponse {
   consenso?: Record<CampoFecha, ConsensoCampo>;
   /** Se reextrajo con las reglas del tipo detectado (no del elegido). */
   reextraccion?: { tipoElegido: string; tipoUsado: string } | null;
+  /** Solo tipo "curso": nombre, institución y fin del periodo de impartición. */
+  datosCurso?: DatosCurso;
   /** Formato declarado en el documento ("dd/mm/aaaa"…), si lo hay. */
   formatoFechaIndicado?: string | null;
   /** Validación en código (validar-fechas-doc-personal.ts). */
@@ -272,7 +274,7 @@ export function respuestaDesdeDetalle(
   detalle: Record<CampoFecha, FechaDetectada>,
   extra: Pick<
     ExtraerDocPersonalIaResponse,
-    'tipoDetectado' | 'formatoFechaIndicado' | 'confianzaTipo'
+    'tipoDetectado' | 'formatoFechaIndicado' | 'confianzaTipo' | 'datosCurso'
   > = {},
 ): ExtraerDocPersonalIaResponse {
   return {
@@ -290,6 +292,26 @@ export function respuestaDesdeDetalle(
   };
 }
 
+/** Datos propios de un curso (nombre, institución y fin de impartición). */
+export interface DatosCurso {
+  nombreCurso: string | null;
+  institucion: string | null;
+  /** Fin del periodo de impartición: evidencia, nunca vencimiento. */
+  fechaFinCurso: FechaDetectada;
+}
+
+/** Los campos de curso solo vienen con el esquema del tipo "curso". */
+function datosCursoDe(parsed: RespuestaModelo): { datosCurso?: DatosCurso } {
+  if (!('nombreCurso' in parsed) && !('fechaFinCurso' in parsed)) return {};
+  return {
+    datosCurso: {
+      nombreCurso: texto(parsed.nombreCurso),
+      institucion: texto(parsed.institucion),
+      fechaFinCurso: normalizarFechaDetectada(parsed.fechaFinCurso),
+    },
+  };
+}
+
 export function normalizarRespuesta(
   parsed: RespuestaModelo,
 ): ExtraerDocPersonalIaResponse {
@@ -303,6 +325,7 @@ export function normalizarRespuesta(
     tipoDetectado: texto(parsed.tipoDetectado),
     formatoFechaIndicado: texto(parsed.formatoFechaIndicado),
     confianzaTipo: normalizarConfianza(parsed.confianzaTipo),
+    ...datosCursoDe(parsed),
   });
 }
 
@@ -320,7 +343,7 @@ function quitarCercoJson(texto: string): string {
 function lecturaMrz(
   texto: string,
   pagina: number,
-  tipo?: TipoDocPersonal,
+  tipo?: TipoDocumentoIa,
 ): LecturaFecha[] {
   const mrz = leerMrz(texto);
   if (!mrz) return [];
@@ -349,7 +372,7 @@ function lecturaMrz(
 export function lecturasDeterministas(
   doc: Pick<DocumentoLeido, 'paginas'>,
   formatoIndicado?: string | null,
-  tipo?: TipoDocPersonal,
+  tipo?: TipoDocumentoIa,
 ): LecturaFecha[] {
   return doc.paginas.flatMap((p) => [
     ...p.estructuradas.flatMap((e) => e.lecturas),
@@ -391,7 +414,7 @@ const sinRepetir = (xs: string[]) => [...new Set(xs)];
  * respuesta de la IA queda igual (solo se agrega la fuente "ia").
  */
 export function combinarConIa(
-  tipo: TipoDocPersonal,
+  tipo: TipoDocumentoIa,
   validado: ExtraerDocPersonalIaResponse,
   lecturas: LecturaFecha[],
   evidencia: EvidenciaEstructurada[] = [],
@@ -427,6 +450,7 @@ export function combinarConIa(
       tipoDetectado: validado.tipoDetectado,
       formatoFechaIndicado: validado.formatoFechaIndicado,
       confianzaTipo: validado.confianzaTipo,
+      datosCurso: validado.datosCurso,
     }),
   );
 
@@ -517,7 +541,7 @@ export interface ResultadoExtraccionFechas {
 export interface OpcionesExtraccionFechas {
   buffer: Buffer;
   mimeType: string;
-  tipo: TipoDocPersonal;
+  tipo: TipoDocumentoIa;
   apiKey: string;
   modelo: string;
   /** Cliente reutilizable; si no se pasa, se crea uno con apiKey. */
@@ -582,7 +606,7 @@ export function describirImagenes(imagenes: ImagenPreparada[]): string {
 async function llamarVision(
   openai: OpenAI,
   modelo: string,
-  tipo: TipoDocPersonal,
+  tipo: TipoDocumentoIa,
   doc: DocumentoLeido,
   seed: number,
 ): Promise<RespuestaDelModelo> {
@@ -646,7 +670,7 @@ async function llamarVision(
 async function llamarResponsesConPdf(
   apiKey: string,
   modelo: string,
-  tipo: TipoDocPersonal,
+  tipo: TipoDocumentoIa,
   buffer: Buffer,
 ): Promise<RespuestaDelModelo> {
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -1120,7 +1144,7 @@ export async function extraerFechasDocPersonal(
   ) {
     const otro = await extraerFechasDocPersonal({
       ...opciones,
-      tipo: detectado as TipoDocPersonal,
+      tipo: detectado as TipoDocumentoIa,
       sinReextraer: true,
       documentoLeido: doc,
     });

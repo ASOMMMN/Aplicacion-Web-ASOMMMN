@@ -19,8 +19,10 @@ export class CreateCursoDto {
   @MaxLength(180)
   institucion?: string;
 
+  /** Compatibilidad: si falta, el servidor usa inicio, emisión u hoy (México). */
+  @IsOptional()
   @IsDateString()
-  fechaCurso: string;
+  fechaCurso?: string;
 
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
@@ -30,6 +32,15 @@ export class CreateCursoDto {
   @IsDateString()
   fechaInicio?: string;
 
+  /** Fecha de expedición/emisión del certificado. */
+  @IsOptional()
+  @IsDateString()
+  fechaEmision?: string;
+
+  /**
+   * Solo si el documento trae vencimiento. Si falta y hay documento, el
+   * servidor aplica la regla de 5 años (estimado).
+   */
   @IsOptional()
   @IsDateString()
   fechaVencimiento?: string;

@@ -1,5 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import {
+  ORIGENES_VENCIMIENTO,
+  OrigenVencimiento,
+} from '../regla-vencimiento-curso';
+import {
+  ESTADOS_EXTRACCION,
+  EstadoExtraccion,
+} from '../../docs-personales/ia/estado-extraccion';
 
 @Schema({
   collection: 'cursos',
@@ -56,16 +64,52 @@ export class Curso {
   @Prop()
   fechaInicio?: Date;
 
+  /** Fecha de expedición/emisión del certificado (antes se copiaba en fechaInicio). */
+  @Prop()
+  fechaEmision?: Date;
+
   @Prop()
   fechaVencimiento?: Date;
 
   /**
-   * true = fechaVencimiento no la dio el postulante: la calculaba el sistema
-   * (fechaInicio + 5 años) antes de quitar esa regla. La marca el script
-   * scripts/marcar-vencimientos-estimados.ts; no se borra la fecha.
+   * true = fechaVencimiento no viene del documento: la calculó el sistema
+   * (inicio o emisión + 5 años). Siempre se muestra como "estimado (5 años)".
+   * Va junto con origenVencimiento = CALCULADO_5_ANOS.
    */
   @Prop({ default: false })
   fechaVencimientoEstimada?: boolean;
+
+  /**
+   * De dónde salió el vencimiento (regla-vencimiento-curso.ts). Ausente en
+   * cursos anteriores a 2026-10-05: se deduce al leer
+   * (origenVencimientoDeCurso) hasta correr la migración.
+   */
+  @Prop({ type: String, enum: ORIGENES_VENCIMIENTO })
+  origenVencimiento?: OrigenVencimiento;
+
+  /** Evidencia de la lectura con IA del documento (mismo formato que en DocPersonal). */
+  @Prop({ type: Object })
+  detalleFechasIa?: Record<string, unknown>;
+
+  /** Confianza de la IA por campo leído del documento. */
+  @Prop({ type: Object })
+  confianza?: Partial<
+    Record<
+      'nombreCurso' | 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      'alta' | 'media' | 'baja'
+    >
+  >;
+
+  /** Resultado de la lectura del documento con IA (ausente = sin documento o sin analizar). */
+  @Prop({ type: String, enum: ESTADOS_EXTRACCION })
+  extraccionEstado?: EstadoExtraccion;
+
+  /** Las fechas registradas no coinciden con el documento o falta la base del vencimiento. */
+  @Prop({ default: false })
+  revisarFechas?: boolean;
+
+  @Prop({ type: [String], default: undefined })
+  motivosRevision?: string[];
 
   @Prop()
   creadoEn: Date;

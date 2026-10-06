@@ -244,3 +244,54 @@ describe('validarFechasDocPersonal: casos del diagnóstico', () => {
     expect(r.motivosRevision.join(' ')).not.toMatch(/futuro/);
   });
 });
+
+describe('validarFechasDocPersonal: cursos (tipo "curso")', () => {
+  const curso = (crudo: Record<string, unknown>) =>
+    validarFechasDocPersonal(
+      'curso',
+      normalizarRespuesta({
+        fechaEmision: fecha(null, null),
+        fechaInicio: fecha(null, null),
+        fechaVencimiento: fecha(null, null),
+        nombreCurso: 'Formación básica en seguridad',
+        institucion: 'Centro de ejemplo',
+        fechaFinCurso: fecha(null, null),
+        ...crudo,
+      }),
+      HOY,
+    );
+
+  it('"impartido del X al Y": inicio = X, fin del curso = Y y NUNCA vencimiento', () => {
+    const r = curso({
+      fechaInicio: fecha(
+        '2024-06-10',
+        'Impartido del 10/06/2024 al 14/06/2024',
+      ),
+      fechaVencimiento: fecha(
+        '2024-06-14',
+        'Impartido del 10/06/2024 al 14/06/2024',
+      ),
+    });
+    expect(r.fechaInicio).toBe('2024-06-10');
+    expect(r.fechaVencimiento).toBeNull();
+    expect(r.datosCurso?.fechaFinCurso.valor).toBe('2024-06-14');
+    expect(r.datosCurso?.nombreCurso).toBe('Formación básica en seguridad');
+  });
+
+  it('"vigencia del X al Y" sí es vencimiento', () => {
+    const literal = 'Vigencia: del 26/04/2024 al 25/04/2029';
+    const r = curso({
+      fechaInicio: fecha('2024-04-26', literal),
+      fechaVencimiento: fecha('2029-04-25', literal),
+    });
+    expect(r.fechaVencimiento).toBe('2029-04-25');
+    expect(r.datosCurso?.fechaFinCurso.valor).toBeNull();
+  });
+
+  it('fin del curso con su propio literal', () => {
+    const r = curso({
+      fechaFinCurso: fecha('2022-06-29', 'Fecha de término: 29/06/2022'),
+    });
+    expect(r.datosCurso?.fechaFinCurso.valor).toBe('2022-06-29');
+  });
+});

@@ -16,7 +16,7 @@ import {
   VERSION_CANALIZACION,
 } from './ia/extraer-fechas-doc-personal';
 import { configLecturaDesdeEnv } from './ia/lectura-documento';
-import type { TipoDocPersonal } from './constants/tipos-doc-personal';
+import type { TipoDocumentoIa } from './ia/tipos-documento-ia';
 import {
   CacheExtraccionIa,
   CacheExtraccionIaDocument,
@@ -25,7 +25,12 @@ import {
 export interface PeticionExtraccion {
   buffer: Buffer;
   mimeType: string;
-  tipo: TipoDocPersonal;
+  tipo: TipoDocumentoIa;
+  /**
+   * Si el modelo reconoce otro tipo con confianza alta, reextraer con sus
+   * reglas (por defecto sí). Los cursos usan false: su tipo es fijo.
+   */
+  reextraer?: boolean;
   /** false en "Volver a analizar" y en el análisis por lotes. */
   usarCache: boolean;
   /** Prefijo de los mensajes de error en el log (p. ej. "[doc 123]"). */
@@ -115,6 +120,7 @@ export class ExtraccionIaService {
       lectura: configLecturaDesdeEnv(this.leer),
       reintentos: configReintentosDesdeEnv(this.leer),
       seed: seedDesdeEnv(this.leer),
+      sinReextraer: p.reextraer === false,
       onError: (m) =>
         this.logger.error(p.contextoLog ? `${p.contextoLog} ${m}` : m),
     });

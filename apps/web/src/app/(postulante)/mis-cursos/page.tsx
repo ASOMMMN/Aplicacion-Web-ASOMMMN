@@ -15,7 +15,11 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { IconTimon, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
-import { formatearFechaCalendario, hoyMexicoISO } from '@/lib/fechas';
+import {
+  formatearFechaCalendario,
+  type OrigenVencimiento,
+  vencimientoCurso,
+} from '@/lib/fechas';
 import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -26,7 +30,13 @@ type CursoItem = {
   institucion?: string;
   fechaCurso: string;
   fechaInicio?: string;
+  fechaEmision?: string;
   fechaVencimiento?: string;
+  /** El vencimiento no viene del documento: inicio/emisión + 5 años. */
+  fechaVencimientoEstimada?: boolean;
+  origenVencimiento?: OrigenVencimiento | null;
+  revisarFechas?: boolean;
+  motivosRevision?: string[];
   /** Calculado por la API con la misma regla que /resumen-fechas. */
   estadoVigencia: EstadoVigencia;
   tieneDocumentoExtra: boolean;
@@ -47,14 +57,68 @@ type CursosResponse = {
 
 type IaResult = {
   nombreCurso: string | null;
+  institucion?: string | null;
   fechaInicio: string | null;
-  fechaVencimiento: string | null;
-  /** Fecha de finalización/emisión cuando no hay inicio ni vencimiento explícitos */
+  /** Expedición/emisión del certificado. */
   fechaEmision: string | null;
-  confianza: { nombreCurso: string; fechaInicio: string; fechaVencimiento: string };
+  /** Solo si el documento trae vencimiento (nunca calculado). */
+  fechaVencimiento: string | null;
+  /** Fin del periodo de impartición: evidencia, no es el vencimiento. */
+  fechaFinCurso?: string | null;
+  confianza: {
+    nombreCurso: string;
+    fechaInicio: string;
+    fechaVencimiento: string;
+    fechaEmision?: string;
+  };
+  revisar?: boolean;
+  motivosRevision?: string[];
   iaDisponible: boolean;
   errorMensaje?: string;
 };
+
+/** Formatos que lee la IA (PDF, foto o escaneo). */
+const TIPOS_ACEPTADOS = ['application/pdf', 'image/jpeg', 'image/png'];
+
+/** Vencimiento de un curso con su origen: nunca se confunde el estimado con el del documento. */
+function VencimientoCurso({ curso }: { curso: CursoItem }) {
+  const vencido = curso.estadoVigencia === 'vencido';
+  if (curso.fechaVencimiento) {
+    const estimado = curso.origenVencimiento === 'CALCULADO_5_ANOS' || curso.fechaVencimientoEstimada;
+    return (
+      <span style={{ color: vencido ? '#dc3545' : undefined }}>
+        {formatDate(curso.fechaVencimiento)}
+        {estimado && (
+          <Badge
+            bg="light"
+            text="dark"
+            className="ms-1 border"
+            style={{ fontSize: '0.6rem' }}
+            title="El certificado no indica vencimiento: se estimó con la fecha de inicio (o emisión) + 5 años."
+          >
+            estimado (5 años)
+          </Badge>
+        )}
+        {vencido && (
+          <Badge bg="danger" className="ms-1" style={{ fontSize: '0.6rem' }}>
+            Vencido
+          </Badge>
+        )}
+      </span>
+    );
+  }
+  if (curso.origenVencimiento === 'REQUIERE_REVISION') {
+    return (
+      <Badge bg="warning" text="dark" style={{ fontSize: '0.65rem' }} title="Sin fecha de inicio ni de emisión para estimar el vencimiento.">
+        Requiere revisión
+      </Badge>
+    );
+  }
+  if (curso.origenVencimiento === 'SIN_VENCIMIENTO') {
+    return <span className="text-muted">No vence</span>;
+  }
+  return <span className="text-muted">—</span>;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -107,6 +171,7 @@ export default function MisCursosPage() {
   const [saving, setSaving]             = useState(false);
   const [formNombre, setFormNombre]     = useState('');
   const [formInicio, setFormInicio]     = useState('');
+  const [formEmision, setFormEmision]   = useState('');
   const [formVence, setFormVence]       = useState('');
 
   const cargarCursos = useCallback(async () => {
@@ -131,8 +196,8 @@ export default function MisCursosPage() {
   // ── Upload + AI extraction ──────────────────────────────────────────────
 
   const iniciarFlujoIA = async (file: File) => {
-    if (file.type !== 'application/pdf') {
-      setError('Solo se aceptan archivos PDF.');
+    if (!TIPOS_ACEPTADOS.includes(file.type)) {
+      setError('Sube un PDF, JPG o PNG.');
       return;
     }
     setError('');
@@ -148,8 +213,10 @@ export default function MisCursosPage() {
       const proposal = res.data;
       setIaResult(proposal);
       setFormNombre(proposal.nombreCurso ?? '');
-      // Si no hay fecha de inicio explícita, usa la fecha de emisión/finalización como referencia
-      setFormInicio(proposal.fechaInicio ?? proposal.fechaEmision ?? '');
+      // Inicio y emisión por separado: la emisión ya no se copia en el inicio.
+      setFormInicio(proposal.fechaInicio ?? '');
+      setFormEmision(proposal.fechaEmision ?? '');
+      // Solo el vencimiento del documento; el estimado lo calcula la API al guardar.
       setFormVence(proposal.fechaVencimiento ?? '');
     } catch {
       setIaResult({
@@ -160,6 +227,7 @@ export default function MisCursosPage() {
       });
       setFormNombre('');
       setFormInicio('');
+      setFormEmision('');
       setFormVence('');
     } finally {
       setIaLoading(false);
@@ -173,6 +241,7 @@ export default function MisCursosPage() {
     setShowForm(false);
     setFormNombre('');
     setFormInicio('');
+    setFormEmision('');
     setFormVence('');
   };
 
@@ -182,17 +251,17 @@ export default function MisCursosPage() {
       setError('El nombre del curso es obligatorio.');
       return;
     }
-    const fechaCurso = formInicio || hoyMexicoISO();
 
     try {
       setSaving(true);
       setError('');
       const fd = new FormData();
       fd.append('nombreCurso', formNombre.trim());
-      fd.append('fechaCurso', fechaCurso);
       fd.append('apareceEnCV', 'false');
-      if (formInicio) fd.append('fechaInicio', formInicio);
-      if (formVence)  fd.append('fechaVencimiento', formVence);
+      if (formInicio)  fd.append('fechaInicio', formInicio);
+      if (formEmision) fd.append('fechaEmision', formEmision);
+      // Solo si el documento lo indica; si no, la API aplica la regla de 5 años.
+      if (formVence)   fd.append('fechaVencimiento', formVence);
       fd.append('documentoExtra', pendingFile);
 
       await api.post('/cursos', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -290,6 +359,7 @@ export default function MisCursosPage() {
   }
 
   const iaOk = iaResult?.iaDisponible && !iaResult.errorMensaje;
+  const previa = vencimientoCurso(formInicio, formEmision, formVence);
 
   return (
     <div className="py-4 nautical-panel nautical-panel-postulante" style={{ minHeight: '100vh' }}>
@@ -316,8 +386,8 @@ export default function MisCursosPage() {
                 {!showForm && !iaLoading && (
                   <>
                     <p className="text-muted small mb-3">
-                      Arrastra un PDF de certificado. La IA leerá el contenido y propondrá
-                      el nombre real del curso y las fechas para que las confirmes.
+                      Arrastra el certificado (PDF, foto o escaneo). La IA leerá el contenido y
+                      propondrá el nombre real del curso y las fechas para que las confirmes.
                     </p>
                     <div
                       className={`border-2 border-dashed rounded p-4 text-center mb-3 ${
@@ -331,18 +401,18 @@ export default function MisCursosPage() {
                     >
                       <input
                         type="file"
-                        accept=".pdf,application/pdf"
+                        accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                         onChange={handleFileInput}
                         id="certInput"
                         hidden
                       />
                       <label htmlFor="certInput" style={{ cursor: 'pointer' }}>
                         <div className="mb-2" style={{ fontSize: '2rem' }}>📄</div>
-                        <p className="fw-bold mb-1">Arrastra tu certificado PDF aquí</p>
+                        <p className="fw-bold mb-1">Arrastra tu certificado aquí</p>
                         <p className="text-muted small mb-0">O haz clic para seleccionar</p>
                       </label>
                     </div>
-                    <div className="text-muted small">Un archivo PDF por vez.</div>
+                    <div className="text-muted small">Un archivo por vez: PDF, JPG o PNG.</div>
                   </>
                 )}
 
@@ -351,7 +421,7 @@ export default function MisCursosPage() {
                   <div className="text-center py-4">
                     <SpinnerTimon size={40} className="mb-3" />
                     <p className="fw-semibold" style={{ color: 'var(--enmv-azul)' }}>
-                      Analizando PDF con IA…
+                      Analizando el documento con IA…
                     </p>
                     <p className="text-muted small">
                       Extrayendo nombre del curso y fechas del documento.
@@ -402,41 +472,88 @@ export default function MisCursosPage() {
                         />
                       </Form.Group>
 
-                      <Form.Group className="mb-3">
-                        <Form.Label className="small fw-semibold">
-                          Fecha de inicio / emisión / finalización
-                          {iaOk && iaResult?.confianza?.fechaInicio && (
-                            <ConfianzaBadge nivel={iaResult.confianza.fechaInicio} />
-                          )}
-                          {iaOk && !iaResult?.fechaInicio && iaResult?.fechaEmision && (
-                            <span className="ms-1 text-muted" style={{ fontSize: '0.65rem', fontWeight: 'normal' }}>
-                              (fecha de finalización del cert.)
-                            </span>
-                          )}
-                        </Form.Label>
-                        <Form.Control
-                          size="sm"
-                          type="date"
-                          value={formInicio}
-                          onChange={(e) => setFormInicio(e.target.value)}
-                        />
-                      </Form.Group>
+                      <Row className="g-2 mb-3">
+                        <Col sm={6}>
+                          <Form.Group>
+                            <Form.Label className="small fw-semibold" htmlFor="curso-emision">
+                              Fecha de emisión / expedición
+                              {iaOk && iaResult?.fechaEmision && iaResult.confianza.fechaEmision && (
+                                <ConfianzaBadge nivel={iaResult.confianza.fechaEmision} />
+                              )}
+                            </Form.Label>
+                            <Form.Control
+                              id="curso-emision"
+                              size="sm"
+                              type="date"
+                              value={formEmision}
+                              onChange={(e) => setFormEmision(e.target.value)}
+                            />
+                          </Form.Group>
+                        </Col>
+                        <Col sm={6}>
+                          <Form.Group>
+                            <Form.Label className="small fw-semibold" htmlFor="curso-inicio">
+                              Fecha de inicio
+                              {iaOk && iaResult?.fechaInicio && (
+                                <ConfianzaBadge nivel={iaResult.confianza.fechaInicio} />
+                              )}
+                            </Form.Label>
+                            <Form.Control
+                              id="curso-inicio"
+                              size="sm"
+                              type="date"
+                              value={formInicio}
+                              onChange={(e) => setFormInicio(e.target.value)}
+                            />
+                          </Form.Group>
+                        </Col>
+                      </Row>
+                      {iaOk && iaResult?.fechaFinCurso && (
+                        <Form.Text className="text-muted d-block mb-3">
+                          El curso se impartió hasta el {formatDate(iaResult.fechaFinCurso)} (no es el vencimiento).
+                        </Form.Text>
+                      )}
 
                       <Form.Group className="mb-4">
-                        <Form.Label className="small fw-semibold">
-                          Fecha de vencimiento (si aplica)
-                          {iaOk && iaResult?.confianza?.fechaVencimiento && (
+                        <Form.Label className="small fw-semibold" htmlFor="curso-vence">
+                          Fecha de vencimiento (solo si el certificado la indica)
+                          {iaOk && iaResult?.fechaVencimiento && (
                             <ConfianzaBadge nivel={iaResult.confianza.fechaVencimiento} />
                           )}
                         </Form.Label>
                         <Form.Control
+                          id="curso-vence"
                           size="sm"
                           type="date"
                           value={formVence}
                           onChange={(e) => setFormVence(e.target.value)}
                         />
-                        <Form.Text className="text-muted">Dejar vacío si el certificado no vence.</Form.Text>
+                        <Form.Text className="text-muted" aria-live="polite">
+                          {previa.origen === 'DOCUMENTO' && 'Se guardará la fecha del certificado.'}
+                          {previa.origen === 'CALCULADO_5_ANOS' && previa.fecha && (
+                            <>
+                              Sin vencimiento en el certificado: se guardará{' '}
+                              <strong>{formatDate(previa.fecha)}</strong>{' '}
+                              <Badge bg="light" text="dark" className="border" style={{ fontSize: '0.6rem' }}>
+                                estimado (5 años)
+                              </Badge>
+                            </>
+                          )}
+                          {previa.origen === 'REQUIERE_REVISION' &&
+                            'Sin fecha de inicio ni de emisión: el vencimiento quedará para revisión.'}
+                        </Form.Text>
                       </Form.Group>
+
+                      {iaOk && iaResult?.revisar && (iaResult.motivosRevision?.length ?? 0) > 0 && (
+                        <Alert variant="warning" className="py-2 small mb-3">
+                          <strong>Revisa estas fechas:</strong>
+                          <ul className="mb-0 ps-3">
+                            {iaResult.motivosRevision!.map((m) => (
+                              <li key={m}>{m}</li>
+                            ))}
+                          </ul>
+                        </Alert>
+                      )}
 
                       <div className="d-flex gap-2">
                         <Button
@@ -478,7 +595,7 @@ export default function MisCursosPage() {
                       <thead>
                         <tr>
                           <th>Curso</th>
-                          <th style={{ whiteSpace: 'nowrap' }}>Fecha inicio</th>
+                          <th style={{ whiteSpace: 'nowrap' }}>Inicio / Emisión</th>
                           <th style={{ whiteSpace: 'nowrap' }}>Fecha vence</th>
                           <th>Documento</th>
                           <th className="text-end"></th>
@@ -486,8 +603,7 @@ export default function MisCursosPage() {
                       </thead>
                       <tbody>
                         {data.cursos.map((curso) => {
-                          // Misma regla y "hoy" (México) que ve el evaluador.
-                          const vencido = curso.estadoVigencia === 'vencido';
+                          // Vigencia: misma regla y "hoy" (México) que ve el evaluador.
                           return (
                             <tr key={curso._id}>
                               <td>
@@ -499,21 +615,22 @@ export default function MisCursosPage() {
                                 )}
                               </td>
                               <td style={{ whiteSpace: 'nowrap' }}>
-                                {formatDate(curso.fechaInicio ?? curso.fechaCurso)}
+                                {curso.fechaInicio || curso.fechaEmision ? (
+                                  <>
+                                    {curso.fechaInicio && <div>{formatDate(curso.fechaInicio)}</div>}
+                                    {curso.fechaEmision && (
+                                      <div className={curso.fechaInicio ? 'text-muted small' : undefined}>
+                                        {curso.fechaInicio && 'Emisión '}
+                                        {formatDate(curso.fechaEmision)}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-muted">—</span>
+                                )}
                               </td>
                               <td style={{ whiteSpace: 'nowrap' }}>
-                                {curso.fechaVencimiento ? (
-                                  <span style={{ color: vencido ? '#dc3545' : undefined }}>
-                                    {formatDate(curso.fechaVencimiento)}
-                                    {vencido && (
-                                      <Badge bg="danger" className="ms-1" style={{ fontSize: '0.6rem' }}>
-                                        Vencido
-                                      </Badge>
-                                    )}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted">Sin vencimiento</span>
-                                )}
+                                <VencimientoCurso curso={curso} />
                               </td>
                               <td>
                                 {curso.documentoExtra?.urlDescargar ? (

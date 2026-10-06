@@ -13,11 +13,13 @@
  * Nunca descarta una fecha por implausible: la conserva con confianza baja
  * y la marca "Revisar" para que el evaluador la confirme.
  */
+import { TIPOS_DOC_PERSONAL } from '../constants/tipos-doc-personal';
+import type { TipoDocumentoIa } from './tipos-documento-ia';
 import {
-  TIPOS_DOC_PERSONAL,
-  TipoDocPersonal,
-} from '../constants/tipos-doc-personal';
-import { valorGuardado } from './formatos-fecha';
+  FechaLeida,
+  leerFechasLiteral,
+  valorGuardado,
+} from './formatos-fecha';
 import { elegirFechaDelLiteral } from './elegir-fecha-literal';
 import { hoyISO } from '../../../common/utils/fecha-mexico.util';
 import type {
@@ -34,7 +36,7 @@ export type RangoVigencia =
   | { tipo: 'exacto'; anios: number[]; toleranciaDias: number };
 
 /** Aprobados; tipos sin entrada no tienen rango (no vencen o es variable). */
-export const RANGOS_VIGENCIA: Partial<Record<TipoDocPersonal, RangoVigencia>> =
+export const RANGOS_VIGENCIA: Partial<Record<TipoDocumentoIa, RangoVigencia>> =
   {
     certificado_medico: { tipo: 'maximo', anios: 2 },
     pasaporte: { tipo: 'exacto', anios: [1, 3, 6, 10], toleranciaDias: 31 },
@@ -50,7 +52,7 @@ export const RANGOS_VIGENCIA: Partial<Record<TipoDocPersonal, RangoVigencia>> =
   };
 
 /** Tipos cuyo vencimiento se descarta si el modelo lo devuelve. */
-const TIPOS_SIN_VENCIMIENTO_NUNCA: TipoDocPersonal[] = [
+const TIPOS_SIN_VENCIMIENTO_NUNCA: TipoDocumentoIa[] = [
   'CURP',
   'acta_nacimiento',
 ];
@@ -77,7 +79,7 @@ const DIA = 86_400_000;
 // ── Validación ─────────────────────────────────────────────────────────────
 
 export interface TipoSospechoso {
-  tipoElegido: TipoDocPersonal;
+  tipoElegido: TipoDocumentoIa;
   tipoDetectado: string;
 }
 
@@ -97,7 +99,7 @@ const NOMBRE_CAMPO: Record<CampoFecha, string> = {
 };
 
 export function validarFechasDocPersonal(
-  tipo: TipoDocPersonal,
+  tipo: TipoDocumentoIa,
   respuesta: ExtraerDocPersonalIaResponse,
   hoy: string = hoyISO(),
 ): ResultadoValidado {
@@ -133,6 +135,8 @@ export function validarFechasDocPersonal(
   // decide cuál es la del campo. Sin literal legible, la fecha se descarta.
   // El formato que llega aquí ya está comprobado contra el documento.
   const formato = respuesta.formatoFechaIndicado ?? null;
+  /** Fin de un periodo de impartición leído en el literal del inicio. */
+  let finImparticion: FechaLeida | null = null;
   for (const campo of Object.keys(detalle) as CampoFecha[]) {
     const f = detalle[campo];
     if (!f.valor && !f.textoLiteral) continue;
@@ -153,6 +157,13 @@ export function validarFechasDocPersonal(
       continue;
     }
     const lectura = eleccion.fecha;
+    if (
+      campo === 'fechaInicio' &&
+      eleccion.finRango &&
+      !eleccion.rangoEsVigencia
+    ) {
+      finImparticion = eleccion.finRango;
+    }
     if (eleccion.dudosa) {
       marcar(
         campo,
@@ -207,6 +218,25 @@ export function validarFechasDocPersonal(
       f.confianza = minConfianza(f.confianza, 'media');
     }
     f.valor = lectura.iso;
+  }
+
+  // Cursos: fin del periodo de impartición (evidencia, nunca vencimiento).
+  let datosCurso = respuesta.datosCurso;
+  if (datosCurso) {
+    const fin = { ...datosCurso.fechaFinCurso };
+    const fechas = leerFechasLiteral(fin.textoLiteral, formato);
+    const elegida =
+      fechas.find((x) => x.iso && x.iso === fin.valor) ??
+      fechas[fechas.length - 1] ??
+      finImparticion;
+    if (elegida) {
+      if (!fechas.length) fin.textoLiteral = detalle.fechaInicio.textoLiteral;
+      fin.valor = elegida.iso ?? valorGuardado(elegida, 'fechaVencimiento');
+      fin.precision = elegida.precision;
+    } else {
+      fin.valor = null;
+    }
+    datosCurso = { ...datosCurso, fechaFinCurso: fin };
   }
 
   // Tipos que no vencen
@@ -279,7 +309,7 @@ export function validarFechasDocPersonal(
   const tipoSospechoso =
     detectado &&
     detectado !== tipo &&
-    ([...TIPOS_DOC_PERSONAL, 'otro'] as string[]).includes(detectado)
+    ([...TIPOS_DOC_PERSONAL, 'curso', 'otro'] as string[]).includes(detectado)
       ? { tipoElegido: tipo, tipoDetectado: detectado }
       : null;
 
@@ -298,5 +328,6 @@ export function validarFechasDocPersonal(
     motivosRevision: motivos,
     tipoSospechoso,
     fechasDescartadas: descartadas,
+    ...(datosCurso ? { datosCurso } : {}),
   };
 }

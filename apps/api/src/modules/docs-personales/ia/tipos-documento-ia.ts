@@ -6,6 +6,7 @@
  * personal y no debe aparecer en esa lista ni en su esquema de Mongo.
  */
 import {
+  LABEL_TIPO_DOC,
   TIPOS_DOC_PERSONAL,
   TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
@@ -20,3 +21,7 @@ export const TIPOS_DOCUMENTO_IA: readonly TipoDocumentoIa[] = [
 export const esTipoDocumentoIa = (v: unknown): v is TipoDocumentoIa =>
   typeof v === 'string' &&
   (TIPOS_DOCUMENTO_IA as readonly string[]).includes(v);
+
+/** Etiqueta legible del tipo (para prompts y mensajes). */
+export const etiquetaTipoIa = (tipo: TipoDocumentoIa): string =>
+  tipo === 'curso' ? 'Curso o certificación' : LABEL_TIPO_DOC[tipo];

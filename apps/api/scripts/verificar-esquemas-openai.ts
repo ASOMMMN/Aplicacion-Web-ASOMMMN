@@ -44,6 +44,23 @@ function imagen(): Buffer {
   return c.toBuffer('image/png');
 }
 
+/** Constancia de curso ficticia: periodo de impartición sin vigencia. */
+function imagenCurso(): Buffer {
+  const c = createCanvas(1400, 500);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, 1400, 500);
+  ctx.fillStyle = '#000';
+  ctx.font = '38px sans-serif';
+  [
+    'CENTRO DE CAPACITACIÓN DE EJEMPLO',
+    'Otorga la presente constancia a PERSONA DE PRUEBA',
+    'por haber aprobado el curso: CONTROL DE MULTITUDES',
+    'impartido del 20 al 25 de junio de 2022',
+  ].forEach((l, i) => ctx.fillText(l, 60, 90 + i * 100));
+  return c.toBuffer('image/png');
+}
+
 function pdf(): Promise<Buffer> {
   return new Promise((resolve) => {
     const doc = new PDFDocument();
@@ -121,6 +138,22 @@ async function main() {
     respuesta.ok
       ? `   OK · vencimiento ${(JSON.parse(texto ?? '{}') as { fechaVencimiento?: { valor?: string } }).fechaVencimiento?.valor}`
       : `   ERROR HTTP ${respuesta.status}: ${cuerpo.error?.message}`,
+  );
+
+  // 4. Esquema del tipo "curso" (nombre, institución y fin de impartición).
+  const c = await extraerFechasDocPersonal({
+    buffer: imagenCurso(),
+    mimeType: 'image/png',
+    tipo: 'curso',
+    apiKey,
+    modelo,
+    seed: seedDesdeEnv((k) => env[k]),
+    sinReextraer: true,
+    onError: (m) => console.error(`  [error] ${m}`),
+  });
+  console.log('\n4) Curso (imagen, esquema con campos de curso):');
+  console.log(
+    `   error: ${c.resultado.errorMensaje ?? 'ninguno'} · curso "${c.resultado.datosCurso?.nombreCurso}" · inicio ${c.resultado.fechaInicio} · fin ${c.resultado.datosCurso?.fechaFinCurso.valor} · vencimiento ${c.resultado.fechaVencimiento}`,
   );
 
   // 3. Esquema del CV.

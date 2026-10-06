@@ -1,4 +1,9 @@
 import type { EstadoVigencia } from '../../resumen-fechas/vigencia.util';
+import type { OrigenVencimiento } from '../regla-vencimiento-curso';
+import type { EstadoExtraccion } from '../../docs-personales/ia/estado-extraccion';
+import type { PrecisionFecha } from '../../docs-personales/ia/formatos-fecha';
+
+type Confianza = 'alta' | 'media' | 'baja';
 
 export class CursoItemResponseDto {
   _id: string;
@@ -6,9 +11,16 @@ export class CursoItemResponseDto {
   institucion?: string;
   fechaCurso: string;
   fechaInicio?: string;
+  /** Expedición/emisión del certificado. */
+  fechaEmision?: string;
   fechaVencimiento?: string;
-  /** El vencimiento lo calculó el sistema (inicio + 5 años), no el postulante. */
+  /** El vencimiento no viene del documento: inicio/emisión + 5 años. */
   fechaVencimientoEstimada: boolean;
+  /**
+   * DOCUMENTO | CALCULADO_5_ANOS | SIN_VENCIMIENTO | REQUIERE_REVISION.
+   * null = sin documento (el vencimiento, si hay, lo capturó el postulante).
+   */
+  origenVencimiento: OrigenVencimiento | null;
   /** Misma regla y misma fecha de "hoy" (México) que /resumen-fechas. */
   estadoVigencia: EstadoVigencia;
   diasParaVencer: number | null;
@@ -21,20 +33,53 @@ export class CursoItemResponseDto {
     urlDescargar?: string;
     storageType: 'local' | 'cloudinary';
   };
+  /** Confianza de la IA por campo leído del documento. */
+  confianza?: Partial<
+    Record<
+      'nombreCurso' | 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      Confianza
+    >
+  >;
+  extraccionEstado?: EstadoExtraccion;
+  revisarFechas: boolean;
+  motivosRevision: string[];
   creadoEn: string;
 }
 
+/**
+ * Propuesta de la IA para el formulario de un curso (no guarda nada). Usa
+ * la misma canalización que los documentos personales (tipo "curso").
+ */
 export class ExtraerIaResponseDto {
   nombreCurso: string | null;
+  institucion?: string | null;
   fechaInicio: string | null;
-  fechaVencimiento: string | null;
-  /** Fecha de finalización/emisión del certificado cuando no hay inicio ni vencimiento explícitos */
+  /** Expedición/emisión del certificado. */
   fechaEmision: string | null;
+  /** Solo si el documento trae vencimiento explícito; nunca calculado. */
+  fechaVencimiento: string | null;
+  /** Fin del periodo de impartición (evidencia; nunca es el vencimiento). */
+  fechaFinCurso?: string | null;
+  precision?: Partial<
+    Record<'fechaInicio' | 'fechaEmision' | 'fechaVencimiento', PrecisionFecha>
+  >;
   confianza: {
     nombreCurso: string;
     fechaInicio: string;
     fechaVencimiento: string;
+    fechaEmision?: string;
   };
+  /**
+   * Vencimiento que se guardará al registrar el curso con este documento:
+   * el del documento o el estimado a 5 años (o REQUIERE_REVISION).
+   */
+  vencimientoPropuesto?: {
+    fecha: string | null;
+    origen: OrigenVencimiento;
+    base: { campo: 'fechaInicio' | 'fechaEmision'; fecha: string } | null;
+  };
+  revisar?: boolean;
+  motivosRevision?: string[];
   iaDisponible: boolean;
   errorMensaje?: string;
 }

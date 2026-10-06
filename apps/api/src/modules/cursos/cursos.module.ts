@@ -9,6 +9,7 @@ import {
 import { Usuario, UsuarioSchema } from '../usuarios/schemas/usuario.schema';
 import { StorageModule } from '../storage/storage.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
+import { DocsPersonalesModule } from '../docs-personales/docs-personales.module';
 import { CursosController } from './cursos.controller';
 import { CursosService } from './cursos.service';
 
@@ -21,6 +22,8 @@ import { CursosService } from './cursos.service';
     ]),
     StorageModule,
     AuditoriaModule,
+    // ExtraccionIaService: la misma canalización de IA que los documentos personales.
+    DocsPersonalesModule,
   ],
   controllers: [CursosController],
   providers: [CursosService],

@@ -54,7 +54,7 @@ export class CursosController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary:
-      'Extrae datos del PDF de un curso/certificado usando IA (no guarda nada)',
+      'Extrae datos del documento (PDF, JPG o PNG) de un curso/certificado con IA (no guarda nada)',
   })
   @ApiResponse({ status: 200, type: ExtraerIaResponseDto })
   async extraerIa(
@@ -78,6 +78,7 @@ export class CursosController {
     }
     return this.cursosService.extraerDatosCursoIa(
       file.buffer,
+      file.mimetype,
       user.userId,
       user.email,
     );

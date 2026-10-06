@@ -1,4 +1,8 @@
-import type { CursoCV } from '../ingest-ia/schemas/extraccion.schema';
+import type { OrigenVencimiento } from '../cursos/regla-vencimiento-curso';
+import type {
+  ConfianzaIa,
+  CursoCV,
+} from '../ingest-ia/schemas/extraccion.schema';
 import type { EstadoVigencia } from './vigencia.util';
 import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
 import type { PrecisionFechas } from '../docs-personales/schemas/doc-personal.schema';
@@ -43,6 +47,20 @@ export interface ResumenFechaItem {
    * sistema (inicio + 5 años). Si hay una fecha real, esta la reemplaza.
    */
   fechaVencimientoEstimada: boolean;
+  /**
+   * Cursos: de dónde salió el vencimiento (documento, estimado a 5 años,
+   * sin vencimiento o requiere revisión). null = no hay documento del curso
+   * (solo CV) o el vencimiento vino del CV.
+   */
+  origenVencimiento?: OrigenVencimiento | null;
+  /** Curso sin documento subido (solo aparece en el CV). */
+  sinDocumento?: boolean;
+  /** Cursos registrados: confianza de cada fecha leída del documento. */
+  confianzaDocumento?: Partial<
+    Record<'fechaEmision' | 'fechaInicio' | 'fechaVencimiento', ConfianzaIa>
+  > | null;
+  /** Cursos registrados: el registro necesita revisión (y por qué). */
+  revisarFechasCurso?: { motivos: string[] } | null;
   /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
   confianzaCV: CursoCV['confianza'] | null;
   origen: OrigenResumen;

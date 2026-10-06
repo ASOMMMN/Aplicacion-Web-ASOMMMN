@@ -112,9 +112,21 @@ export class ResumenFechasService {
         // Sin fallback a fechaCurso: cuando el postulante no da fecha, el
         // frontend guarda ahí el día de la subida, no una fecha del curso.
         fechaInicio: this.normalizarFecha(c.fechaInicio),
-        fechaEmision: null,
+        fechaEmision: this.normalizarFecha(c.fechaEmision),
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
         fechaVencimientoEstimada: c.fechaVencimientoEstimada,
+        origenVencimiento: c.origenVencimiento,
+        sinDocumento: !c.tieneDocumentoExtra,
+        confianzaDocumento: c.confianza
+          ? {
+              fechaEmision: c.confianza.fechaEmision,
+              fechaInicio: c.confianza.fechaInicio,
+              fechaVencimiento: c.confianza.fechaVencimiento,
+            }
+          : null,
+        revisarFechasCurso: c.revisarFechas
+          ? { motivos: c.motivosRevision }
+          : null,
         detalle: null,
         aplicaVencimiento: true,
         confianzaCV: null,
@@ -149,6 +161,9 @@ export class ResumenFechasService {
         fechaEmision: this.normalizarFecha(c.fechaEmision),
         fechaVencimiento: this.normalizarFecha(c.fechaVencimiento),
         fechaVencimientoEstimada: Boolean(c.fechaVencimientoEstimada),
+        // Solo en el CV: sin documento no se aplica la regla de 5 años.
+        origenVencimiento: null,
+        sinDocumento: true,
         detalle: null,
         aplicaVencimiento: true,
         confianzaCV: c.confianza ?? null,

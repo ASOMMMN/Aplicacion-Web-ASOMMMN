@@ -85,8 +85,31 @@ Fases:
   fuera de git) y `--ejecutar --reporte` que aplica exactamente lo revisado
   (salta los que cambiaron desde el reporte). `muestras-ia/` y
   `reportes-ia/` en .gitignore. Jest 25 / 264.
-- [ ] Fase 4 — cursos (canalización unificada, schema, regla de 5 años,
-  migración).
+- [x] **Fase 4 — cursos.** Canalización única con el tipo `curso`
+  (`tipos-documento-ia.ts`; no está en `TIPOS_DOC_PERSONAL`): reglas
+  STCW/OMI en el prompt (expedición/emisión, inicio, periodo de impartición,
+  vencimiento solo con etiqueta de vigencia), esquema con `nombreCurso`,
+  `institucion` y `fechaFinCurso` (`datosCurso`, evidencia; "impartido del X
+  al Y" → inicio X, fin Y, nunca vencimiento). `extraerDatosCursoIa` usa
+  `ExtraccionIaService` (visión, JPG/PNG/escaneos, doble lectura, caché,
+  sin reextraer) y devuelve `vencimientoPropuesto`. `regla-vencimiento-curso.ts`:
+  vencimiento del documento tal cual (DOCUMENTO); si no, inicio o emisión
+  + 5 años con 29/02 → 28/02 (CALCULADO_5_ANOS + `fechaVencimientoEstimada`);
+  sin base → REQUIERE_REVISION; SIN_VENCIMIENTO solo por configuración
+  (`CURSOS_SIN_VENCIMIENTO`, vacío). Solo cursos con documento; los del CV
+  quedan "Sin documento" (`sinDocumento`, `origenVencimiento: null`).
+  Schema `Curso`: `fechaEmision`, `origenVencimiento`, `detalleFechasIa`,
+  `confianza`, `extraccionEstado`, `revisarFechas`, `motivosRevision`
+  (opcionales; los viejos se deducen con `origenVencimientoDeCurso`).
+  `crearCurso`: emisión e inicio por separado, `fechaCurso` opcional (inicio,
+  emisión u hoy en México), Revisar si lo capturado no coincide con el
+  documento. Resumen: emisión, origen y confianza de cursos. Mis cursos:
+  PDF/JPG/PNG, campos Emisión e Inicio, vista previa "estimado (5 años)" y
+  columna "Inicio / Emisión". Migración `scripts/migrar-vencimientos-cursos.ts`
+  (dry-run + CSV; no toca vencimientos explícitos ni cursos sin documento;
+  lógica en `migracion-vencimientos.util.ts`). Verificado contra OpenAI
+  (curso con periodo de impartición → fin 25/06/2022, vencimiento null).
+  Jest 29 / 295.
 - [ ] Fase 5 — script de consistencia.
 
 ## Objetivo
@@ -291,3 +314,4 @@ automatizados. `useAuth` no se usa en ninguna página (se migró igual).
 - 2026-10-05: plan de exactitud y consistencia; fase 1 (parser).
 - 2026-10-05: fase 2 (consistencia: snapshot, seed, esquema estricto, doble lectura, caché).
 - 2026-10-05: fase 3 (protección de datos, resumen multi-archivo, script de reanálisis).
+- 2026-10-06: fase 4 (cursos: canalización unificada, regla de 5 años, migración).

@@ -1,4 +1,5 @@
 /** Tipos de GET /resumen-fechas/postulante/:postulanteId */
+import type { OrigenVencimiento } from '@/lib/fechas';
 
 /** sin_fecha = vence pero falta la fecha; no_aplica = el tipo no vence. */
 export type EstadoVigencia = 'vencido' | 'por_vencer' | 'vigente' | 'sin_fecha' | 'no_aplica';
@@ -24,8 +25,19 @@ export interface ResumenFechaItem {
   fechaVencimiento: string | null;
   /** Precisión de cada fecha según el documento (ausente = día). */
   precisionFechas?: Partial<Record<'fechaInicio' | 'fechaEmision' | 'fechaVencimiento', PrecisionFecha>>;
-  /** El vencimiento lo calculó el sistema (inicio + 5 años), no viene de un documento. */
+  /** El vencimiento no viene del documento: inicio (o emisión) + 5 años. */
   fechaVencimientoEstimada: boolean;
+  /**
+   * Cursos: DOCUMENTO | CALCULADO_5_ANOS | SIN_VENCIMIENTO | REQUIERE_REVISION.
+   * null = sin documento del curso (solo CV) o vencimiento tomado del CV.
+   */
+  origenVencimiento?: OrigenVencimiento | null;
+  /** Curso sin documento subido (solo aparece en el CV). */
+  sinDocumento?: boolean;
+  /** Cursos registrados: confianza de cada fecha leída del documento. */
+  confianzaDocumento?: Partial<Record<'fechaInicio' | 'fechaEmision' | 'fechaVencimiento', ConfianzaIa>> | null;
+  /** Cursos registrados que necesitan revisión, con sus motivos. */
+  revisarFechasCurso?: { motivos: string[] } | null;
   /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
   confianzaCV: {
     fechaInicio?: ConfianzaIa;

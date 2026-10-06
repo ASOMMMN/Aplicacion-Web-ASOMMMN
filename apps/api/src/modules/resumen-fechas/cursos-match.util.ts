@@ -296,6 +296,8 @@ export function unificarCursos(
       // reemplaza; si no, se toma la del CV (con su marca de estimada).
       destino.fechaVencimiento = curso.fechaVencimiento;
       destino.fechaVencimientoEstimada = curso.fechaVencimientoEstimada;
+      // Ya no es del documento ni la regla de 5 años: viene del CV.
+      if (vencCV) destino.origenVencimiento = null;
     }
     destino.confianzaCV = curso.confianzaCV;
     destino.nombreEnCV ??= curso.nombre;

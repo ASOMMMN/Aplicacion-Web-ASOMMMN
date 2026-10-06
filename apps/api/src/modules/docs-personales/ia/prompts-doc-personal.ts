@@ -7,11 +7,10 @@
  * ver validar-fechas-doc-personal.ts.
  */
 import {
-  LABEL_TIPO_DOC,
   TIPOS_DOC_PERSONAL,
-  TipoDocPersonal,
 } from '../constants/tipos-doc-personal';
 import { ETIQUETAS_POR_TIPO_DESCRIPCION } from './etiquetas';
+import { etiquetaTipoIa, TipoDocumentoIa } from './tipos-documento-ia';
 
 export const SYSTEM_PROMPT_DOC_PERSONAL = `
 Eres un extractor experto de fechas de documentos oficiales mexicanos e
@@ -43,7 +42,7 @@ SALIDA: JSON con el esquema indicado, sin markdown ni explicaciones.
 `;
 
 /** Reglas específicas con las etiquetas reales de cada tipo. */
-export const REGLAS_POR_TIPO: Record<TipoDocPersonal, string> = {
+export const REGLAS_POR_TIPO: Record<TipoDocumentoIa, string> = {
   certificado_medico: `
 CERTIFICADO MÉDICO MARÍTIMO (Medical certificate for service at sea):
 - fechaEmision = "Fecha en la que se realizó el reconocimiento médico" /
@@ -119,6 +118,27 @@ CERTIFICADO INTERNACIONAL DE VACUNACIÓN (fiebre amarilla):
 - fechaVencimiento = "hasta" / "until" solo si es una fecha; si dice
   "vida de la persona vacunada" / "life of person vaccinated", fechaVencimiento = null.`,
 
+  curso: `
+CURSO O CERTIFICACIÓN (constancias y certificados de cursos, incluidos los cursos modelo OMI y
+certificados STCW: Formación básica en seguridad, Botes de rescate, Lucha contra incendios,
+Primeros auxilios, Protección del buque / PBIP, ECDIS, Control de multitudes, etc.):
+- nombreCurso = nombre oficial del curso tal como aparece en el CUERPO del documento
+  (p. ej. "Formación básica en seguridad (STCW A-VI/1)"). Nunca el nombre del archivo, del alumno
+  ni de la institución. null si no se identifica con claridad.
+- institucion = centro de formación o institución que expide el documento. null si no aparece.
+- fechaEmision = fecha de EXPEDICIÓN o EMISIÓN del certificado: "Fecha de expedición",
+  "Fecha de emisión", "Date of issue", "Issued on", "Se expide la presente… a los DD días…".
+  Solo si no hay ninguna de esas, usa la fecha de terminación del curso ("Fecha de término",
+  "Completion date") como emisión.
+- fechaInicio = inicio del curso: "Fecha de inicio", "Start date", o la primera fecha del
+  PERIODO DE IMPARTICIÓN ("impartido del 10 al 14 de junio de 2024" → 2024-06-10).
+- fechaFinCurso = última fecha del periodo de impartición o "Fecha de término" del curso.
+- fechaVencimiento = SOLO si el documento dice "Vigencia", "Vigente hasta", "Válido hasta",
+  "Fecha de vencimiento", "Expiry date", "Valid until" o "Expires". Si no lo dice, null:
+  NUNCA la calcules ni la supongas (el sistema aplica su propia regla).
+- "del X al Y" sin palabra de vigencia o validez es el periodo de impartición, NUNCA el vencimiento.
+- NO uses fecha de nacimiento, folio, número de registro ni fecha de impresión.`,
+
   constancia_participacion: `
 CONSTANCIA DE PARTICIPACIÓN:
 - fechaEmision = fecha en que se expide la constancia ("Se expide la presente…", "Fecha de expedición").
@@ -139,16 +159,16 @@ CAMPOS DE LA RESPUESTA (el esquema JSON se aplica automáticamente):
 - Si una fecha no aparece, su objeto lleva valor null, textoLiteral null y confianza "baja".`;
 
 /** Etiquetas reales del tipo (las mismas que usa el extractor determinista). */
-function etiquetasDelTipo(tipo: TipoDocPersonal): string {
+function etiquetasDelTipo(tipo: TipoDocumentoIa): string {
   const d = ETIQUETAS_POR_TIPO_DESCRIPCION[tipo];
   return d
     ? `\nETIQUETAS QUE ACOMPAÑAN A LAS FECHAS EN ESTE TIPO:\n- ${d}\n`
     : '';
 }
 
-function encabezado(tipo: TipoDocPersonal): string {
+function encabezado(tipo: TipoDocumentoIa): string {
   return `
-TIPO DE DOCUMENTO QUE INDICÓ EL USUARIO: ${tipo} (${LABEL_TIPO_DOC[tipo]})
+TIPO DE DOCUMENTO QUE INDICÓ EL USUARIO: ${tipo} (${etiquetaTipoIa(tipo)})
 
 REGLAS ESPECÍFICAS DEL TIPO:
 ${REGLAS_POR_TIPO[tipo]}
@@ -160,7 +180,7 @@ las reglas generales para extraer las fechas.`;
 /** PDF con texto (se acompaña de la imagen de la primera página). */
 export const construirPromptDocPersonal = (
   texto: string,
-  tipo: TipoDocPersonal,
+  tipo: TipoDocumentoIa,
 ): string => `
 Analiza el siguiente documento personal.
 ${encabezado(tipo)}
@@ -173,14 +193,14 @@ ${ESQUEMA_SALIDA}`;
 
 /** Imagen o páginas renderizadas de un PDF. */
 export const construirPromptImagenDocPersonal = (
-  tipo: TipoDocPersonal,
+  tipo: TipoDocumentoIa,
 ): string => `
 Analiza visualmente las imágenes del siguiente documento personal.
 ${encabezado(tipo)}
 ${ESQUEMA_SALIDA}`;
 
 /** Respaldo: PDF completo cuando no se pudo renderizar. */
-export const construirPromptPdfEscaneado = (tipo: TipoDocPersonal): string => `
+export const construirPromptPdfEscaneado = (tipo: TipoDocumentoIa): string => `
 Analiza visualmente el PDF completo del documento personal (léelo página por página).
 ${encabezado(tipo)}
 ${ESQUEMA_SALIDA}`;

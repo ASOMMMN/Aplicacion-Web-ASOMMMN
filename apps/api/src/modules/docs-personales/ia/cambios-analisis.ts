@@ -76,6 +76,38 @@ export interface CambiosAnalisis {
   };
 }
 
+/**
+ * Evidencia que se guarda en detalleFechasIa: por fecha (literal, etiqueta,
+ * confianza, precisión) y, si las hubo, la combinación con las fuentes
+ * deterministas, los documentos detectados, el texto de QR/cadena, cada
+ * lectura del modelo con el consenso y los datos propios de un curso.
+ */
+export function detalleParaGuardar(
+  res: ResultadoExtraccionFechas['resultado'],
+): Record<string, unknown> | undefined {
+  if (!res.detalle) return undefined;
+  return {
+    ...res.detalle,
+    ...(res.fuentes ? { fuentes: res.fuentes } : {}),
+    ...(res.grupos?.length
+      ? { grupos: res.grupos, principal: res.principal ?? null }
+      : {}),
+    ...(res.evidenciaEstructurada?.length
+      ? { evidenciaEstructurada: res.evidenciaEstructurada }
+      : {}),
+    ...(res.lecturasIa?.length ? { lecturasIa: res.lecturasIa } : {}),
+    ...(res.consenso ? { consenso: res.consenso } : {}),
+    ...(res.reextraccion ? { reextraccion: res.reextraccion } : {}),
+    ...(res.datosCurso ? { datosCurso: res.datosCurso } : {}),
+    ...(res.tipoDetectado
+      ? {
+          tipoDetectado: res.tipoDetectado,
+          confianzaTipo: res.confianzaTipo ?? null,
+        }
+      : {}),
+  };
+}
+
 /** Lo que el documento ya tenía antes de este análisis. */
 export interface EstadoAnterior {
   fechaEmision?: Date | string | null;
@@ -151,30 +183,7 @@ export function cambiosPorAnalisis(
 
   const res = r.resultado;
 
-  // Evidencia por fecha y, si hubo lecturas deterministas, la combinación:
-  // fuentes[campo], todos los documentos detectados y el texto de QR/cadena.
-  const detalleNuevo: Record<string, unknown> | undefined = res.detalle
-    ? {
-        ...res.detalle,
-        ...(res.fuentes ? { fuentes: res.fuentes } : {}),
-        ...(res.grupos?.length
-          ? { grupos: res.grupos, principal: res.principal ?? null }
-          : {}),
-        ...(res.evidenciaEstructurada?.length
-          ? { evidenciaEstructurada: res.evidenciaEstructurada }
-          : {}),
-        // Cada lectura del modelo y el consenso por campo (auditoría).
-        ...(res.lecturasIa?.length ? { lecturasIa: res.lecturasIa } : {}),
-        ...(res.consenso ? { consenso: res.consenso } : {}),
-        ...(res.reextraccion ? { reextraccion: res.reextraccion } : {}),
-        ...(res.tipoDetectado
-          ? {
-              tipoDetectado: res.tipoDetectado,
-              confianzaTipo: res.confianzaTipo ?? null,
-            }
-          : {}),
-      }
-    : undefined;
+  const detalleNuevo = detalleParaGuardar(res);
   if (opciones.fechasVerificadas) {
     return {
       detalleFechasIa: detalleNuevo,

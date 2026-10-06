@@ -472,9 +472,9 @@ export function ResumenFechasTabla({
                   {c.fechaVencimiento && c.fechaVencimientoEstimada && (
                     <span
                       className="badge bg-light text-secondary border ms-1"
-                      title="No viene de un documento: el sistema la calculaba como inicio + 5 años. Verifícala contra el certificado."
+                      title="El certificado no indica vencimiento: se estimó con la fecha de inicio (o emisión) + 5 años."
                     >
-                      Estimada
+                      estimado (5 años)
                     </span>
                   )}
                 </td>

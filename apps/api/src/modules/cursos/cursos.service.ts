@@ -22,10 +22,20 @@ import { join } from 'node:path';
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
-import OpenAI from 'openai';
-import { crearClienteOpenAI } from '../../common/utils/openai-client.util';
-import { clasificarErrorOpenAI } from '../../common/utils/openai-errores.util';
-import { PDFParse } from 'pdf-parse';
+import { ExtraccionIaService } from '../docs-personales/extraccion-ia.service';
+import {
+  CAMPOS_FECHA,
+  MIMES_EXTRACCION_IA,
+  ResultadoExtraccionFechas,
+} from '../docs-personales/ia/extraer-fechas-doc-personal';
+import { detalleParaGuardar } from '../docs-personales/ia/cambios-analisis';
+import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
+import { formatearConPrecision } from '../docs-personales/ia/formatos-fecha';
+import {
+  origenVencimientoDeCurso,
+  OrigenVencimiento,
+  resolverVencimientoCurso,
+} from './regla-vencimiento-curso';
 import { Curso, CursoDocument } from './schemas/curso.schema';
 import {
   Postulante,
@@ -36,6 +46,7 @@ import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { CreateCursoDto } from './dto/create-curso.dto';
 import {
+  CursoItemResponseDto,
   CursosListResponseDto,
   ExtraerIaResponseDto,
 } from './dto/curso-response.dto';
@@ -45,61 +56,19 @@ import {
   hoyISO,
 } from '../resumen-fechas/vigencia.util';
 
-const SYSTEM_PROMPT_CURSO = `Eres un extractor experto de datos de certificados académicos y diplomas de cursos.
-Analiza únicamente el contenido del texto del documento (nunca el nombre del archivo).
-Devuelve SOLO un objeto JSON válido, sin markdown ni explicaciones adicionales.
-Si un dato NO está explícitamente en el documento, usa null. NUNCA inventes ni asumas datos.`;
-
-const userPromptCurso = (
-  texto: string,
-) => `Extrae los datos del siguiente certificado o diploma de curso:
-
---- INICIO DOCUMENTO ---
-${texto.slice(0, 4000)}
---- FIN DOCUMENTO ---
-
-Extrae exactamente estos campos:
-
-1. nombreCurso: Nombre oficial del curso/certificación del CUERPO del documento.
-   - Busca el texto que aparece después de frases como: "por completar con éxito:", "por haber completado:",
-     "certifica que ... completó:", "has completed:", "successfully completed:", "completion of:",
-     "for completing:", "certifies that ... has successfully completed:", o el título principal del módulo/curso.
-   - En certificados Cisco Networking Academy suele ser el nombre del módulo: "Defensa de la red",
-     "Python Essentials 1", "CCNA: Introduction to Networks", etc.
-   - NUNCA uses el nombre del archivo, el nombre del receptor, ni el nombre de la institución emisora.
-   - Si no identificas claramente el nombre del curso, usa null.
-
-2. fechaInicio: Fecha de inicio EXPLÍCITA en formato YYYY-MM-DD.
-   - SOLO si el documento dice "Fecha de inicio", "Start date", "Inicio:" o equivalente.
-   - null si no hay fecha de inicio explícita en el documento.
-
-3. fechaVencimiento: Fecha de vencimiento o expiración en formato YYYY-MM-DD.
-   - SOLO si el documento dice "Válido hasta", "Expira:", "Expiry date", "Valid until" o equivalente.
-   - null si no hay fecha de vencimiento (la mayoría de certificados no vencen).
-
-4. fechaEmision: Fecha de finalización, emisión o expedición en formato YYYY-MM-DD.
-   - Busca: "Fecha de Finalización", "Fecha de emisión", "Fecha de expedición", "Completion date",
-     "Issue date", "Date awarded", "Awarded on", "Issued on", "Fecha de Expedición" o equivalente.
-   - Normaliza cualquier formato o idioma: "04 Feb 2026" → "2026-02-04", "15 de marzo de 2024" → "2024-03-15".
-   - null si no existe ninguna fecha de este tipo en el documento.
-
-5. confianza: Nivel de confianza "alta" | "media" | "baja" para nombreCurso, fechaInicio y fechaVencimiento.
-
-Devuelve SOLO este JSON (sin texto adicional):
-{
-  "nombreCurso": "string o null",
-  "fechaInicio": "YYYY-MM-DD o null",
-  "fechaVencimiento": "YYYY-MM-DD o null",
-  "fechaEmision": "YYYY-MM-DD o null",
-  "confianza": {
-    "nombreCurso": "alta|media|baja",
-    "fechaInicio": "alta|media|baja",
-    "fechaVencimiento": "alta|media|baja"
-  }
-}`;
-
 const CURSOS_CATEGORY = 'cursos';
-const ALLOWED_EXTRA_MIME = ['application/pdf'];
+/** PDF e imágenes (fotos o escaneos): los lee la misma canalización que los documentos personales. */
+const ALLOWED_EXTRA_MIME = ['application/pdf', 'image/jpeg', 'image/png'];
+
+const aFecha = (iso: string | null | undefined) =>
+  iso ? new Date(`${iso.slice(0, 10)}T00:00:00.000Z`) : undefined;
+const aIso = (d: Date | string | null | undefined) =>
+  d ? new Date(d).toISOString().slice(0, 10) : null;
+const NOMBRE_CAMPO_CURSO = {
+  fechaEmision: 'La emisión',
+  fechaInicio: 'El inicio',
+  fechaVencimiento: 'El vencimiento',
+} as const;
 
 @Injectable()
 export class CursosService {
@@ -115,13 +84,8 @@ export class CursosService {
     private readonly storageService: StorageService,
     private readonly auditoriaService: AuditoriaService,
     private readonly configService: ConfigService,
-  ) {
-    this.openai = crearClienteOpenAI(
-      this.configService.get<string>('OPENAI_API_KEY', ''),
-    );
-  }
-
-  private readonly openai: OpenAI;
+    private readonly extraccionIa: ExtraccionIaService,
+  ) {}
 
   async crearCurso(
     userId: string,
@@ -167,18 +131,58 @@ export class CursosService {
         };
       }
 
-      const fechaCurso = new Date(dto.fechaCurso);
-      if (Number.isNaN(fechaCurso.getTime())) {
-        throw new BadRequestException('Fecha de curso inválida.');
+      const fechaInicio = dto.fechaInicio?.slice(0, 10) ?? null;
+      const fechaEmision = dto.fechaEmision?.slice(0, 10) ?? null;
+      const capturado = dto.fechaVencimiento?.slice(0, 10) ?? null;
+
+      // El documento se lee con la misma canalización (y caché) que la vista
+      // previa: el mismo archivo da las mismas fechas.
+      const analisis =
+        file && MIMES_EXTRACCION_IA.includes(file.mimetype)
+          ? await this.extraccionIa
+              .extraer({
+                buffer: file.buffer,
+                mimeType: file.mimetype,
+                tipo: 'curso',
+                usarCache: true,
+                reextraer: false,
+              })
+              .catch((err: Error) => {
+                this.logger.error(
+                  `No se pudo analizar el documento del curso: ${err.message}`,
+                );
+                return null;
+              })
+          : null;
+
+      // Regla de vencimiento: solo cursos registrados con documento.
+      let fechaVencimiento: string | null = capturado;
+      let origenVencimiento: OrigenVencimiento | undefined;
+      if (documentoExtra) {
+        const regla = resolverVencimientoCurso({
+          fechaInicio,
+          fechaEmision,
+          fechaVencimientoDocumento: capturado,
+          nombreCurso: dto.nombreCurso,
+        });
+        fechaVencimiento = regla.fechaVencimiento;
+        origenVencimiento = regla.origen;
       }
 
-      const fechaInicio = dto.fechaInicio
-        ? new Date(dto.fechaInicio)
-        : undefined;
-      // Si el postulante no indica vencimiento, queda vacío: no se estima.
-      const fechaVencimiento = dto.fechaVencimiento
-        ? new Date(dto.fechaVencimiento)
-        : undefined;
+      const revision = this.revisionCurso(analisis, {
+        fechaInicio,
+        fechaEmision,
+        fechaVencimiento: capturado,
+        origenVencimiento,
+      });
+
+      // fechaCurso (compatibilidad): inicio, emisión u hoy en México.
+      const fechaCurso = aFecha(
+        dto.fechaCurso?.slice(0, 10) ?? fechaInicio ?? fechaEmision ?? hoyISO(),
+      );
+      if (!fechaCurso || Number.isNaN(fechaCurso.getTime())) {
+        throw new BadRequestException('Fecha de curso inválida.');
+      }
 
       const curso = await this.cursoModel.create({
         postulanteId: postulante._id,
@@ -186,10 +190,14 @@ export class CursosService {
         nombreCurso: dto.nombreCurso.trim(),
         institucion: dto.institucion?.trim() || undefined,
         fechaCurso,
-        fechaInicio,
-        fechaVencimiento,
+        fechaInicio: aFecha(fechaInicio),
+        fechaEmision: aFecha(fechaEmision),
+        fechaVencimiento: aFecha(fechaVencimiento),
+        fechaVencimientoEstimada: origenVencimiento === 'CALCULADO_5_ANOS',
+        origenVencimiento,
         apareceEnCV: dto.apareceEnCV,
         documentoExtra,
+        ...revision,
       });
 
       return {
@@ -251,29 +259,7 @@ export class CursosService {
           };
         }
 
-        return {
-          _id: curso._id.toString(),
-          nombreCurso: curso.nombreCurso,
-          institucion: curso.institucion,
-          fechaCurso: new Date(curso.fechaCurso).toISOString(),
-          fechaInicio: curso.fechaInicio
-            ? new Date(curso.fechaInicio).toISOString()
-            : undefined,
-          fechaVencimiento: curso.fechaVencimiento
-            ? new Date(curso.fechaVencimiento).toISOString()
-            : undefined,
-          fechaVencimientoEstimada: Boolean(curso.fechaVencimientoEstimada),
-          ...calcularEstadoVigencia(
-            curso.fechaVencimiento
-              ? new Date(curso.fechaVencimiento).toISOString().slice(0, 10)
-              : null,
-            hoy,
-          ),
-          apareceEnCV: Boolean(curso.apareceEnCV),
-          tieneDocumentoExtra: Boolean(curso.documentoExtra),
-          documentoExtra,
-          creadoEn: new Date(curso.creadoEn).toISOString(),
-        };
+        return this.mapearCurso(curso, documentoExtra, hoy);
       }),
     );
 
@@ -334,29 +320,7 @@ export class CursosService {
           };
         }
 
-        return {
-          _id: curso._id.toString(),
-          nombreCurso: curso.nombreCurso,
-          institucion: curso.institucion,
-          fechaCurso: new Date(curso.fechaCurso).toISOString(),
-          fechaInicio: curso.fechaInicio
-            ? new Date(curso.fechaInicio).toISOString()
-            : undefined,
-          fechaVencimiento: curso.fechaVencimiento
-            ? new Date(curso.fechaVencimiento).toISOString()
-            : undefined,
-          fechaVencimientoEstimada: Boolean(curso.fechaVencimientoEstimada),
-          ...calcularEstadoVigencia(
-            curso.fechaVencimiento
-              ? new Date(curso.fechaVencimiento).toISOString().slice(0, 10)
-              : null,
-            hoy,
-          ),
-          apareceEnCV: Boolean(curso.apareceEnCV),
-          tieneDocumentoExtra: Boolean(curso.documentoExtra),
-          documentoExtra,
-          creadoEn: new Date(curso.creadoEn).toISOString(),
-        };
+        return this.mapearCurso(curso, documentoExtra, hoy);
       }),
     );
 
@@ -431,135 +395,216 @@ export class CursosService {
     return { message: 'Nombre actualizado.' };
   }
 
+  /**
+   * Propuesta para el formulario (no guarda nada): misma canalización que
+   * los documentos personales con el tipo "curso" (visión, escaneos e
+   * imágenes, regla dd/mm, validación, doble lectura y caché). Incluye el
+   * vencimiento que se guardaría: el del documento o el estimado a 5 años.
+   */
   async extraerDatosCursoIa(
     fileBuffer: Buffer,
+    mimeType: string,
     userId: string,
     actorEmail: string,
   ): Promise<ExtraerIaResponseDto> {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY', '');
-    if (!apiKey) {
+    const vacio: ExtraerIaResponseDto = {
+      nombreCurso: null,
+      institucion: null,
+      fechaInicio: null,
+      fechaEmision: null,
+      fechaVencimiento: null,
+      fechaFinCurso: null,
+      confianza: {
+        nombreCurso: 'baja',
+        fechaInicio: 'baja',
+        fechaVencimiento: 'baja',
+        fechaEmision: 'baja',
+      },
+      iaDisponible: true,
+    };
+    if (!MIMES_EXTRACCION_IA.includes(mimeType)) {
       return {
-        nombreCurso: null,
-        fechaInicio: null,
-        fechaVencimiento: null,
-        fechaEmision: null,
-        confianza: {
-          nombreCurso: 'baja',
-          fechaInicio: 'baja',
-          fechaVencimiento: 'baja',
-        },
-        iaDisponible: false,
-        errorMensaje: 'IA no disponible (OPENAI_API_KEY no configurada).',
+        ...vacio,
+        errorMensaje: 'Formato no compatible. Sube un PDF, JPG o PNG.',
       };
     }
 
-    try {
-      const pdfParser = new PDFParse({ data: fileBuffer });
-      const pdfResult = await pdfParser.getText();
-      await pdfParser.destroy();
-      const textoPdf = pdfResult.text;
-      if (!textoPdf || textoPdf.trim().length < 20) {
-        return {
-          nombreCurso: null,
-          fechaInicio: null,
-          fechaVencimiento: null,
-          fechaEmision: null,
-          confianza: {
-            nombreCurso: 'baja',
-            fechaInicio: 'baja',
-            fechaVencimiento: 'baja',
-          },
-          iaDisponible: true,
-          errorMensaje:
-            'El PDF no contiene texto legible. Ingresa los datos manualmente.',
-        };
+    const r = await this.extraccionIa.extraer({
+      buffer: fileBuffer,
+      mimeType,
+      tipo: 'curso',
+      usarCache: true,
+      reextraer: false,
+    });
+    const res = r.resultado;
+    if (res.errorMensaje || !res.iaDisponible) {
+      return {
+        ...vacio,
+        iaDisponible: res.iaDisponible,
+        errorMensaje: res.errorMensaje ?? 'IA no disponible.',
+      };
+    }
+
+    const curso = res.datosCurso;
+    const regla = resolverVencimientoCurso({
+      fechaInicio: res.fechaInicio,
+      fechaEmision: res.fechaEmision,
+      fechaVencimientoDocumento: res.fechaVencimiento,
+      nombreCurso: curso?.nombreCurso,
+    });
+
+    await this.auditoriaService.registrar({
+      actorId: userId,
+      actorEmail,
+      accion: 'curso_extraccion_ia',
+      recurso: 'Curso',
+      recursoId: 'extraer-ia',
+      metadata: {
+        modelo: r.modelo,
+        desdeCache: Boolean(r.desdeCache),
+        nombreExtraido: curso?.nombreCurso ?? null,
+        fechaInicioExtraida: res.fechaInicio,
+        fechaEmisionExtraida: res.fechaEmision,
+        fechaVencimientoExtraida: res.fechaVencimiento,
+        vencimientoPropuesto: regla,
+        motivosRevision: res.motivosRevision,
+      },
+    });
+
+    return {
+      nombreCurso: curso?.nombreCurso ?? null,
+      institucion: curso?.institucion ?? null,
+      fechaInicio: res.fechaInicio,
+      fechaEmision: res.fechaEmision,
+      // Solo el del documento: el estimado va aparte, en vencimientoPropuesto.
+      fechaVencimiento: res.fechaVencimiento,
+      fechaFinCurso: curso?.fechaFinCurso.valor ?? null,
+      precision: {
+        fechaInicio: res.detalle?.fechaInicio.precision ?? 'dia',
+        fechaEmision: res.detalle?.fechaEmision.precision ?? 'dia',
+        fechaVencimiento: res.detalle?.fechaVencimiento.precision ?? 'dia',
+      },
+      confianza: {
+        nombreCurso: curso?.nombreCurso ? 'media' : 'baja',
+        fechaInicio: res.confianza.fechaInicio,
+        fechaEmision: res.confianza.fechaEmision,
+        fechaVencimiento: res.confianza.fechaVencimiento,
+      },
+      vencimientoPropuesto: {
+        fecha: regla.fechaVencimiento,
+        origen: regla.origen,
+        base: regla.base,
+      },
+      revisar: Boolean(res.revisar),
+      motivosRevision: res.motivosRevision ?? [],
+      iaDisponible: true,
+    };
+  }
+
+  /**
+   * Evidencia y marca de revisión de un curso: lo que leyó la IA frente a
+   * lo que registró el postulante. Nunca cambia las fechas registradas.
+   */
+  private revisionCurso(
+    analisis: ResultadoExtraccionFechas | null,
+    registrado: {
+      fechaInicio: string | null;
+      fechaEmision: string | null;
+      fechaVencimiento: string | null;
+      origenVencimiento?: OrigenVencimiento;
+    },
+  ): Pick<
+    Curso,
+    | 'detalleFechasIa'
+    | 'confianza'
+    | 'extraccionEstado'
+    | 'revisarFechas'
+    | 'motivosRevision'
+  > {
+    const motivos: string[] = [];
+    if (registrado.origenVencimiento === 'REQUIERE_REVISION') {
+      motivos.push(
+        'Sin fecha de inicio ni de emisión: no se puede estimar el vencimiento.',
+      );
+    }
+    if (!analisis) {
+      return {
+        revisarFechas: motivos.length > 0,
+        motivosRevision: motivos,
+      };
+    }
+    const res = analisis.resultado;
+    if (res.errorMensaje || !res.iaDisponible) {
+      return {
+        extraccionEstado: 'error',
+        revisarFechas: motivos.length > 0,
+        motivosRevision: motivos,
+      };
+    }
+
+    const precision = (c: (typeof CAMPOS_FECHA)[number]) =>
+      res.detalle?.[c].precision ?? 'dia';
+    const mostrar = (iso: string, c: (typeof CAMPOS_FECHA)[number]) =>
+      formatearConPrecision(iso, precision(c)) ?? iso;
+    for (const c of CAMPOS_FECHA) {
+      const leida = res[c];
+      const capturada = registrado[c];
+      if (c === 'fechaVencimiento' && !leida && capturada) {
+        motivos.push(
+          `El documento no muestra vencimiento; el postulante capturó ${formatearConPrecision(capturada) ?? capturada}.`,
+        );
+      } else if (leida && capturada && leida !== capturada) {
+        motivos.push(
+          `${NOMBRE_CAMPO_CURSO[c]} registrado (${formatearConPrecision(capturada) ?? capturada}) no coincide con el documento (${mostrar(leida, c)}).`,
+        );
       }
-
-      const modelo = this.configService.get<string>(
-        'OPENAI_MODEL',
-        'gpt-4o-mini',
-      );
-      const completion = await this.openai.chat.completions.create({
-        model: modelo,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT_CURSO },
-          { role: 'user', content: userPromptCurso(textoPdf) },
-        ],
-        temperature: 0,
-        max_tokens: 600,
-      });
-
-      const raw = completion.choices[0]?.message?.content ?? '{}';
-      const parsed = JSON.parse(raw) as {
-        nombreCurso?: string | null;
-        fechaInicio?: string | null;
-        fechaVencimiento?: string | null;
-        fechaEmision?: string | null;
-        confianza?: {
-          nombreCurso?: string;
-          fechaInicio?: string;
-          fechaVencimiento?: string;
-        };
-      };
-
-      await this.auditoriaService.registrar({
-        actorId: userId,
-        actorEmail,
-        accion: 'curso_extraccion_ia',
-        recurso: 'Curso',
-        recursoId: 'extraer-ia',
-        metadata: {
-          modelo,
-          nombreExtraido: parsed.nombreCurso,
-          fechaInicioExtraida: parsed.fechaInicio,
-          fechaEmisionExtraida: parsed.fechaEmision,
-        },
-      });
-
-      // Sin vencimiento explícito en el documento no se sugiere uno: el
-      // postulante lo aceptaría en el formulario como si fuera real.
-      return {
-        nombreCurso: parsed.nombreCurso ?? null,
-        fechaInicio: parsed.fechaInicio ?? null,
-        fechaVencimiento: parsed.fechaVencimiento ?? null,
-        fechaEmision: parsed.fechaEmision ?? null,
-        confianza: {
-          nombreCurso: parsed.confianza?.nombreCurso ?? 'baja',
-          fechaInicio: parsed.confianza?.fechaInicio ?? 'baja',
-          fechaVencimiento: parsed.confianza?.fechaVencimiento ?? 'baja',
-        },
-        iaDisponible: true,
-      };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido';
-      const status =
-        (err as { status?: number })?.status ??
-        (err as { statusCode?: number })?.statusCode ??
-        0;
-      this.logger.error(
-        `extraerDatosCursoIa falló — HTTP ${status} — ${msg}`,
-        CursosService.name,
-      );
-      return {
-        nombreCurso: null,
-        fechaInicio: null,
-        fechaVencimiento: null,
-        fechaEmision: null,
-        confianza: {
-          nombreCurso: 'baja',
-          fechaInicio: 'baja',
-          fechaVencimiento: 'baja',
-        },
-        iaDisponible: true,
-        // 429 puede ser "sin saldo" (insufficient_quota) o "límite por
-        // minuto" (rate_limit_exceeded): se distingue por el code de OpenAI.
-        errorMensaje:
-          status === 401 || status === 429
-            ? clasificarErrorOpenAI(err).mensaje
-            : `No se pudo analizar el PDF con IA: ${msg}`,
-      };
     }
+    motivos.push(...(res.motivosRevision ?? []));
+
+    const conFechas = CAMPOS_FECHA.some((c) => res[c]);
+    const estado: EstadoExtraccion = conFechas ? 'ok' : 'sin_fechas';
+    return {
+      detalleFechasIa: detalleParaGuardar(res),
+      confianza: {
+        nombreCurso: res.datosCurso?.nombreCurso ? 'media' : 'baja',
+        fechaEmision: res.confianza.fechaEmision,
+        fechaInicio: res.confianza.fechaInicio,
+        fechaVencimiento: res.confianza.fechaVencimiento,
+      },
+      extraccionEstado: estado,
+      revisarFechas: motivos.length > 0,
+      motivosRevision: [...new Set(motivos)],
+    };
+  }
+
+  /** Un curso tal como lo devuelve la API (mismo cálculo de vigencia que /resumen-fechas). */
+  private mapearCurso(
+    curso: Curso & { _id: Types.ObjectId },
+    documentoExtra: CursoItemResponseDto['documentoExtra'],
+    hoy: string,
+  ): CursoItemResponseDto {
+    const iso = (d?: Date | null) =>
+      d ? new Date(d).toISOString() : undefined;
+    return {
+      _id: curso._id.toString(),
+      nombreCurso: curso.nombreCurso,
+      institucion: curso.institucion,
+      fechaCurso: new Date(curso.fechaCurso).toISOString(),
+      fechaInicio: iso(curso.fechaInicio),
+      fechaEmision: iso(curso.fechaEmision),
+      fechaVencimiento: iso(curso.fechaVencimiento),
+      fechaVencimientoEstimada: Boolean(curso.fechaVencimientoEstimada),
+      origenVencimiento: origenVencimientoDeCurso(curso),
+      ...calcularEstadoVigencia(aIso(curso.fechaVencimiento), hoy),
+      apareceEnCV: Boolean(curso.apareceEnCV),
+      tieneDocumentoExtra: Boolean(curso.documentoExtra),
+      documentoExtra,
+      confianza: curso.confianza,
+      extraccionEstado: curso.extraccionEstado,
+      revisarFechas: Boolean(curso.revisarFechas),
+      motivosRevision: curso.motivosRevision ?? [],
+      creadoEn: new Date(curso.creadoEn).toISOString(),
+    };
   }
 
   async exportarResumenCSV(
@@ -968,7 +1013,7 @@ export class CursosService {
   private validarDocumentoExtra(file: Express.Multer.File): void {
     if (!ALLOWED_EXTRA_MIME.includes(file.mimetype)) {
       throw new BadRequestException(
-        'Documento extra inválido. Solo se permite PDF.',
+        'Documento extra inválido. Sube un PDF, JPG o PNG.',
       );
     }
   }

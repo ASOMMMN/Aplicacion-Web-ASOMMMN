@@ -48,6 +48,35 @@ export function hoyMexicoISO(ahora: Date = new Date()): string {
   }).format(ahora);
 }
 
+/** Origen del vencimiento de un curso (misma regla que la API). */
+export type OrigenVencimiento =
+  | 'DOCUMENTO'
+  | 'CALCULADO_5_ANOS'
+  | 'SIN_VENCIMIENTO'
+  | 'REQUIERE_REVISION';
+
+/**
+ * Vista previa de la regla de cursos con documento (la API la aplica al
+ * guardar): vencimiento del documento tal cual; si no hay, inicio (o
+ * emisión) + 5 años, con 29/02 → 28/02; sin fecha base, requiere revisión.
+ */
+export function vencimientoCurso(
+  inicio: string | null | undefined,
+  emision: string | null | undefined,
+  vencimientoDocumento: string | null | undefined,
+): { fecha: string | null; origen: OrigenVencimiento } {
+  const iso = (v?: string | null) =>
+    v && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
+  const venc = iso(vencimientoDocumento);
+  if (venc) return { fecha: venc, origen: 'DOCUMENTO' };
+  const base = iso(inicio) ?? iso(emision);
+  if (!base) return { fecha: null, origen: 'REQUIERE_REVISION' };
+  const [y, m, d] = base.split('-').map(Number);
+  const f = new Date(Date.UTC(y + 5, m - 1, d));
+  if (f.getUTCMonth() !== m - 1) f.setUTCDate(0);
+  return { fecha: f.toISOString().slice(0, 10), origen: 'CALCULADO_5_ANOS' };
+}
+
 /**
  * Igual que formatearFechaCalendario pero con mes abreviado: "15 mar 2024".
  * Se formatea en UTC para que la fecha no se corra por la zona del navegador.
