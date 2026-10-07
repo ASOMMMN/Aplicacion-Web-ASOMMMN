@@ -102,7 +102,9 @@ interface CandidatoDetalle {
     tamanio: number;
     version: number;
     subidasEn: string;
+    tipoMime?: string;
     urlDescargar?: string;
+    urlVista?: string;
     storageType?: 'local' | 'cloudinary';
   } | null;
 }
@@ -360,6 +362,8 @@ export default function CandidatoDetallePage() {
   const [cursosData, setCursosData] = useState<CursosResponse | null>(null);
   /** Curso del que se está viendo el certificado adjunto. */
   const [previewCurso, setPreviewCurso] = useState<CursoItem | null>(null);
+  /** Vista previa del CV actual abierta. */
+  const [previewCV, setPreviewCV] = useState(false);
   const [docsPersonales, setDocsPersonales] = useState<DocsPersonalesResumen | null>(null);
   const [bitacoraData, setBitacoraData] = useState<BitacoraEmbarqueResponse | null>(null);
 
@@ -594,18 +598,23 @@ export default function CandidatoDetallePage() {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const exportarExpediente = async (formato: 'docx' | 'pdf') => {
+  /** Descarga un archivo generado por un endpoint de /candidatos/:id/* (expediente, bitácora...). */
+  const descargarArchivoCandidato = async (
+    endpoint: string,
+    prefijoArchivo: string,
+    formato: 'docx' | 'pdf',
+  ) => {
     if (!detalle) return;
     try {
-      const res = await api.get<Blob>(
-        `/candidatos/${detalle.postulanteId}/expediente`,
-        { params: { formato }, responseType: 'blob' },
-      );
+      const res = await api.get<Blob>(`/candidatos/${detalle.postulanteId}/${endpoint}`, {
+        params: { formato },
+        responseType: 'blob',
+      });
       const url = window.URL.createObjectURL(res.data);
       const link = document.createElement('a');
       const nombreNorm = `${detalle.nombre}-${detalle.apellidos}`.replace(/\s+/g, '-');
       const fechaHoy = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      link.setAttribute('download', `Expediente_${nombreNorm}_${fechaHoy}.${formato}`);
+      link.setAttribute('download', `${prefijoArchivo}_${nombreNorm}_${fechaHoy}.${formato}`);
       link.href = url;
       document.body.appendChild(link);
       link.click();
@@ -619,6 +628,14 @@ export default function CandidatoDetallePage() {
       });
     }
   };
+
+  const exportarExpediente = (formato: 'docx' | 'pdf') =>
+    descargarArchivoCandidato('expediente', 'Expediente', formato);
+
+  /** "Descargar bitácora": documento propio (no el expediente), solo cursos y
+   * documentos personales ordenados por vencimiento. */
+  const descargarBitacora = (formato: 'docx' | 'pdf') =>
+    descargarArchivoCandidato('bitacora-vigencias', 'Bitacora_Vigencias', formato);
 
   if (loading) {
     return (
@@ -732,7 +749,20 @@ export default function CandidatoDetallePage() {
                       <i className="bi bi-file-earmark-text flex-shrink-0" style={{ fontSize: '1.3rem', color: 'var(--enmv-verde)' }} />
                       <div style={{ minWidth: 0 }}>
                         <div className="text-truncate" style={{ maxWidth: 320 }} title={detalle.cvActual.nombreOriginal}>
-                          <strong>{detalle.cvActual.nombreOriginal}</strong>
+                          {detalle.cvActual.urlVista ? (
+                            <Button
+                              variant="link"
+                              className="p-0 fw-bold"
+                              style={{ color: 'inherit', textDecoration: 'none' }}
+                              title="Ver CV"
+                              onClick={() => setPreviewCV(true)}
+                            >
+                              <i className="bi bi-eye me-1" />
+                              {detalle.cvActual.nombreOriginal}
+                            </Button>
+                          ) : (
+                            <strong>{detalle.cvActual.nombreOriginal}</strong>
+                          )}
                         </div>
                         <div className="text-muted small">
                           Version {detalle.cvActual.version} · {formatDate(detalle.cvActual.subidasEn)}
@@ -1117,10 +1147,10 @@ export default function CandidatoDetallePage() {
                       variant="outline-secondary"
                       size="sm"
                     >
-                      <Dropdown.Item onClick={() => exportarExpediente('docx')}>
+                      <Dropdown.Item onClick={() => descargarBitacora('docx')}>
                         Word (.docx)
                       </Dropdown.Item>
-                      <Dropdown.Item onClick={() => exportarExpediente('pdf')}>
+                      <Dropdown.Item onClick={() => descargarBitacora('pdf')}>
                         PDF (.pdf)
                       </Dropdown.Item>
                     </DropdownButton>
@@ -1265,6 +1295,24 @@ export default function CandidatoDetallePage() {
           onDescargar={() =>
             previewCurso.documentoExtra?.urlDescargar &&
             window.open(previewCurso.documentoExtra.urlDescargar, '_blank', 'noopener,noreferrer')
+          }
+        />
+      )}
+      {previewCV && detalle.cvActual?.urlVista && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewCV(false)}
+          titulo="CV"
+          nombreArchivo={detalle.cvActual.nombreOriginal}
+          cargar={() =>
+            Promise.resolve({
+              url: detalle.cvActual!.urlVista!,
+              mimeType: detalle.cvActual!.tipoMime ?? null,
+            })
+          }
+          onDescargar={() =>
+            detalle.cvActual?.urlDescargar &&
+            window.open(detalle.cvActual.urlDescargar, '_blank', 'noopener,noreferrer')
           }
         />
       )}

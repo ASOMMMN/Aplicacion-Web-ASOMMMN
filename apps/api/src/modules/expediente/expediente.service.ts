@@ -27,6 +27,8 @@ import { ResumenFechasService } from '../resumen-fechas/resumen-fechas.service';
 import type { ResumenFechaItem } from '../resumen-fechas/resumen-fechas.types';
 import type { EstadoVigencia } from '../resumen-fechas/vigencia.util';
 import { formatearConPrecision } from '../docs-personales/ia/formatos-fecha';
+import { AuditoriaService } from '../auditoria/auditoria.service';
+import type { AuthUser } from '../auth/strategies/jwt.strategy';
 
 const VIGENCIA_TEXTO: Record<EstadoVigencia, string> = {
   vencido: 'Vencido',
@@ -41,6 +43,15 @@ const ENCABEZADOS_DOCS = [
   'Documento',
   'Emisión',
   'Vencimiento',
+  'Vigencia',
+];
+
+/** "Descargar bitácora" (resumen de vigencias): mismas columnas para cursos y documentos. */
+const ENCABEZADOS_VIGENCIA = [
+  '#',
+  'Curso/Documento',
+  'Fecha Inicio',
+  'Fecha Vencimiento',
   'Vigencia',
 ];
 
@@ -64,6 +75,7 @@ export class ExpedienteService {
     private readonly cursosService: CursosService,
     private readonly bitacoraService: BitacoraEmbarqueService,
     private readonly resumenFechasService: ResumenFechasService,
+    private readonly auditoria: AuditoriaService,
   ) {}
 
   async generarExpediente(
@@ -115,6 +127,68 @@ export class ExpedienteService {
   }
 
   /**
+   * "Descargar bitácora": documento propio (no el expediente) con solo el
+   * resumen de vigencias — Cursos y Certificaciones + Documentos
+   * Personales, mismas 5 columnas en ambas secciones, ordenado por
+   * vencimiento (las más próximas primero). Mismo encabezado y estilos
+   * que el expediente (generarExpediente no se modifica).
+   */
+  async generarBitacoraVigencias(
+    postulanteId: string,
+    formato: 'docx' | 'pdf',
+    actor: AuthUser,
+  ): Promise<{ filename: string; buffer: Buffer; mimeType: string }> {
+    const resumen =
+      await this.resumenFechasService.generarResumen(postulanteId);
+    const cursos = this.ordenarPorVencimiento(
+      resumen.items.filter((i) => i.tipo === 'Curso'),
+    );
+    const docsPersonales = this.ordenarPorVencimiento(
+      resumen.items.filter((i) => i.tipo === 'Documento personal'),
+    );
+
+    const slug = this.normalizarNombreArchivo(resumen.postulante);
+    const fechaHoy = new Date().toISOString().slice(0, 10);
+    const fechaHoyArchivo = fechaHoy.replace(/-/g, '');
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'bitacora_vigencias_generada',
+      recurso: 'Postulante',
+      recursoId: postulanteId,
+      metadata: { formato },
+    });
+
+    if (formato === 'docx') {
+      const buffer = await this.construirBitacoraVigenciasDOCX(
+        resumen.postulante,
+        cursos,
+        docsPersonales,
+        fechaHoy,
+      );
+      return {
+        filename: `Bitacora_Vigencias_${slug}_${fechaHoyArchivo}.docx`,
+        buffer,
+        mimeType:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      };
+    }
+
+    const buffer = await this.construirBitacoraVigenciasPDF(
+      resumen.postulante,
+      cursos,
+      docsPersonales,
+      fechaHoy,
+    );
+    return {
+      filename: `Bitacora_Vigencias_${slug}_${fechaHoyArchivo}.pdf`,
+      buffer,
+      mimeType: 'application/pdf',
+    };
+  }
+
+  /**
    * Lee el escudo de la Asociación desde apps/web/public (carpeta estática
    * compartida del monorepo) para incluirlo en el membrete del PDF/DOCX.
    * Devuelve null si el archivo no está disponible, para no romper la
@@ -139,16 +213,15 @@ export class ExpedienteService {
 
   // ─── DOCX ────────────────────────────────────────────────────────────────────
 
-  private async construirExpedienteDOCX(
-    cursosData: CursosListResponseDto,
-    docsPersonales: ResumenFechaItem[],
-    bitacoraData: BitacoraEmbarqueListResponseDto,
+  /** Membrete + nombre + fecha de generación, igual para expediente y bitácora. */
+  private construirEncabezadoDOCX(
+    nombreCompleto: string,
     fechaHoy: string,
-  ): Promise<Buffer> {
+  ): (Paragraph | Table)[] {
     const escudo = this.leerEscudoAsociacion();
     const ESCUDO_SIZE_DOCX = 70;
 
-    const children: (Paragraph | Table)[] = [
+    return [
       ...(escudo
         ? [
             new Paragraph({
@@ -209,7 +282,7 @@ export class ExpedienteService {
         spacing: { after: 40 },
         children: [
           new TextRun({
-            text: cursosData.postulante.nombreCompleto,
+            text: nombreCompleto,
             bold: true,
             size: 28,
           }),
@@ -225,6 +298,20 @@ export class ExpedienteService {
           }),
         ],
       }),
+    ];
+  }
+
+  private async construirExpedienteDOCX(
+    cursosData: CursosListResponseDto,
+    docsPersonales: ResumenFechaItem[],
+    bitacoraData: BitacoraEmbarqueListResponseDto,
+    fechaHoy: string,
+  ): Promise<Buffer> {
+    const children: (Paragraph | Table)[] = [
+      ...this.construirEncabezadoDOCX(
+        cursosData.postulante.nombreCompleto,
+        fechaHoy,
+      ),
       new Paragraph({
         spacing: { before: 100, after: 160 },
         children: [
@@ -252,7 +339,11 @@ export class ExpedienteService {
           }),
         ],
       }),
-      this.construirTablaDocsPersonalesDOCX(docsPersonales),
+      this.construirTablaVigenciaDOCX(
+        docsPersonales,
+        ENCABEZADOS_DOCS,
+        'Sin documentos personales registrados.',
+      ),
     );
 
     children.push(
@@ -420,7 +511,16 @@ export class ExpedienteService {
     });
   }
 
-  private construirTablaDocsPersonalesDOCX(items: ResumenFechaItem[]): Table {
+  /**
+   * Tabla #, nombre, emisión/inicio, vencimiento, vigencia: usada tanto
+   * para "Documentos Personales" del expediente como para ambas secciones
+   * de "Descargar bitácora" (cursos y documentos, mismo formato).
+   */
+  private construirTablaVigenciaDOCX(
+    items: ResumenFechaItem[],
+    encabezados: string[],
+    mensajeVacio: string,
+  ): Table {
     const celda = (texto: string, encabezado = false) =>
       new TableCell({
         borders: CELL_BORDERS,
@@ -443,7 +543,7 @@ export class ExpedienteService {
       rows: [
         new TableRow({
           tableHeader: true,
-          children: ENCABEZADOS_DOCS.map((t) => celda(t, true)),
+          children: encabezados.map((t) => celda(t, true)),
         }),
         ...(filas.length === 0
           ? [
@@ -451,12 +551,8 @@ export class ExpedienteService {
                 children: [
                   new TableCell({
                     borders: CELL_BORDERS,
-                    columnSpan: ENCABEZADOS_DOCS.length,
-                    children: [
-                      new Paragraph({
-                        text: 'Sin documentos personales registrados.',
-                      }),
-                    ],
+                    columnSpan: encabezados.length,
+                    children: [new Paragraph({ text: mensajeVacio })],
                   }),
                 ],
               }),
@@ -468,7 +564,111 @@ export class ExpedienteService {
     });
   }
 
+  /** "Descargar bitácora": mismo membrete, cursos y documentos con las mismas 5 columnas. */
+  private async construirBitacoraVigenciasDOCX(
+    nombreCompleto: string,
+    cursos: ResumenFechaItem[],
+    docsPersonales: ResumenFechaItem[],
+    fechaHoy: string,
+  ): Promise<Buffer> {
+    const children: (Paragraph | Table)[] = [
+      ...this.construirEncabezadoDOCX(nombreCompleto, fechaHoy),
+      new Paragraph({
+        spacing: { before: 100, after: 160 },
+        children: [
+          new TextRun({
+            text: 'Cursos y Certificaciones',
+            bold: true,
+            size: 24,
+            color: '0A2240',
+          }),
+        ],
+      }),
+      this.construirTablaVigenciaDOCX(
+        cursos,
+        ENCABEZADOS_VIGENCIA,
+        'Sin cursos registrados.',
+      ),
+      new Paragraph({
+        spacing: { before: 260, after: 160 },
+        children: [
+          new TextRun({
+            text: 'Documentos Personales',
+            bold: true,
+            size: 24,
+            color: '0A2240',
+          }),
+        ],
+      }),
+      this.construirTablaVigenciaDOCX(
+        docsPersonales,
+        ENCABEZADOS_VIGENCIA,
+        'Sin documentos personales registrados.',
+      ),
+    ];
+
+    const doc = new Document({ sections: [{ children }] });
+    return Packer.toBuffer(doc);
+  }
+
   // ─── PDF ─────────────────────────────────────────────────────────────────────
+
+  /** Membrete + nombre + fecha de generación, igual para expediente y bitácora. */
+  private dibujarEncabezadoPDF(
+    doc: PDFKit.PDFDocument,
+    nombreCompleto: string,
+    fechaHoy: string,
+  ): void {
+    const escudo = this.leerEscudoAsociacion();
+    const ESCUDO_SIZE_PDF = 70;
+    if (escudo) {
+      const escudoX = (doc.page.width - ESCUDO_SIZE_PDF) / 2;
+      doc.image(escudo, escudoX, doc.y, {
+        width: ESCUDO_SIZE_PDF,
+        height: ESCUDO_SIZE_PDF,
+      });
+      doc.y += ESCUDO_SIZE_PDF + 10;
+    }
+
+    doc
+      .font('Times-Bold')
+      .fontSize(18)
+      .text(
+        'Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional',
+        { align: 'center' },
+      );
+    doc.moveDown(0.3);
+    doc
+      .font('Times-Roman')
+      .fontSize(9)
+      .text('REGISTRO No. 13 SECRETARIA DEL TRABAJO Y PREVISION SOCIAL', {
+        align: 'center',
+      });
+    doc.moveDown(0.35);
+    const siglasY = doc.y;
+    doc.font('Times-Roman').fontSize(9);
+    doc.text('F.T.I.T.M', 50, siglasY, { align: 'left' });
+    doc.text('I.T.F', 50, siglasY, { align: 'right' });
+    doc.y = siglasY + 18;
+    doc
+      .moveTo(50, doc.y)
+      .lineTo(doc.page.width - 50, doc.y)
+      .lineWidth(1.5)
+      .strokeColor('#C9A24B')
+      .stroke()
+      .strokeColor('#000000');
+    doc.moveDown(1);
+
+    doc.font('Helvetica-Bold').fontSize(14).text(nombreCompleto);
+    doc.moveDown(0.15);
+    doc
+      .font('Helvetica')
+      .fontSize(9)
+      .fillColor('#666666')
+      .text(`Fecha de generación: ${this.formatearFecha(fechaHoy)}`)
+      .fillColor('#000000');
+    doc.moveDown(0.8);
+  }
 
   private construirExpedientePDF(
     cursosData: CursosListResponseDto,
@@ -483,58 +683,11 @@ export class ExpedienteService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', (err: Error) => reject(err));
 
-      const escudo = this.leerEscudoAsociacion();
-      const ESCUDO_SIZE_PDF = 70;
-      if (escudo) {
-        const escudoX = (doc.page.width - ESCUDO_SIZE_PDF) / 2;
-        doc.image(escudo, escudoX, doc.y, {
-          width: ESCUDO_SIZE_PDF,
-          height: ESCUDO_SIZE_PDF,
-        });
-        doc.y += ESCUDO_SIZE_PDF + 10;
-      }
-
-      doc
-        .font('Times-Bold')
-        .fontSize(18)
-        .text(
-          'Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional',
-          { align: 'center' },
-        );
-      doc.moveDown(0.3);
-      doc
-        .font('Times-Roman')
-        .fontSize(9)
-        .text('REGISTRO No. 13 SECRETARIA DEL TRABAJO Y PREVISION SOCIAL', {
-          align: 'center',
-        });
-      doc.moveDown(0.35);
-      const siglasY = doc.y;
-      doc.font('Times-Roman').fontSize(9);
-      doc.text('F.T.I.T.M', 50, siglasY, { align: 'left' });
-      doc.text('I.T.F', 50, siglasY, { align: 'right' });
-      doc.y = siglasY + 18;
-      doc
-        .moveTo(50, doc.y)
-        .lineTo(doc.page.width - 50, doc.y)
-        .lineWidth(1.5)
-        .strokeColor('#C9A24B')
-        .stroke()
-        .strokeColor('#000000');
-      doc.moveDown(1);
-
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(14)
-        .text(cursosData.postulante.nombreCompleto);
-      doc.moveDown(0.15);
-      doc
-        .font('Helvetica')
-        .fontSize(9)
-        .fillColor('#666666')
-        .text(`Fecha de generación: ${this.formatearFecha(fechaHoy)}`)
-        .fillColor('#000000');
-      doc.moveDown(0.8);
+      this.dibujarEncabezadoPDF(
+        doc,
+        cursosData.postulante.nombreCompleto,
+        fechaHoy,
+      );
 
       doc
         .font('Helvetica-Bold')
@@ -559,7 +712,12 @@ export class ExpedienteService {
         .text('Documentos Personales')
         .fillColor('#000000');
       doc.moveDown(0.5);
-      this.dibujarTablaDocsPersonalesPDF(doc, docsPersonales);
+      this.dibujarTablaVigenciaPDF(
+        doc,
+        docsPersonales,
+        ENCABEZADOS_DOCS,
+        'Sin documentos personales registrados.',
+      );
       doc.x = doc.page.margins.left;
       doc.moveDown(1);
       doc
@@ -651,9 +809,16 @@ export class ExpedienteService {
     });
   }
 
-  private dibujarTablaDocsPersonalesPDF(
+  /**
+   * Tabla #, nombre, emisión/inicio, vencimiento, vigencia: usada tanto
+   * para "Documentos Personales" del expediente como para ambas secciones
+   * de "Descargar bitácora" (cursos y documentos, mismo formato).
+   */
+  private dibujarTablaVigenciaPDF(
     doc: PDFKit.PDFDocument,
     items: ResumenFechaItem[],
+    encabezados: string[],
+    mensajeVacio: string,
   ): void {
     const startX = 50;
     const colWidths = [30, 190, 85, 105, 70];
@@ -693,7 +858,7 @@ export class ExpedienteService {
     };
 
     if (doc.y > bottomLimit()) doc.addPage();
-    dibujarFila(ENCABEZADOS_DOCS, {
+    dibujarFila(encabezados, {
       bold: true,
       bg: '#0A2240',
       color: '#FFFFFF',
@@ -701,12 +866,63 @@ export class ExpedienteService {
 
     const filas = this.filasDocsPersonales(items);
     if (filas.length === 0) {
-      dibujarFila(['', 'Sin documentos personales registrados.', '', '', '']);
+      dibujarFila(['', mensajeVacio, '', '', '']);
       return;
     }
     filas.forEach((f, i) => {
       if (doc.y > bottomLimit()) doc.addPage();
       dibujarFila(f, i % 2 === 1 ? { bg: '#EEF1F6' } : {});
+    });
+  }
+
+  /** "Descargar bitácora": mismo membrete, cursos y documentos con las mismas 5 columnas. */
+  private construirBitacoraVigenciasPDF(
+    nombreCompleto: string,
+    cursos: ResumenFechaItem[],
+    docsPersonales: ResumenFechaItem[],
+    fechaHoy: string,
+  ): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err: Error) => reject(err));
+
+      this.dibujarEncabezadoPDF(doc, nombreCompleto, fechaHoy);
+
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(13)
+        .fillColor('#0A2240')
+        .text('Cursos y Certificaciones')
+        .fillColor('#000000');
+      doc.moveDown(0.5);
+      this.dibujarTablaVigenciaPDF(
+        doc,
+        cursos,
+        ENCABEZADOS_VIGENCIA,
+        'Sin cursos registrados.',
+      );
+
+      doc.x = doc.page.margins.left;
+      doc.moveDown(1);
+      if (doc.y > doc.page.height - 150) doc.addPage();
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(13)
+        .fillColor('#0A2240')
+        .text('Documentos Personales')
+        .fillColor('#000000');
+      doc.moveDown(0.5);
+      this.dibujarTablaVigenciaPDF(
+        doc,
+        docsPersonales,
+        ENCABEZADOS_VIGENCIA,
+        'Sin documentos personales registrados.',
+      );
+
+      doc.end();
     });
   }
 
@@ -819,6 +1035,16 @@ export class ExpedienteService {
   }
 
   /** Filas de documentos personales: #, documento, emisión, vencimiento, vigencia. */
+  /** "Descargar bitácora": vencimiento ascendente (las más próximas primero); sin vencimiento al final. */
+  private ordenarPorVencimiento(items: ResumenFechaItem[]): ResumenFechaItem[] {
+    return [...items].sort((a, b) => {
+      if (!a.fechaVencimiento && !b.fechaVencimiento) return 0;
+      if (!a.fechaVencimiento) return 1;
+      if (!b.fechaVencimiento) return -1;
+      return a.fechaVencimiento.localeCompare(b.fechaVencimiento);
+    });
+  }
+
   private filasDocsPersonales(items: ResumenFechaItem[]): string[][] {
     const fecha = (
       item: ResumenFechaItem,
