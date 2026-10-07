@@ -203,20 +203,28 @@ Fases:
   - Conectado en: Resumen de fechas (nombre del documento personal con
     ícono de ojo), Cursos y certificaciones del candidato (botón "Ver"),
     Mi Nube (nombre del archivo y botón "Ver"; antes abrían un blob en una
-    pestaña nueva).
-- **"Descargar bitácora":** botón con dropdown Word/PDF junto a "Analizar
-  documentos pendientes" (Resumen de fechas, detalle del candidato).
-  **Decisión (no confirmada con el usuario, documentada aquí):** a pesar
-  del nombre, la descripción pedida (secciones "Cursos y Certificaciones"
-  + "Documentos Personales", mismas columnas, "reutiliza el mismo
-  generador... sin cambiar nada visual") coincide exactamente con
-  "Generar Expediente" ya existente (que además incluye Bitácora de
-  Embarque). Se implementó como un segundo botón que llama al mismo
-  `GET /candidatos/:id/expediente`, sin generar un documento distinto. Si
-  el usuario quería un documento *solo* de bitácora de embarque (sin
-  cursos/documentos personales) o con otras columnas, falta ajustarlo.
+    pestaña nueva), CV del candidato y Archivos de evaluación
+    (`/archivos/:postulanteId`) — ver corrección abajo (2026-10-07, tarde).
+- **"Descargar bitácora" — corregido (2026-10-07, tarde):** la primera
+  versión reutilizaba por error el expediente completo. Ahora es un
+  documento propio: `ExpedienteService.generarBitacoraVigencias` +
+  `GET /candidatos/:id/bitacora-vigencias` (mismo guard, auditoría
+  `bitacora_vigencias_generada`). Solo "Cursos y Certificaciones" +
+  "Documentos Personales", 5 columnas iguales en ambas (#, Curso/Documento,
+  Fecha Inicio, Fecha Vencimiento, Vigencia en texto plano), ordenado por
+  vencimiento ascendente (sin vencimiento al final), "(estimado)" en el
+  vencimiento calculado (+5 años). Mismo membrete que el expediente
+  (`construirEncabezadoDOCX`/`dibujarEncabezadoPDF`, extraídos y
+  reutilizados por ambos; el expediente no cambió su salida). Nombre:
+  `Bitacora_Vigencias_<nombre>_<fecha>.docx|pdf`. Spec nuevo
+  (`expediente.service.spec.ts`, no existía ninguno antes para este
+  servicio): orden, nombre de archivo, mimeType, auditoría.
+- **Vista previa en CV y Archivos de evaluación (2026-10-07, tarde):**
+  `documentos.service.ts` (CV) y `eval-archivos.service.ts` exponen
+  `urlVista`/`tipoMime`; se propagan hasta `GET /evaluaciones/candidatos/:id`
+  (`cvActual`). Mismo `DocumentoPreviewModal` en ambos.
 
-tsc/build/lint/Jest en verde en api y web (31/321).
+tsc/build/lint/Jest en verde en api y web (32/324).
 
 ## Objetivo
 
