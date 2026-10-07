@@ -70,8 +70,33 @@ export class S3Service {
     }
   }
 
-  async getSignedUrl(key: string, ttlSeconds = 900): Promise<string> {
-    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+  /**
+   * URL firmada de GET. `disposicion` sobrescribe cómo la sirve el navegador
+   * (inline = vista previa, attachment = descarga) sin tocar el objeto en
+   * S3: es un parámetro de la firma, no metadata guardada.
+   */
+  async getSignedUrl(
+    key: string,
+    opts: {
+      ttlSeconds?: number;
+      disposicion?: 'inline' | 'attachment';
+      nombreArchivo?: string;
+      contentType?: string;
+    } = {},
+  ): Promise<string> {
+    const { ttlSeconds = 900, disposicion, nombreArchivo, contentType } = opts;
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ...(disposicion
+        ? {
+            ResponseContentDisposition: nombreArchivo
+              ? `${disposicion}; filename="${nombreArchivo.replace(/"/g, "'")}"; filename*=UTF-8''${encodeURIComponent(nombreArchivo)}`
+              : disposicion,
+          }
+        : {}),
+      ...(contentType ? { ResponseContentType: contentType } : {}),
+    });
     return getSignedUrl(this.client, command, { expiresIn: ttlSeconds });
   }
 }

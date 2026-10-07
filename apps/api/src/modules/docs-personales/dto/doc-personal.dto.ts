@@ -186,6 +186,12 @@ export class DocPersonalResponseDto {
   })
   urlDescargar?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'URL firmada para vista previa (Content-Disposition: inline, TTL 15 min). Ausente si el archivo es de un almacenamiento anterior.',
+  })
+  urlVista?: string;
+
   @ApiProperty({
     enum: ['local', 'cloudinary'],
     description:

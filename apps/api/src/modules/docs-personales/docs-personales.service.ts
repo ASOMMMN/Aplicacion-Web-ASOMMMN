@@ -175,6 +175,14 @@ export class DocsPersonalesService {
               doc.tipoMime,
             )
           : undefined,
+      urlVista:
+        storageType === 'cloudinary'
+          ? await this.storage.getPreviewUrl(
+              doc.cloudinaryUrl!,
+              doc.nombreOriginal,
+              doc.tipoMime,
+            )
+          : undefined,
 
       storageType,
     };

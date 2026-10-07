@@ -7,6 +7,7 @@ import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { formatearFechaCalendario, formatearFechaConPrecision } from '@/lib/fechas';
 import { CorregirFechasModal, mensajeError } from './CorregirFechasModal';
+import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 import type {
   CampoFecha,
   ConfianzaIa,
@@ -326,6 +327,8 @@ export function ResumenFechasTabla({
   /** Se incrementa tras una corrección o un análisis para recargar. */
   const [recarga, setRecarga] = useState(0);
   const [corrigiendo, setCorrigiendo] = useState<ResumenFechaItem | null>(null);
+  /** Documento personal del que se está viendo la vista previa. */
+  const [previewItem, setPreviewItem] = useState<ResumenFechaItem | null>(null);
   const recargar = () => setRecarga((n) => n + 1);
   /** Documento que se está volviendo a analizar (uno a la vez). */
   const [analizando, setAnalizando] = useState<string | null>(null);
@@ -474,7 +477,20 @@ export function ResumenFechasTabla({
             return (
               <tr key={`${c.nombre}-${idx}`}>
                 <td title={c.nombreEnCV && c.nombreEnCV !== c.nombre ? `En el CV: ${c.nombreEnCV}` : undefined}>
-                  {c.nombre}
+                  {c.docPersonal ? (
+                    <Button
+                      variant="link"
+                      className="p-0 text-start fw-normal"
+                      style={{ color: 'inherit', textDecoration: 'none' }}
+                      title="Ver documento"
+                      onClick={() => setPreviewItem(c)}
+                    >
+                      <i className="bi bi-eye me-1" />
+                      {c.nombre}
+                    </Button>
+                  ) : (
+                    c.nombre
+                  )}
                   {c.detalle && (
                     <div className="text-muted text-truncate" style={{ fontSize: '0.7rem', maxWidth: 260 }} title={c.detalle}>
                       {c.detalle}
@@ -647,6 +663,32 @@ export function ResumenFechasTabla({
           onGuardado={() => {
             setCorrigiendo(null);
             recargar();
+          }}
+        />
+      )}
+      {previewItem?.docPersonal && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewItem(null)}
+          titulo={previewItem.nombre}
+          nombreArchivo={previewItem.detalle ?? previewItem.nombre}
+          fechaEmision={previewItem.fechaEmision}
+          fechaVencimiento={previewItem.fechaVencimiento}
+          cargar={async () => {
+            const { data } = await api.get<{
+              urlVista?: string;
+              urlDescargar?: string;
+              tipoMime: string;
+            }>(`/docs-personales/${previewItem.docPersonal!.id}/url`);
+            if (!data.urlVista) throw new Error('Documento no disponible.');
+            return { url: data.urlVista, mimeType: data.tipoMime };
+          }}
+          onDescargar={() => {
+            void api
+              .get<{ urlDescargar?: string }>(`/docs-personales/${previewItem.docPersonal!.id}/url`)
+              .then(({ data }) => {
+                if (data.urlDescargar) window.open(data.urlDescargar, '_blank', 'noopener,noreferrer');
+              });
           }}
         />
       )}

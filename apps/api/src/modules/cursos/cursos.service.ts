@@ -248,34 +248,7 @@ export class CursosService {
     const hoy = hoyISO(); // México, igual que /resumen-fechas
     const mapped = await Promise.all(
       cursos.map(async (curso) => {
-        let documentoExtra:
-          | {
-              nombreOriginal: string;
-              tamanio: number;
-              tipoMime: string;
-              urlDescargar?: string;
-              storageType: 'local' | 'cloudinary';
-            }
-          | undefined;
-        if (curso.documentoExtra?.storagePath) {
-          const esCloudinary =
-            curso.documentoExtra.storageType === 'cloudinary' &&
-            curso.documentoExtra.cloudinaryUrl;
-          documentoExtra = {
-            nombreOriginal: curso.documentoExtra.nombreOriginal,
-            tamanio: curso.documentoExtra.tamanio,
-            tipoMime: curso.documentoExtra.tipoMime,
-            urlDescargar: esCloudinary
-              ? await this.storageService.getSecureDownloadUrl(
-                  curso.documentoExtra.cloudinaryUrl!,
-                  curso.documentoExtra.nombreOriginal,
-                  curso.documentoExtra.tipoMime,
-                )
-              : undefined,
-            storageType: esCloudinary ? 'cloudinary' : 'local',
-          };
-        }
-
+        const documentoExtra = await this.construirDocumentoExtra(curso);
         return this.mapearCurso(curso, documentoExtra, hoy);
       }),
     );
@@ -309,33 +282,7 @@ export class CursosService {
     const hoy = hoyISO(); // México, igual que /resumen-fechas
     const mapped = await Promise.all(
       cursos.map(async (curso) => {
-        let documentoExtra:
-          | {
-              nombreOriginal: string;
-              tamanio: number;
-              tipoMime: string;
-              urlDescargar?: string;
-              storageType: 'local' | 'cloudinary';
-            }
-          | undefined;
-        if (curso.documentoExtra?.storagePath) {
-          const esCloudinary =
-            curso.documentoExtra.storageType === 'cloudinary' &&
-            curso.documentoExtra.cloudinaryUrl;
-          documentoExtra = {
-            nombreOriginal: curso.documentoExtra.nombreOriginal,
-            tamanio: curso.documentoExtra.tamanio,
-            tipoMime: curso.documentoExtra.tipoMime,
-            urlDescargar: esCloudinary
-              ? await this.storageService.getSecureDownloadUrl(
-                  curso.documentoExtra.cloudinaryUrl!,
-                  curso.documentoExtra.nombreOriginal,
-                  curso.documentoExtra.tipoMime,
-                )
-              : undefined,
-            storageType: esCloudinary ? 'cloudinary' : 'local',
-          };
-        }
+        const documentoExtra = await this.construirDocumentoExtra(curso);
 
         return this.mapearCurso(curso, documentoExtra, hoy);
       }),
@@ -650,6 +597,39 @@ export class CursosService {
       });
     }
     return { metaFechas, historialFechas };
+  }
+
+  /** Documento adjunto de un curso: descarga y vista previa firmadas (TTL 15 min). */
+  private async construirDocumentoExtra(
+    curso: Curso,
+  ): Promise<CursoItemResponseDto['documentoExtra']> {
+    if (!curso.documentoExtra?.storagePath) return undefined;
+    const esCloudinary = Boolean(
+      curso.documentoExtra.storageType === 'cloudinary' &&
+      curso.documentoExtra.cloudinaryUrl,
+    );
+    const { nombreOriginal, tamanio, tipoMime, cloudinaryUrl } =
+      curso.documentoExtra;
+    return {
+      nombreOriginal,
+      tamanio,
+      tipoMime,
+      urlDescargar: esCloudinary
+        ? await this.storageService.getSecureDownloadUrl(
+            cloudinaryUrl!,
+            nombreOriginal,
+            tipoMime,
+          )
+        : undefined,
+      urlVista: esCloudinary
+        ? await this.storageService.getPreviewUrl(
+            cloudinaryUrl!,
+            nombreOriginal,
+            tipoMime,
+          )
+        : undefined,
+      storageType: esCloudinary ? 'cloudinary' : 'local',
+    };
   }
 
   /** Un curso tal como lo devuelve la API (mismo cálculo de vigencia que /resumen-fechas). */

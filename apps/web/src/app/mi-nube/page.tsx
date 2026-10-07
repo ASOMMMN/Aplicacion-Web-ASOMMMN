@@ -26,6 +26,7 @@ import Swal from "sweetalert2";
 import { DocumentoNubeItem, miNubeApi } from "@/lib/api/miNube";
 import { SpinnerTimon } from "@/components/ui/NauticalIcons";
 import { BotonVolver } from "@/components/ui/BotonVolver";
+import { DocumentoPreviewModal } from "@/components/documentos/DocumentoPreviewModal";
 
 type TrailItem = { id: string | null; nombre: string };
 
@@ -99,6 +100,8 @@ export default function MiNubePage() {
 
   const [moveTarget, setMoveTarget] = useState<DocumentoNubeItem | null>(null);
   const [moveParentId, setMoveParentId] = useState<string>("");
+  /** Archivo del que se está mostrando la vista previa. */
+  const [previewTarget, setPreviewTarget] = useState<DocumentoNubeItem | null>(null);
   const [folderSearch, setFolderSearch] = useState("");
   const [folderOptions, setFolderOptions] = useState<DocumentoNubeItem[]>([]);
 
@@ -225,19 +228,7 @@ export default function MiNubePage() {
       });
       return;
     }
-
-    try {
-      const blob = await miNubeApi.verBlob(item.id);
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener,noreferrer");
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      await Swal.fire({
-        icon: "error",
-        title: "No se pudo abrir",
-        text: getErrorMessage(err),
-      });
-    }
+    setPreviewTarget(item);
   };
 
   const descargar = async (item: DocumentoNubeItem) => {
@@ -484,6 +475,17 @@ export default function MiNubePage() {
                           >
                             📁 {item.nombre}
                           </Button>
+                        ) : canPreview(item) ? (
+                          <Button
+                            variant="link"
+                            className="p-0 fw-semibold text-decoration-none"
+                            style={{ color: 'inherit' }}
+                            title="Ver documento"
+                            onClick={() => void ver(item)}
+                          >
+                            <i className="bi bi-eye me-1" />
+                            {item.nombre}
+                          </Button>
                         ) : (
                           <span className="fw-semibold">📄 {item.nombre}</span>
                         )}
@@ -675,6 +677,19 @@ export default function MiNubePage() {
           </Button>
         </Modal.Footer>
       </Modal>
+      {previewTarget && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewTarget(null)}
+          titulo="Mi Nube"
+          nombreArchivo={previewTarget.nombre}
+          cargar={async () => {
+            const blob = await miNubeApi.verBlob(previewTarget.id);
+            return { url: URL.createObjectURL(blob), mimeType: previewTarget.mimeType };
+          }}
+          onDescargar={() => void descargar(previewTarget)}
+        />
+      )}
     </div>
   );
 }

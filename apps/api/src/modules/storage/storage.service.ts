@@ -48,15 +48,40 @@ export class StorageService {
    * URL de descarga firmada de S3, de corta duración (`ttlSeconds`, 15 min
    * por defecto), generada por S3Service.getSignedUrl. `url` es la URL
    * "canónica" (no firmada) del objeto guardada en BD; aquí se extrae la key
-   * para pedir la firma.
+   * para pedir la firma. El navegador la descarga (Content-Disposition:
+   * attachment) con el nombre original del archivo.
    */
   async getSecureDownloadUrl(
     url: string,
-    _filename: string,
-    _mime: string,
+    filename: string,
+    mime: string,
     ttlSeconds = 900,
   ): Promise<string> {
-    return this.s3.getSignedUrl(this.extractKeyFromUrl(url), ttlSeconds);
+    return this.s3.getSignedUrl(this.extractKeyFromUrl(url), {
+      ttlSeconds,
+      disposicion: 'attachment',
+      nombreArchivo: filename,
+      contentType: mime,
+    });
+  }
+
+  /**
+   * Misma URL firmada que `getSecureDownloadUrl`, pero para vista previa:
+   * el navegador la muestra (Content-Disposition: inline) en vez de
+   * descargarla. Mismo TTL corto (15 min por defecto).
+   */
+  async getPreviewUrl(
+    url: string,
+    filename: string,
+    mime: string,
+    ttlSeconds = 900,
+  ): Promise<string> {
+    return this.s3.getSignedUrl(this.extractKeyFromUrl(url), {
+      ttlSeconds,
+      disposicion: 'inline',
+      nombreArchivo: filename,
+      contentType: mime,
+    });
   }
 
   private extractKeyFromUrl(url: string): string {

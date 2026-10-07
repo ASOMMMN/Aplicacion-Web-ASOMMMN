@@ -32,6 +32,8 @@ export class CursoItemResponseDto {
     tamanio: number;
     tipoMime: string;
     urlDescargar?: string;
+    /** Vista previa (Content-Disposition: inline, TTL 15 min). */
+    urlVista?: string;
     storageType: 'local' | 'cloudinary';
   };
   /** Confianza de la IA por campo leído del documento. */
