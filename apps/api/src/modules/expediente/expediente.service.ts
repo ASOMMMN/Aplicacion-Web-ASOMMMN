@@ -23,6 +23,26 @@ import { CursosService } from '../cursos/cursos.service';
 import { BitacoraEmbarqueService } from '../bitacora-embarque/bitacora-embarque.service';
 import { CursosListResponseDto } from '../cursos/dto/curso-response.dto';
 import { BitacoraEmbarqueListResponseDto } from '../bitacora-embarque/dto/embarque-response.dto';
+import { ResumenFechasService } from '../resumen-fechas/resumen-fechas.service';
+import type { ResumenFechaItem } from '../resumen-fechas/resumen-fechas.types';
+import type { EstadoVigencia } from '../resumen-fechas/vigencia.util';
+import { formatearConPrecision } from '../docs-personales/ia/formatos-fecha';
+
+const VIGENCIA_TEXTO: Record<EstadoVigencia, string> = {
+  vencido: 'Vencido',
+  por_vencer: 'Por vencer',
+  vigente: 'Vigente',
+  sin_fecha: 'Sin fecha',
+  no_aplica: 'No vence',
+};
+
+const ENCABEZADOS_DOCS = [
+  '#',
+  'Documento',
+  'Emisión',
+  'Vencimiento',
+  'Vigencia',
+];
 
 const CELL_BORDER = {
   style: BorderStyle.SINGLE,
@@ -43,16 +63,22 @@ export class ExpedienteService {
   constructor(
     private readonly cursosService: CursosService,
     private readonly bitacoraService: BitacoraEmbarqueService,
+    private readonly resumenFechasService: ResumenFechasService,
   ) {}
 
   async generarExpediente(
     postulanteId: string,
     formato: 'docx' | 'pdf',
   ): Promise<{ filename: string; buffer: Buffer; mimeType: string }> {
-    const [cursosData, bitacoraData] = await Promise.all([
+    const [cursosData, bitacoraData, resumen] = await Promise.all([
       this.cursosService.listarCursosPorPostulante(postulanteId),
       this.bitacoraService.listarEmbarquesPorPostulante(postulanteId),
+      this.resumenFechasService.generarResumen(postulanteId),
     ]);
+    // Mismas fechas y vigencia que "Resumen de fechas".
+    const docsPersonales = resumen.items.filter(
+      (i) => i.tipo === 'Documento personal',
+    );
 
     const slug = this.normalizarNombreArchivo(
       cursosData.postulante.nombreCompleto,
@@ -63,6 +89,7 @@ export class ExpedienteService {
     if (formato === 'docx') {
       const buffer = await this.construirExpedienteDOCX(
         cursosData,
+        docsPersonales,
         bitacoraData,
         fechaHoy,
       );
@@ -76,6 +103,7 @@ export class ExpedienteService {
 
     const buffer = await this.construirExpedientePDF(
       cursosData,
+      docsPersonales,
       bitacoraData,
       fechaHoy,
     );
@@ -113,6 +141,7 @@ export class ExpedienteService {
 
   private async construirExpedienteDOCX(
     cursosData: CursosListResponseDto,
+    docsPersonales: ResumenFechaItem[],
     bitacoraData: BitacoraEmbarqueListResponseDto,
     fechaHoy: string,
   ): Promise<Buffer> {
@@ -210,6 +239,21 @@ export class ExpedienteService {
     ];
 
     children.push(this.construirTablaCursosDOCX(cursosData));
+
+    children.push(
+      new Paragraph({
+        spacing: { before: 260, after: 160 },
+        children: [
+          new TextRun({
+            text: 'Documentos Personales',
+            bold: true,
+            size: 24,
+            color: '0A2240',
+          }),
+        ],
+      }),
+      this.construirTablaDocsPersonalesDOCX(docsPersonales),
+    );
 
     children.push(
       new Paragraph({
@@ -349,9 +393,7 @@ export class ExpedienteService {
       const fechaInicio = this.formatearFecha(
         curso.fechaInicio ?? curso.fechaCurso,
       );
-      const fechaVencimiento = curso.fechaVencimiento
-        ? this.formatearFecha(curso.fechaVencimiento)
-        : 'No especificada';
+      const fechaVencimiento = this.vencimientoCurso(curso);
       return new TableRow({
         children: [
           String(i + 1),
@@ -378,10 +420,59 @@ export class ExpedienteService {
     });
   }
 
+  private construirTablaDocsPersonalesDOCX(items: ResumenFechaItem[]): Table {
+    const celda = (texto: string, encabezado = false) =>
+      new TableCell({
+        borders: CELL_BORDERS,
+        ...(encabezado ? { shading: { fill: '0A2240' } } : {}),
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: texto,
+                size: 20,
+                ...(encabezado ? { bold: true, color: 'FFFFFF' } : {}),
+              }),
+            ],
+          }),
+        ],
+      });
+    const filas = this.filasDocsPersonales(items);
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          tableHeader: true,
+          children: ENCABEZADOS_DOCS.map((t) => celda(t, true)),
+        }),
+        ...(filas.length === 0
+          ? [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    borders: CELL_BORDERS,
+                    columnSpan: ENCABEZADOS_DOCS.length,
+                    children: [
+                      new Paragraph({
+                        text: 'Sin documentos personales registrados.',
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ]
+          : filas.map(
+              (f) => new TableRow({ children: f.map((t) => celda(t)) }),
+            )),
+      ],
+    });
+  }
+
   // ─── PDF ─────────────────────────────────────────────────────────────────────
 
   private construirExpedientePDF(
     cursosData: CursosListResponseDto,
+    docsPersonales: ResumenFechaItem[],
     bitacoraData: BitacoraEmbarqueListResponseDto,
     fechaHoy: string,
   ): Promise<Buffer> {
@@ -458,6 +549,17 @@ export class ExpedienteService {
       // (cada celda se dibuja con un x explícito). Sin este reset, el
       // título y las líneas siguientes heredan ese x y salen corridas a la
       // derecha con el ancho de wrap achicado.
+      doc.x = doc.page.margins.left;
+      doc.moveDown(1);
+      if (doc.y > doc.page.height - 150) doc.addPage();
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(13)
+        .fillColor('#0A2240')
+        .text('Documentos Personales')
+        .fillColor('#000000');
+      doc.moveDown(0.5);
+      this.dibujarTablaDocsPersonalesPDF(doc, docsPersonales);
       doc.x = doc.page.margins.left;
       doc.moveDown(1);
       doc
@@ -539,15 +641,72 @@ export class ExpedienteService {
       const fechaInicio = this.formatearFecha(
         curso.fechaInicio ?? curso.fechaCurso,
       );
-      const fechaVencimiento = curso.fechaVencimiento
-        ? this.formatearFecha(curso.fechaVencimiento)
-        : 'No especificada';
+      const fechaVencimiento = this.vencimientoCurso(curso);
       dibujarFila([
         String(i + 1),
         curso.nombreCurso,
         fechaInicio,
         fechaVencimiento,
       ]);
+    });
+  }
+
+  private dibujarTablaDocsPersonalesPDF(
+    doc: PDFKit.PDFDocument,
+    items: ResumenFechaItem[],
+  ): void {
+    const startX = 50;
+    const colWidths = [30, 190, 85, 105, 70];
+    const rowHeight = 20;
+    const bottomLimit = () =>
+      doc.page.height - doc.page.margins.bottom - rowHeight - 10;
+
+    const dibujarFila = (
+      valores: string[],
+      opts: { bold?: boolean; bg?: string; color?: string } = {},
+    ) => {
+      const y = doc.y;
+      if (opts.bg) {
+        doc
+          .rect(
+            startX,
+            y,
+            colWidths.reduce((a, b) => a + b, 0),
+            rowHeight,
+          )
+          .fill(opts.bg);
+      }
+      doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+      doc.fillColor(opts.color ?? '#000000');
+      let x = startX;
+      valores.forEach((valor, i) => {
+        doc.text(valor, x + 4, y + 5, {
+          width: colWidths[i] - 8,
+          height: 11,
+          ellipsis: true,
+          lineBreak: false,
+        });
+        x += colWidths[i];
+      });
+      doc.fillColor('#000000');
+      doc.y = y + rowHeight;
+    };
+
+    if (doc.y > bottomLimit()) doc.addPage();
+    dibujarFila(ENCABEZADOS_DOCS, {
+      bold: true,
+      bg: '#0A2240',
+      color: '#FFFFFF',
+    });
+
+    const filas = this.filasDocsPersonales(items);
+    if (filas.length === 0) {
+      dibujarFila(['', 'Sin documentos personales registrados.', '', '', '']);
+      return;
+    }
+    filas.forEach((f, i) => {
+      if (doc.y > bottomLimit()) doc.addPage();
+      dibujarFila(f, i % 2 === 1 ? { bg: '#EEF1F6' } : {});
     });
   }
 
@@ -646,6 +805,43 @@ export class ExpedienteService {
   }
 
   // ─── Helpers compartidos ───────────────────────────────────────────────────
+
+  /** Vencimiento de un curso; el calculado (+5 años) se marca como estimado. */
+  private vencimientoCurso(
+    curso: CursosListResponseDto['cursos'][number],
+  ): string {
+    if (!curso.fechaVencimiento) return 'No especificada';
+    const fecha = this.formatearFecha(curso.fechaVencimiento);
+    return curso.fechaVencimientoEstimada ||
+      curso.origenVencimiento === 'CALCULADO_5_ANOS'
+      ? `${fecha} (estimado)`
+      : fecha;
+  }
+
+  /** Filas de documentos personales: #, documento, emisión, vencimiento, vigencia. */
+  private filasDocsPersonales(items: ResumenFechaItem[]): string[][] {
+    const fecha = (
+      item: ResumenFechaItem,
+      c: 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+    ): string => {
+      const precision =
+        item.metaFechas?.[c]?.precision ?? item.precisionFechas?.[c] ?? 'dia';
+      const texto = formatearConPrecision(item[c], precision);
+      if (!texto) return '';
+      return item.metaFechas?.[c]?.fuente === 'regla'
+        ? `${texto} (estimado)`
+        : texto;
+    };
+    return items.map((item, i) => [
+      String(i + 1),
+      item.nombre,
+      fecha(item, 'fechaEmision') || fecha(item, 'fechaInicio') || '-',
+      item.aplicaVencimiento
+        ? fecha(item, 'fechaVencimiento') || 'No especificada'
+        : 'No aplica',
+      VIGENCIA_TEXTO[item.estadoVigencia],
+    ]);
+  }
 
   private duracionEnMeses(anios: number, meses: number): number {
     return anios * 12 + meses;

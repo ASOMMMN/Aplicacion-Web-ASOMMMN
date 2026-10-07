@@ -15,15 +15,30 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
+    // ID mal formado que llegó a Mongoose sin ParseObjectIdPipe: es un 400,
+    // no un error del servidor.
+    const idInvalido =
+      exception instanceof Error &&
+      exception.name === 'CastError' &&
+      (exception as Error & { kind?: string }).kind === 'ObjectId';
+
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+        : idInvalido
+          ? HttpStatus.BAD_REQUEST
+          : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const rawResponse =
       exception instanceof HttpException
         ? exception.getResponse()
-        : 'Internal server error';
+        : idInvalido
+          ? {
+              statusCode: HttpStatus.BAD_REQUEST,
+              message: 'El identificador no es válido.',
+              error: 'Bad Request',
+            }
+          : 'Internal server error';
 
     const message =
       typeof rawResponse === 'string'

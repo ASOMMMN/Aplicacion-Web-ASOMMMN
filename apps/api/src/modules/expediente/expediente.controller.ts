@@ -5,6 +5,7 @@ import { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ExpedienteService } from './expediente.service';
 
 @ApiTags('expediente')
@@ -18,10 +19,10 @@ export class ExpedienteController {
   @Get('expediente')
   @ApiOperation({
     summary:
-      'Exportar expediente combinado (cursos/certificaciones + bitácora de embarque) a Word o PDF',
+      'Exportar expediente combinado (cursos/certificaciones, documentos personales y bitácora de embarque) a Word o PDF',
   })
   async generarExpediente(
-    @Param('id') postulanteId: string,
+    @Param('id', ParseObjectIdPipe) postulanteId: string,
     @Query('formato') formato: string = 'pdf',
     @Res() res: Response,
   ): Promise<void> {

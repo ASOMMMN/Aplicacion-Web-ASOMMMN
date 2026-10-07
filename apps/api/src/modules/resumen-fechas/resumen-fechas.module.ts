@@ -17,10 +17,7 @@ import {
   PostulanteSchema,
 } from '../postulantes/schemas/postulante.schema';
 
-import {
-  Usuario,
-  UsuarioSchema,
-} from '../usuarios/schemas/usuario.schema';
+import { Usuario, UsuarioSchema } from '../usuarios/schemas/usuario.schema';
 
 @Module({
   imports: [
@@ -46,5 +43,7 @@ import {
   controllers: [ResumenFechasController],
 
   providers: [ResumenFechasService],
+
+  exports: [ResumenFechasService],
 })
 export class ResumenFechasModule {}

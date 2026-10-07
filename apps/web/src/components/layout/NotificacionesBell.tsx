@@ -25,20 +25,25 @@ export function NotificacionesBell() {
   const [noLeidas, setNoLeidas] = useState(0);
   const [cargando, setCargando] = useState(false);
 
-  const cargarContador = useCallback(async () => {
-    try {
-      const { count } = await notificacionesApi.contarNoLeidas();
-      setNoLeidas(count);
-    } catch {
-      /* el contador se reintenta en el siguiente ciclo */
-    }
-  }, []);
-
   useEffect(() => {
-    void cargarContador();
-    const id = window.setInterval(() => void cargarContador(), INTERVALO_REFRESCO_MS);
-    return () => window.clearInterval(id);
-  }, [cargarContador]);
+    let cancelado = false;
+    const refrescar = () => {
+      notificacionesApi
+        .contarNoLeidas()
+        .then(({ count }) => {
+          if (!cancelado) setNoLeidas(count);
+        })
+        .catch(() => {
+          /* el contador se reintenta en el siguiente ciclo */
+        });
+    };
+    refrescar();
+    const id = window.setInterval(refrescar, INTERVALO_REFRESCO_MS);
+    return () => {
+      cancelado = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   const cargarLista = useCallback(async () => {
     try {
