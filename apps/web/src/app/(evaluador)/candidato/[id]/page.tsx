@@ -27,6 +27,7 @@ import { EmbarqueTimeline } from '@/components/bitacora-embarque/EmbarqueTimelin
 import type { BitacoraEmbarqueResponse } from '@/components/bitacora-embarque/types';
 import { ResumenFechasTabla } from '@/components/resumen-fechas/ResumenFechasTabla';
 import { AnalizarPendientesCandidato } from '@/components/resumen-fechas/AnalizarPendientesCandidato';
+import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 import { formatearFechaCalendario } from '@/lib/fechas';
 
@@ -156,6 +157,7 @@ interface CursoItem {
     tamanio: number;
     tipoMime: string;
     urlDescargar?: string;
+    urlVista?: string;
     storageType?: 'local' | 'cloudinary';
   };
 }
@@ -356,6 +358,8 @@ export default function CandidatoDetallePage() {
   const [evaluacionesPorDocumento, setEvaluacionesPorDocumento] = useState<EvaluacionDocumento[]>([]);
   const [mostrarHistorialComentarios, setMostrarHistorialComentarios] = useState(false);
   const [cursosData, setCursosData] = useState<CursosResponse | null>(null);
+  /** Curso del que se está viendo el certificado adjunto. */
+  const [previewCurso, setPreviewCurso] = useState<CursoItem | null>(null);
   const [docsPersonales, setDocsPersonales] = useState<DocsPersonalesResumen | null>(null);
   const [bitacoraData, setBitacoraData] = useState<BitacoraEmbarqueResponse | null>(null);
 
@@ -947,16 +951,16 @@ export default function CandidatoDetallePage() {
                               )}
                             </td>
                             <td>
-                              {curso.documentoExtra?.urlDescargar && (
-                                <a
-                                  href={curso.documentoExtra.urlDescargar}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="btn btn-outline-secondary btn-sm"
+                              {curso.documentoExtra?.urlVista && (
+                                <Button
+                                  variant="outline-secondary"
+                                  size="sm"
                                   title="Ver certificado"
+                                  onClick={() => setPreviewCurso(curso)}
                                 >
+                                  <i className="bi bi-eye me-1" />
                                   Ver
-                                </a>
+                                </Button>
                               )}
                             </td>
                           </tr>
@@ -1107,10 +1111,24 @@ export default function CandidatoDetallePage() {
                   <p className="small text-muted mb-0">
                     Cursos, certificaciones y documentos personales con su vigencia.
                   </p>
-                  <AnalizarPendientesCandidato
-                    postulanteId={candidatoId}
-                    onTerminado={() => setRecargaResumen((n) => n + 1)}
-                  />
+                  <div className="d-flex gap-2 align-items-start flex-wrap">
+                    <DropdownButton
+                      title="Descargar bitácora"
+                      variant="outline-secondary"
+                      size="sm"
+                    >
+                      <Dropdown.Item onClick={() => exportarExpediente('docx')}>
+                        Word (.docx)
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => exportarExpediente('pdf')}>
+                        PDF (.pdf)
+                      </Dropdown.Item>
+                    </DropdownButton>
+                    <AnalizarPendientesCandidato
+                      postulanteId={candidatoId}
+                      onTerminado={() => setRecargaResumen((n) => n + 1)}
+                    />
+                  </div>
                 </div>
                 {/* Unificación y semáforo se calculan en el backend (/resumen-fechas) */}
                 <ResumenFechasTabla
@@ -1230,6 +1248,26 @@ export default function CandidatoDetallePage() {
           </Col>
         </Row>
       </Container>
+      {previewCurso?.documentoExtra?.urlVista && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewCurso(null)}
+          titulo={previewCurso.nombreCurso}
+          nombreArchivo={previewCurso.documentoExtra.nombreOriginal}
+          fechaEmision={previewCurso.fechaInicio}
+          fechaVencimiento={previewCurso.fechaVencimiento}
+          cargar={() =>
+            Promise.resolve({
+              url: previewCurso.documentoExtra!.urlVista!,
+              mimeType: previewCurso.documentoExtra!.tipoMime,
+            })
+          }
+          onDescargar={() =>
+            previewCurso.documentoExtra?.urlDescargar &&
+            window.open(previewCurso.documentoExtra.urlDescargar, '_blank', 'noopener,noreferrer')
+          }
+        />
+      )}
     </div>
   );
 }
