@@ -21,7 +21,10 @@ import {
   UMBRAL_POR_VENCER_MESES,
 } from './vigencia.util';
 
-import { unificarCursos } from './cursos-match.util';
+import { unificarCursos, vincularCvConDocumentos } from './cursos-match.util';
+import type { CursoCV } from '../ingest-ia/schemas/extraccion.schema';
+import { aConfianzaNumerica } from '../docs-personales/ia/meta-fechas';
+import type { MetaFechaResumen } from '../docs-personales/ia/meta-fechas-derivadas';
 import { resumenDocumentosPersonales } from './docs-personales-resumen.util';
 import {
   formatearConPrecision,
@@ -73,6 +76,35 @@ export class ResumenFechasService {
 
   private texto(valor: unknown): string | null {
     return typeof valor === 'string' && valor.trim() ? valor.trim() : null;
+  }
+
+  /** Fechas de un curso del CV: fuente "cv", precisión día (YYYY-MM-DD). */
+  private metaFechasCV(
+    c: CursoCV,
+  ): Partial<
+    Record<
+      'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      MetaFechaResumen
+    >
+  > {
+    const campos = ['fechaEmision', 'fechaInicio', 'fechaVencimiento'] as const;
+    return Object.fromEntries(
+      campos
+        .filter((k) => this.normalizarFecha(c[k]))
+        .map((k) => [
+          k,
+          {
+            fuente: 'cv',
+            precision: 'dia',
+            confianza: aConfianzaNumerica(c.confianza?.[k]) ?? null,
+            evidencia: null,
+            lector: null,
+            bloqueada: false,
+            editadoPorEmail: null,
+            editadoEn: null,
+          },
+        ]),
+    );
   }
 
   // ── Nombre del postulante ─────────────────────────────────────────────────
@@ -127,6 +159,7 @@ export class ResumenFechasService {
         revisarFechasCurso: c.revisarFechas
           ? { motivos: c.motivosRevision }
           : null,
+        metaFechas: c.metaFechas,
         detalle: null,
         aplicaVencimiento: true,
         confianzaCV: null,
@@ -164,6 +197,7 @@ export class ResumenFechasService {
         // Solo en el CV: sin documento no se aplica la regla de 5 años.
         origenVencimiento: null,
         sinDocumento: true,
+        metaFechas: this.metaFechasCV(c),
         detalle: null,
         aplicaVencimiento: true,
         confianzaCV: c.confianza ?? null,
@@ -207,9 +241,16 @@ export class ResumenFechasService {
       no_aplica: 0,
     };
 
+    // Un curso del CV que es un documento personal (p. ej. "Actualización
+    // para Maquinista Naval" ↔ refrendo, mismo vencimiento) se muestra
+    // como un solo registro: el documento con su comprobante.
+    const vinculados = vincularCvConDocumentos(
+      unificarCursos(registrados, cv),
+      documentos,
+    );
     const items: ResumenFechaItem[] = [
-      ...unificarCursos(registrados, cv),
-      ...documentos,
+      ...vinculados.cursos,
+      ...vinculados.documentos,
     ].map((item) => {
       const vigencia = item.aplicaVencimiento
         ? calcularEstadoVigencia(item.fechaVencimiento, hoy)

@@ -1,4 +1,5 @@
 import {
+  vincularCvConDocumentos,
   compararCursos,
   normalizarNombreCurso,
   unificarCursos,
@@ -289,5 +290,72 @@ describe('unificarCursos', () => {
     );
     expect(r).toHaveLength(1);
     expect(r[0].fechaVencimiento).toBe('2026-01-10');
+  });
+});
+
+describe('vincularCvConDocumentos (curso del CV ↔ documento personal)', () => {
+  const doc = (tipoDocumento: string, venc: string) =>
+    ({
+      tipo: 'Documento personal',
+      nombre: 'Refrendo',
+      detalle: 'refrendo.pdf',
+      aplicaVencimiento: true,
+      institucion: null,
+      fechaInicio: null,
+      fechaEmision: '2021-06-01',
+      fechaVencimiento: venc,
+      fechaVencimientoEstimada: false,
+      confianzaCV: null,
+      origen: 'doc_personal',
+      nombreEnCV: null,
+      discrepancia: null,
+      fuente: ['Documentos personales'],
+      docPersonal: { id: 'd1', tipoDocumento } as never,
+    }) as ItemBase;
+  const cv = (nombre: string, venc: string | null) =>
+    ({
+      tipo: 'Curso',
+      nombre,
+      detalle: null,
+      aplicaVencimiento: true,
+      institucion: null,
+      fechaInicio: null,
+      fechaEmision: null,
+      fechaVencimiento: venc,
+      fechaVencimientoEstimada: false,
+      confianzaCV: null,
+      origen: 'cv',
+      nombreEnCV: null,
+      discrepancia: null,
+      fuente: ['CV'],
+    }) as ItemBase;
+
+  it('"Actualización para Maquinista Naval" con el mismo vencimiento → un solo registro (el refrendo)', () => {
+    const r = vincularCvConDocumentos(
+      [cv('Actualización para Maquinista Naval', '2026-06-01')],
+      [doc('refrendo', '2026-06-01')],
+    );
+    expect(r.cursos).toHaveLength(0);
+    expect(r.documentos[0].nombreEnCV).toBe(
+      'Actualización para Maquinista Naval',
+    );
+    expect(r.documentos[0].fuente).toEqual(['Documentos personales', 'CV']);
+  });
+
+  it('vencimiento distinto → no se vinculan', () => {
+    const r = vincularCvConDocumentos(
+      [cv('Actualización para Maquinista Naval', '2025-06-01')],
+      [doc('refrendo', '2026-06-01')],
+    );
+    expect(r.cursos).toHaveLength(1);
+    expect(r.documentos[0].nombreEnCV).toBeNull();
+  });
+
+  it('nombre que no corresponde al tipo → no se vinculan aunque coincida la fecha', () => {
+    const r = vincularCvConDocumentos(
+      [cv('Lucha contra incendios', '2026-06-01')],
+      [doc('refrendo', '2026-06-01')],
+    );
+    expect(r.cursos).toHaveLength(1);
   });
 });

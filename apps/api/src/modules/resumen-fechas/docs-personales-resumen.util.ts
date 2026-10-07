@@ -19,6 +19,12 @@ import {
   resumenPropuesta,
 } from '../docs-personales/ia/cambios-analisis';
 import type { Confianza } from '../docs-personales/ia/extraer-fechas-doc-personal';
+import type { MetaFechas } from '../docs-personales/ia/meta-fechas';
+import {
+  FechasVerificadasLegado,
+  metaFechasDocPersonal,
+  resumenMetaFechas,
+} from '../docs-personales/ia/meta-fechas-derivadas';
 
 export interface DocPersonalFechas {
   _id?: { toString(): string };
@@ -37,6 +43,7 @@ export interface DocPersonalFechas {
   analisisIa?: { error?: string } | null;
   detalleFechasIa?: unknown;
   propuestaFechasIa?: PropuestaFechasIa | null;
+  metaFechas?: MetaFechas | null;
 }
 
 type Campo = 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento';
@@ -73,6 +80,18 @@ function confianzaDe(doc: DocPersonalFechas, campo: Campo): Confianza {
 }
 
 const tieneFechas = (d: DocPersonalFechas) => CAMPOS.some((c) => aISO(d[c]));
+
+const metaDe = (d: DocPersonalFechas): MetaFechas =>
+  metaFechasDocPersonal({
+    ...d,
+    fechasVerificadas: d.fechasVerificadas as FechasVerificadasLegado | null,
+  });
+
+/** El análisis dice que el documento no vence (p. ej. constancia sin vigencia). */
+const noVenceDe = (d: DocPersonalFechas) =>
+  Boolean(
+    (d.detalleFechasIa as { noVence?: boolean } | null | undefined)?.noVence,
+  );
 
 const clave = (d: DocPersonalFechas, c: Campo) => {
   const v = aISO(d[c]);
@@ -163,6 +182,9 @@ export function resumenDocumentosPersonales(
     const deOtroArchivo: Partial<
       Record<Campo, { id: string; nombre: string }>
     > = {};
+    const meta = metaDe(doc);
+    const metaFinal: MetaFechas = {};
+    for (const c of CAMPOS) if (meta[c] && aISO(doc[c])) metaFinal[c] = meta[c];
     const hermanos = archivos.filter(
       (d) => d !== doc && mismoDocumentoFisico(doc, d),
     );
@@ -182,6 +204,8 @@ export function resumenDocumentosPersonales(
       if (!fuente) continue;
       fechas[c] = aISO(fuente[c]);
       precision[c] = fuente.precisionFechas?.[c] ?? 'dia';
+      const metaHermano = metaDe(fuente)[c];
+      if (metaHermano) metaFinal[c] = metaHermano;
       if (fuente._id) {
         deOtroArchivo[c] = {
           id: fuente._id.toString(),
@@ -198,7 +222,11 @@ export function resumenDocumentosPersonales(
       tipo: 'Documento personal' as const,
       nombre: LABEL_TIPO_DOC[tipo],
       detalle: doc.nombreOriginal,
-      aplicaVencimiento: !TIPOS_DOC_SIN_VENCIMIENTO.includes(tipo),
+      // No aplica: tipos que no vencen, o el documento dice que no vence
+      // (constancias sin vigencia) y no hay vencimiento.
+      aplicaVencimiento:
+        !TIPOS_DOC_SIN_VENCIMIENTO.includes(tipo) &&
+        !(noVenceDe(doc) && !fechas.fechaVencimiento),
       institucion: null,
       fechaInicio: fechas.fechaInicio,
       fechaEmision: fechas.fechaEmision,
@@ -207,6 +235,7 @@ export function resumenDocumentosPersonales(
         ? { precisionFechas: precision }
         : {}),
       fechaVencimientoEstimada: false,
+      metaFechas: resumenMetaFechas(metaFinal),
       confianzaCV: null,
       nombreEnCV: null,
       discrepancia: null,
@@ -222,6 +251,7 @@ export function resumenDocumentosPersonales(
               extraccionEstado: extraccion.estado,
               extraccionError: extraccion.error,
               propuesta: resumenPropuesta(doc.propuestaFechasIa),
+              tipoDocumento: tipo,
               archivosDelTipo: archivos.length,
               ...(Object.keys(deOtroArchivo).length
                 ? { fechasDeOtroArchivo: deOtroArchivo }

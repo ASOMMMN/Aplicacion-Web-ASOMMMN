@@ -6,9 +6,7 @@
  * La validación posterior (orden, duración, dd/mm) se hace en código:
  * ver validar-fechas-doc-personal.ts.
  */
-import {
-  TIPOS_DOC_PERSONAL,
-} from '../constants/tipos-doc-personal';
+import { TIPOS_DOC_PERSONAL } from '../constants/tipos-doc-personal';
 import { ETIQUETAS_POR_TIPO_DESCRIPCION } from './etiquetas';
 import { etiquetaTipoIa, TipoDocumentoIa } from './tipos-documento-ia';
 
@@ -30,7 +28,8 @@ FORMATO DE FECHA (muy importante):
 - Si el documento indica el formato POR ESCRITO ("dd/mm/aaaa", "dd/mm/yyyy", "DD MM YYYY",
   "mm/dd/yyyy"), respétalo e infórmalo en "formatoFechaIndicado"; si no lo indica, null.
 - Si no hay indicación, interpreta SIEMPRE como dd/mm/aaaa, también en documentos en inglés
-  emitidos en México.
+  emitidos en México. Única excepción: documentos emitidos en EE. UU. (paisEmisor "US"), que
+  usan mm/dd/aaaa.
 - Si día y mes son ambos ≤ 12 y no hay indicación de formato, usa dd/mm y pon confianza "media"
   como máximo (nunca "alta").
 - Meses con letra (ENE, FEB, MAR, ABR, MAY, JUN, JUL, AGO, SEP, OCT, NOV, DIC /
@@ -65,7 +64,9 @@ LIBRETA DE MAR E IDENTIDAD MARÍTIMA (Seafarer's identity document / Seaman's bo
 PASAPORTE:
 - fechaEmision = "Fecha de expedición" / "Date of issue".
 - fechaVencimiento = "Fecha de caducidad" / "Date of expiry".
-- Suelen escribirse "09 02 2022" o "09 FEB/FEB 2022" (día mes año).
+- El pasaporte mexicano las escribe "DD MMM AAAA" con el mes en letra ("15 ABR 2026",
+  "09 FEB/FEB 2022"); también "09 02 2022" (día mes año).
+- La vigencia de un pasaporte es de 3, 6 o 10 años.
 - Si aparece la zona de lectura mecánica (dos líneas con "<<<"), la caducidad está en la
   segunda línea en formato AAMMDD: úsala para confirmar día y mes.
 - NO uses "Fecha de nacimiento / Date of birth".`,
@@ -84,12 +85,15 @@ REFRENDO (Endorsement, p. ej. refrendo de reconocimiento STCW regla I/10 o refre
 
   INE: `
 CREDENCIAL PARA VOTAR (INE):
-- La vigencia aparece solo como año: "VIGENCIA 2031" o "VIGENCIA 2021 - 2031".
-  En ese caso fechaVencimiento = 31 de diciembre del ÚLTIMO año (AAAA-12-31) con precision "anio",
-  y textoLiteral con el texto tal cual (p. ej. "VIGENCIA 2021 - 2031").
-- fechaEmision: "EMISIÓN 2021" es solo año → valor null (no inventes día ni mes), pero
-  pon el texto en textoLiteral.
-- NO uses "FECHA DE NACIMIENTO" ni "AÑO DE REGISTRO".`,
+- Las fechas salen del campo "VIGENCIA", que trae solo años: "VIGENCIA 2023 - 2033".
+  - fechaEmision = el PRIMER año de VIGENCIA (2023), precision "anio".
+  - fechaVencimiento = el SEGUNDO año de VIGENCIA (2033), precision "anio".
+  - textoLiteral de ambas = el texto de VIGENCIA tal cual (p. ej. "VIGENCIA 2023 - 2033").
+- Si VIGENCIA trae un solo año ("VIGENCIA 2033"), ese es el vencimiento; la emisión sale de
+  "EMISIÓN 2023" si existe, si no null.
+- Nunca inventes día ni mes.
+- IGNORA SIEMPRE: "AÑO DE REGISTRO", "CLAVE DE ELECTOR", "CURP", "SECCIÓN", "ESTADO",
+  "MUNICIPIO", "LOCALIDAD" y "FECHA DE NACIMIENTO". El año de registro NO es la emisión.`,
 
   CURP: `
 CURP (constancia de la Clave Única de Registro de Población):
@@ -108,8 +112,9 @@ ACTA DE NACIMIENTO:
 VISA:
 - fechaEmision = "Issue Date" / "Fecha de expedición".
 - fechaVencimiento = "Expiration Date" / "Fecha de vencimiento".
-- Las visas de EE. UU. escriben "09FEB2022" (día, mes con letra, año).
-- NO uses "Birth Date".`,
+- Las visas de EE. UU. escriben "DDMMMAAAA" con el mes en letra: "13MAY2024" = 13 de mayo de 2024.
+- NO uses "Birth Date" ni el texto de "Annotation" (puede traer fechas que no son de la visa).
+- paisEmisor = "US" para visas de EE. UU.`,
 
   vacuna_fiebre_amarilla: `
 CERTIFICADO INTERNACIONAL DE VACUNACIÓN (fiebre amarilla):
@@ -143,7 +148,8 @@ Primeros auxilios, Protección del buque / PBIP, ECDIS, Control de multitudes, e
 CONSTANCIA DE PARTICIPACIÓN:
 - fechaEmision = fecha en que se expide la constancia ("Se expide la presente…", "Fecha de expedición").
 - fechaInicio = inicio del periodo de participación si aparece ("del … al …").
-- fechaVencimiento = null salvo que el documento diga explícitamente "vigencia" o "válido hasta".`,
+- fechaVencimiento = null salvo que el documento diga explícitamente "vigencia" o "válido hasta".
+- Normalmente no vencen: si el documento no indica vigencia, noVence = true.`,
 };
 
 const ESQUEMA_SALIDA = `
@@ -152,6 +158,8 @@ CAMPOS DE LA RESPUESTA (el esquema JSON se aplica automáticamente):
   uno de: ${[...TIPOS_DOC_PERSONAL, 'curso', 'otro'].join(', ')}. Usa "otro" si no corresponde a ninguno.
 - "confianzaTipo": "alta" solo si el contenido identifica el tipo sin lugar a dudas.
 - "formatoFechaIndicado": solo si el documento declara por escrito el formato de sus fechas; si no, null.
+- "paisEmisor": código ISO de 2 letras del país que emite el documento ("MX", "US"…), o null.
+- "noVence": true solo si el documento no tiene vencimiento (p. ej. una constancia sin vigencia).
 - "fechaEmision", "fechaInicio", "fechaVencimiento": cada una con "valor" (AAAA-MM-DD),
   "textoLiteral", "etiqueta", "confianza" (alta|media|baja) y "precision" (dia|mes|anio).
 - "textoLiteral": copia exacta SOLO del fragmento con esa fecha (p. ej. "19/12/2027" o

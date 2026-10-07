@@ -8,6 +8,7 @@ import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
 import type { PrecisionFechas } from '../docs-personales/schemas/doc-personal.schema';
 import type { ResumenFuentes } from '../docs-personales/ia/combinar-fuentes';
 import type { PropuestaFechasResumen } from '../docs-personales/ia/cambios-analisis';
+import type { MetaFechaResumen } from '../docs-personales/ia/meta-fechas-derivadas';
 
 /**
  * Origen del dato:
@@ -61,6 +62,16 @@ export interface ResumenFechaItem {
   > | null;
   /** Cursos registrados: el registro necesita revisión (y por qué). */
   revisarFechasCurso?: { motivos: string[] } | null;
+  /**
+   * Por fecha: fuente (ia | manual | regla | cv), precisión, confianza
+   * 0–1, evidencia y bloqueo manual.
+   */
+  metaFechas?: Partial<
+    Record<
+      'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      MetaFechaResumen
+    >
+  >;
   /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
   confianzaCV: CursoCV['confianza'] | null;
   origen: OrigenResumen;
@@ -86,6 +97,8 @@ export interface DocPersonalResumen extends ResumenFuentes {
   extraccionError: string | null;
   /** Fechas de un reanálisis pendientes de aceptar (null = ninguna). */
   propuesta?: PropuestaFechasResumen | null;
+  /** Tipo del documento personal (INE, pasaporte, refrendo…). */
+  tipoDocumento?: string;
   /** Cuántos archivos hay de este tipo (las fechas salen del ganador). */
   archivosDelTipo?: number;
   /** Campos vacíos del ganador que se completaron con otro archivo del mismo documento físico. */

@@ -1,14 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { PropuestaFechasResumen } from '../ia/cambios-analisis';
 import {
+  IsArray,
   IsIn,
   IsISO8601,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
+  ValidateBy,
 } from 'class-validator';
+import type { MetaFechaResumen } from '../ia/meta-fechas-derivadas';
 
 import {
   TIPOS_DOC_PERSONAL,
@@ -106,6 +110,30 @@ export class DocPersonalResponseDto {
       'Fechas que un reanálisis leyó distintas a las guardadas; no se aplican hasta que el evaluador las acepte.',
   })
   propuestaFechas?: PropuestaFechasResumen | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Por fecha: fuente (ia | manual | regla | cv), precisión, confianza 0–1, evidencia y si está bloqueada por una corrección manual.',
+  })
+  metaFechas?: Partial<
+    Record<
+      'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      MetaFechaResumen
+    >
+  >;
+
+  @ApiPropertyOptional({
+    description: 'Cambios de fechas: quién, cuándo, valor anterior → nuevo.',
+  })
+  historialFechas?: Array<{
+    campo: string;
+    anterior: { valor: string | null; precision: string } | null;
+    nuevo: { valor: string | null; precision: string } | null;
+    fuente: string;
+    motivo: string;
+    porEmail: string | null;
+    en: string;
+  }>;
 
   @ApiPropertyOptional({
     description:
@@ -222,6 +250,53 @@ export class VerificarFechasDocPersonalDto {
   @Matches(SOLO_FECHA, { message: 'fechaVencimiento debe ser YYYY-MM-DD' })
   @IsISO8601({ strict: true })
   fechaVencimiento?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Precisión de cada fecha corregida (dia | mes | anio). Con "anio" el vencimiento se guarda al 31/12 y se muestra solo el año.',
+    example: { fechaVencimiento: 'anio' },
+  })
+  @IsOptional()
+  @IsObject()
+  @ValidarPrecisiones()
+  precisionFechas?: Partial<
+    Record<
+      'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      'dia' | 'mes' | 'anio'
+    >
+  >;
+}
+
+/** "Desbloquear y reanalizar": campos a desbloquear (vacío = todos). */
+export class DesbloquearFechasDto {
+  @ApiPropertyOptional({
+    isArray: true,
+    enum: ['fechaEmision', 'fechaInicio', 'fechaVencimiento'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(['fechaEmision', 'fechaInicio', 'fechaVencimiento'], { each: true })
+  campos?: Array<'fechaEmision' | 'fechaInicio' | 'fechaVencimiento'>;
+}
+
+/** Solo campos de fecha conocidos y precisiones dia | mes | anio. */
+function ValidarPrecisiones() {
+  return ValidateBy({
+    name: 'precisionesValidas',
+    validator: {
+      validate: (v: unknown) =>
+        v === undefined ||
+        (typeof v === 'object' &&
+          v !== null &&
+          Object.entries(v).every(
+            ([k, p]) =>
+              ['fechaEmision', 'fechaInicio', 'fechaVencimiento'].includes(k) &&
+              ['dia', 'mes', 'anio'].includes(p as string),
+          )),
+      defaultMessage: () =>
+        'precisionFechas solo admite fechaEmision/fechaInicio/fechaVencimiento con dia, mes o anio.',
+    },
+  });
 }
 
 /** Resultado de analizar un documento (botones de la interfaz). */

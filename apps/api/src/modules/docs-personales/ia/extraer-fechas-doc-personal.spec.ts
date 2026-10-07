@@ -399,3 +399,21 @@ describe('extraerFechasDocPersonal: doble lectura con consenso', () => {
     expect(r.resultado.reextraccion).toBeNull();
   });
 });
+
+describe('formatoComprobado: documentos emitidos en EE. UU.', () => {
+  const doc = { paginas: [{ numero: 1, texto: '', estructuradas: [] }] };
+  it('paisEmisor US sin indicador escrito → mm/dd; MX o sin país → dd/mm', () => {
+    const p = (paisEmisor: string | null) =>
+      normalizarRespuesta({
+        paisEmisor,
+        fechaEmision: {
+          valor: '2024-03-04',
+          textoLiteral: '03/04/2024',
+          confianza: 'alta',
+        },
+      });
+    expect(formatoComprobado(doc, p('US'))).toBe('mm/dd/aaaa');
+    expect(formatoComprobado(doc, p('MX'))).toBeNull();
+    expect(formatoComprobado(doc, p(null))).toBeNull();
+  });
+});

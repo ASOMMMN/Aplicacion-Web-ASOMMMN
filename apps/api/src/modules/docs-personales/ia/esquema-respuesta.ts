@@ -62,6 +62,13 @@ export function esquemaRespuesta(
       description:
         'Solo si el documento declara por escrito el formato de sus fechas; si no, null.',
     },
+    paisEmisor: textoONulo(
+      'Código ISO de 2 letras del país que emite el documento (MX, US…).',
+    ),
+    noVence: {
+      type: 'boolean',
+      description: 'true solo si el documento no tiene vencimiento.',
+    },
     fechaEmision: FECHA,
     fechaInicio: FECHA,
     fechaVencimiento: FECHA,

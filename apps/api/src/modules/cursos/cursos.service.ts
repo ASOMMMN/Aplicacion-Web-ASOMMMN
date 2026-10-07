@@ -32,6 +32,17 @@ import { detalleParaGuardar } from '../docs-personales/ia/cambios-analisis';
 import type { EstadoExtraccion } from '../docs-personales/ia/estado-extraccion';
 import { formatearConPrecision } from '../docs-personales/ia/formatos-fecha';
 import {
+  aConfianzaNumerica,
+  CambioFecha,
+  CAMPOS_META,
+  CampoMeta,
+  MetaFechas,
+} from '../docs-personales/ia/meta-fechas';
+import {
+  metaFechasCurso,
+  resumenMetaFechas,
+} from '../docs-personales/ia/meta-fechas-derivadas';
+import {
   origenVencimientoDeCurso,
   OrigenVencimiento,
   resolverVencimientoCurso,
@@ -198,6 +209,12 @@ export class CursosService {
         apareceEnCV: dto.apareceEnCV,
         documentoExtra,
         ...revision,
+        ...this.metaRegistroCurso(userId, analisis, {
+          fechaInicio,
+          fechaEmision,
+          fechaVencimiento,
+          estimado: origenVencimiento === 'CALCULADO_5_ANOS',
+        }),
       });
 
       return {
@@ -577,6 +594,64 @@ export class CursosService {
     };
   }
 
+  /**
+   * Metadatos e historial de las fechas al registrar un curso: regla para
+   * el vencimiento estimado (5 años), ia si coincide con lo leído en el
+   * documento y manual si lo capturó el postulante.
+   */
+  private metaRegistroCurso(
+    userId: string,
+    analisis: ResultadoExtraccionFechas | null,
+    fechas: Record<CampoMeta, string | null> & { estimado: boolean },
+  ): { metaFechas: MetaFechas; historialFechas: CambioFecha[] } {
+    const res =
+      analisis && !analisis.resultado.errorMensaje ? analisis.resultado : null;
+    const ahora = new Date();
+    const metaFechas: MetaFechas = {};
+    const historialFechas: CambioFecha[] = [];
+    for (const c of CAMPOS_META) {
+      const valor = fechas[c];
+      if (!valor) continue;
+      const leida = res?.[c] ?? null;
+      const fuente =
+        c === 'fechaVencimiento' && fechas.estimado
+          ? 'regla'
+          : leida === valor
+            ? 'ia'
+            : 'manual';
+      const precision =
+        fuente === 'ia' ? (res?.detalle?.[c].precision ?? 'dia') : 'dia';
+      metaFechas[c] = {
+        fuente,
+        precision,
+        bloqueada: false,
+        ...(fuente === 'ia'
+          ? {
+              confianza: aConfianzaNumerica(res?.confianza[c]),
+              evidencia: res?.detalle?.[c].textoLiteral ?? null,
+              lector: res?.fuentes?.[c]?.fuente ?? 'ia',
+            }
+          : {}),
+        ...(fuente === 'manual'
+          ? { editadoPor: new Types.ObjectId(userId), editadoEn: ahora }
+          : {}),
+      };
+      historialFechas.push({
+        campo: c,
+        anterior: null,
+        nuevo: { valor, precision },
+        fuente,
+        motivo:
+          fuente === 'regla'
+            ? 'Registro del curso: vencimiento estimado (5 años)'
+            : 'Registro del curso',
+        por: new Types.ObjectId(userId),
+        en: ahora,
+      });
+    }
+    return { metaFechas, historialFechas };
+  }
+
   /** Un curso tal como lo devuelve la API (mismo cálculo de vigencia que /resumen-fechas). */
   private mapearCurso(
     curso: Curso & { _id: Types.ObjectId },
@@ -603,6 +678,7 @@ export class CursosService {
       extraccionEstado: curso.extraccionEstado,
       revisarFechas: Boolean(curso.revisarFechas),
       motivosRevision: curso.motivosRevision ?? [],
+      metaFechas: resumenMetaFechas(metaFechasCurso(curso)),
       creadoEn: new Date(curso.creadoEn).toISOString(),
     };
   }

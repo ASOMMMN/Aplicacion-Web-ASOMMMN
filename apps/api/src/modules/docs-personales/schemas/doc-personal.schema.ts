@@ -6,6 +6,7 @@ import {
 } from '../constants/tipos-doc-personal';
 import { ESTADOS_EXTRACCION, EstadoExtraccion } from '../ia/estado-extraccion';
 import type { PrecisionFecha } from '../ia/formatos-fecha';
+import type { CambioFecha, MetaFechas } from '../ia/meta-fechas';
 import type {
   CambiosAnalisis,
   PropuestaFechasIa,
@@ -128,6 +129,18 @@ export class DocPersonal {
    */
   @Prop({ type: Object, default: null })
   propuestaFechasIa?: PropuestaFechasIa | null;
+
+  /**
+   * Por fecha: fuente (ia | manual | regla | cv), precisión, confianza
+   * (0–1), evidencia y bloqueo manual. Ausente en registros anteriores al
+   * 2026-10-06: se deduce al leer (meta-fechas-derivadas.ts) hasta migrar.
+   */
+  @Prop({ type: Object })
+  metaFechas?: MetaFechas;
+
+  /** Cambios de fechas: quién, cuándo, valor anterior → nuevo. */
+  @Prop({ type: [Object], default: undefined })
+  historialFechas?: CambioFecha[];
 
   /**
    * Corrección manual del evaluador. Si existe, fechaEmision/fechaInicio/

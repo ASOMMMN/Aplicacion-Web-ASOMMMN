@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Alert, Button, Table } from 'react-bootstrap';
+import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { formatearFechaCalendario, formatearFechaConPrecision } from '@/lib/fechas';
@@ -13,12 +14,14 @@ import type {
   EstadoVigencia,
   FuenteFecha,
   FuenteFechaResumen,
+  MetaFechaResumen,
   PrecisionFecha,
   PropuestaFechas,
   OrigenResumen,
   ResumenFechaItem,
   ResumenFechasResponse,
 } from './types';
+import { UMBRAL_CONFIANZA } from './types';
 
 const ESTADOS: Record<
   EstadoVigencia,
@@ -80,6 +83,57 @@ function BadgesFuente({ info }: { info?: FuenteFechaResumen }) {
   );
 }
 
+const formatearMomento = (iso: string) =>
+  new Date(iso).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' });
+
+/**
+ * Metadatos de la fecha (metaFechas): bloqueo por corrección manual, fuente
+ * cuando no hay detalle de lectores (cursos, correcciones) y confianza baja.
+ */
+function BadgesMeta({ meta, conFuente }: { meta?: MetaFechaResumen; conFuente: boolean }) {
+  if (!meta) return null;
+  const pct = meta.confianza !== null ? Math.round(meta.confianza * 100) : null;
+  const confianzaBaja = meta.fuente === 'ia' && meta.confianza !== null && meta.confianza < UMBRAL_CONFIANZA;
+  const lector = meta.lector && meta.lector in FUENTES ? FUENTES[meta.lector as FuenteFecha] : FUENTES.ia;
+  return (
+    <>
+      {meta.bloqueada ? (
+        <i
+          className="bi bi-lock-fill text-success ms-1"
+          aria-label="Fecha bloqueada"
+          title={`Corregida a mano${meta.editadoPorEmail ? ` por ${meta.editadoPorEmail}` : ''}${
+            meta.editadoEn ? ` el ${formatearMomento(meta.editadoEn)}` : ''
+          }. "Volver a analizar" no la cambia.`}
+        />
+      ) : (
+        meta.fuente === 'manual' && (
+          <span className="badge bg-light text-secondary border ms-1" style={{ fontSize: '0.65rem' }} title="Capturada a mano">
+            Manual
+          </span>
+        )
+      )}
+      {!conFuente && meta.fuente === 'ia' && (
+        <span
+          className="badge bg-light text-secondary border ms-1"
+          style={{ fontSize: '0.65rem' }}
+          title={`${lector.title}${pct !== null ? ` · confianza ${pct}%` : ''}`}
+        >
+          {lector.label}
+        </span>
+      )}
+      {!conFuente && confianzaBaja && (
+        <span
+          className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1"
+          style={{ fontSize: '0.65rem' }}
+          title={`Confianza ${pct}%: verifícala contra el documento`}
+        >
+          Revisar
+        </span>
+      )}
+    </>
+  );
+}
+
 const NOMBRE_CAMPO: Record<CampoFecha, string> = {
   fechaEmision: 'emisión',
   fechaInicio: 'inicio',
@@ -116,6 +170,7 @@ function CeldaFecha({
   confianza,
   precision = 'dia',
   fuente,
+  meta,
 }: {
   fecha: string | null;
   etiqueta?: string;
@@ -124,6 +179,8 @@ function CeldaFecha({
   precision?: PrecisionFecha;
   /** Documentos personales: fuente y estado de la fecha. */
   fuente?: FuenteFechaResumen;
+  /** Fuente, confianza, evidencia y bloqueo (metaFechas). */
+  meta?: MetaFechaResumen;
 }) {
   if (!fecha) {
     return soloCV ? (
@@ -136,22 +193,25 @@ function CeldaFecha({
   }
   return (
     <>
-      {formatearFechaConPrecision(fecha, precision)}
-      {precision !== 'dia' && (
+      <span title={meta?.evidencia ? `En el documento: "${meta.evidencia}"` : undefined}>
+        {formatearFechaConPrecision(fecha, meta?.precision ?? precision)}
+      </span>
+      {(meta?.precision ?? precision) !== 'dia' && (
         <span
           className="badge bg-light text-secondary border ms-1"
           style={{ fontSize: '0.65rem' }}
           title={
-            precision === 'anio'
+            (meta?.precision ?? precision) === 'anio'
               ? 'El documento solo indica el año'
               : 'El documento solo indica mes y año'
           }
         >
-          {precision === 'anio' ? 'año' : 'mes'}
+          {(meta?.precision ?? precision) === 'anio' ? 'año' : 'mes'}
         </span>
       )}
       {etiqueta && <span className="text-muted ms-1" style={{ fontSize: '0.7rem' }}>({etiqueta})</span>}
       <BadgesFuente info={fuente} />
+      <BadgesMeta meta={meta} conFuente={Boolean(fuente)} />
       {confianza === 'baja' && (
         <i
           className="bi bi-question-circle text-warning ms-1"
@@ -310,6 +370,30 @@ export function ResumenFechasTabla({
     }
   };
 
+  /** Quita el bloqueo de las fechas corregidas a mano y vuelve a analizar. */
+  const desbloquearYReanalizar = async (docId: string) => {
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: '¿Desbloquear y volver a analizar?',
+      text: 'Las fechas corregidas a mano se liberan y la IA podrá cambiarlas.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, desbloquear',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!isConfirmed) return;
+    setAnalizando(docId);
+    setAvisoAccion('');
+    try {
+      const { data } = await api.post<{ aviso?: string }>(`/docs-personales/${docId}/desbloquear-reanalizar`, {});
+      if (data.aviso) setAvisoAccion(`${data.aviso}. Vuelve a intentarlo en un minuto.`);
+    } catch (err) {
+      setAvisoAccion(mensajeError(err, 'No se pudieron desbloquear las fechas.'));
+    } finally {
+      setAnalizando(null);
+      recargar();
+    }
+  };
+
   useEffect(() => {
     let cancelado = false;
     api
@@ -459,6 +543,7 @@ export function ResumenFechasTabla({
                     confianza={c.fechaInicio ? c.confianzaCV?.fechaInicio : c.confianzaCV?.fechaEmision}
                     precision={c.fechaInicio ? c.precisionFechas?.fechaInicio : c.precisionFechas?.fechaEmision}
                     fuente={c.fechaInicio ? fuentes?.fechaInicio : fuentes?.fechaEmision}
+                    meta={c.fechaInicio ? c.metaFechas?.fechaInicio : c.metaFechas?.fechaEmision}
                   />
                 </td>
                 <td className="text-muted small">
@@ -468,8 +553,9 @@ export function ResumenFechasTabla({
                     confianza={c.confianzaCV?.fechaVencimiento}
                     precision={c.precisionFechas?.fechaVencimiento}
                     fuente={fuentes?.fechaVencimiento}
+                    meta={c.metaFechas?.fechaVencimiento}
                   />
-                  {c.fechaVencimiento && c.fechaVencimientoEstimada && (
+                  {c.fechaVencimiento && (c.fechaVencimientoEstimada || c.metaFechas?.fechaVencimiento?.fuente === 'regla') && (
                     <span
                       className="badge bg-light text-secondary border ms-1"
                       title="El certificado no indica vencimiento: se estimó con la fecha de inicio (o emisión) + 5 años."
@@ -534,6 +620,18 @@ export function ResumenFechasTabla({
                       >
                         <i className="bi bi-pencil-square" /> Corregir
                       </Button>
+                      {Object.values(c.metaFechas ?? {}).some((m) => m?.bloqueada) && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="p-0 text-warning-emphasis"
+                          disabled={analizando !== null}
+                          title="Quita el bloqueo de las fechas corregidas a mano y vuelve a leer el documento con IA"
+                          onClick={() => void desbloquearYReanalizar(c.docPersonal!.id)}
+                        >
+                          <i className="bi bi-unlock" /> Desbloquear y reanalizar
+                        </Button>
+                      )}
                     </div>
                   )}
                 </td>

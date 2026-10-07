@@ -17,6 +17,7 @@ import { TIPOS_DOC_PERSONAL } from '../constants/tipos-doc-personal';
 import type { TipoDocumentoIa } from './tipos-documento-ia';
 import {
   FechaLeida,
+  formatearConPrecision,
   leerFechasLiteral,
   valorGuardado,
 } from './formatos-fecha';
@@ -39,7 +40,7 @@ export type RangoVigencia =
 export const RANGOS_VIGENCIA: Partial<Record<TipoDocumentoIa, RangoVigencia>> =
   {
     certificado_medico: { tipo: 'maximo', anios: 2 },
-    pasaporte: { tipo: 'exacto', anios: [1, 3, 6, 10], toleranciaDias: 31 },
+    pasaporte: { tipo: 'exacto', anios: [3, 6, 10], toleranciaDias: 31 },
     visa: { tipo: 'maximo', anios: 10 },
     libreta_identidad_maritima: {
       tipo: 'maximo',
@@ -48,8 +49,10 @@ export const RANGOS_VIGENCIA: Partial<Record<TipoDocumentoIa, RangoVigencia>> =
     },
     certificado_competencia: { tipo: 'maximo', anios: 5 },
     refrendo: { tipo: 'maximo', anios: 5 },
-    INE: { tipo: 'maximo', anios: 11 },
   };
+
+/** Vigencia de la INE: exactamente estos años (VIGENCIA 2023 - 2033). */
+export const ANIOS_VIGENCIA_INE = 10;
 
 /** Tipos cuyo vencimiento se descarta si el modelo lo devuelve. */
 const TIPOS_SIN_VENCIMIENTO_NUNCA: TipoDocumentoIa[] = [
@@ -92,6 +95,12 @@ export interface ResultadoValidado extends ExtraerDocPersonalIaResponse {
   fechasDescartadas: string[];
 }
 
+const CON_ARTICULO: Record<CampoFecha, string> = {
+  fechaEmision: 'La emisión',
+  fechaInicio: 'El inicio',
+  fechaVencimiento: 'El vencimiento',
+};
+
 const NOMBRE_CAMPO: Record<CampoFecha, string> = {
   fechaEmision: 'emisión',
   fechaInicio: 'inicio',
@@ -117,6 +126,7 @@ export function validarFechasDocPersonal(
   const detalle = Object.fromEntries(
     Object.entries(respuesta.detalle).map(([k, v]) => [k, { ...v }]),
   ) as Record<CampoFecha, FechaDetectada>;
+  const conMotivo = new Set<CampoFecha>();
   const marcar = (
     campo: CampoFecha,
     motivo: string,
@@ -127,7 +137,9 @@ export function validarFechasDocPersonal(
       confianza,
     );
     motivos.push(motivo);
+    conMotivo.add(campo);
   };
+  const pais = respuesta.paisEmisor?.trim().toUpperCase() || null;
 
   // 1-2. El valor y la precisión salen SIEMPRE del texto literal, nunca de
   // lo que diga el modelo ("EMISIÓN 2016" es año aunque el modelo dé
@@ -214,8 +226,15 @@ export function validarFechasDocPersonal(
         `La ${NOMBRE_CAMPO[campo]} (${f.valor}) no coincide con el texto "${f.textoLiteral}"; se usó la del texto.`,
       );
     } else if (lectura.ambigua && !formato) {
-      // Día y mes ≤ 12 sin indicador de formato en el documento.
-      f.confianza = minConfianza(f.confianza, 'media');
+      // Día y mes ≤ 12 sin indicador de formato en el documento: dd/mm.
+      if (pais && pais !== 'MX') {
+        marcar(
+          campo,
+          `${CON_ARTICULO[campo]} "${f.textoLiteral}" es ambigua (día y mes ≤ 12) y el documento no es de México; se leyó como dd/mm.`,
+        );
+      } else {
+        f.confianza = minConfianza(f.confianza, 'media');
+      }
     }
     f.valor = lectura.iso;
   }
@@ -237,6 +256,66 @@ export function validarFechasDocPersonal(
       fin.valor = null;
     }
     datosCurso = { ...datosCurso, fechaFinCurso: fin };
+  }
+
+  // INE: las fechas salen de VIGENCIA (2023 - 2033): emisión = primer año,
+  // vencimiento = segundo, precisión año. El año de registro no es emisión.
+  if (tipo === 'INE') {
+    const literales = [
+      detalle.fechaVencimiento.textoLiteral,
+      detalle.fechaEmision.textoLiteral,
+    ];
+    let vigencia: { anios: number[]; literal: string } | null = null;
+    for (const literal of literales) {
+      const rango = leerFechasLiteral(literal).find(
+        (x) => x.anios.length === 2,
+      );
+      if (rango && literal) {
+        vigencia = { anios: rango.anios, literal };
+        break;
+      }
+    }
+    const e = detalle.fechaEmision;
+    const esRegistro = /registro/i.test(
+      `${e.etiqueta ?? ''} ${e.textoLiteral ?? ''}`,
+    );
+    if (vigencia) {
+      const [inicioVig, finVig] = vigencia.anios;
+      if (e.valor && e.valor.slice(0, 4) !== String(inicioVig)) {
+        descartadas.push(
+          `INE: la emisión es el primer año de VIGENCIA (${inicioVig}); se descartó ${e.valor.slice(0, 4)}${esRegistro ? ' (año de registro)' : ''}.`,
+        );
+      }
+      const confianzaVig = detalle.fechaVencimiento.valor
+        ? detalle.fechaVencimiento.confianza
+        : e.confianza;
+      detalle.fechaEmision = {
+        ...e,
+        valor: `${inicioVig}-01-01`,
+        precision: 'anio',
+        textoLiteral: vigencia.literal,
+        etiqueta: 'VIGENCIA',
+        confianza: minConfianza(confianzaVig, 'alta'),
+      };
+      detalle.fechaVencimiento = {
+        ...detalle.fechaVencimiento,
+        valor: `${finVig}-12-31`,
+        precision: 'anio',
+        textoLiteral: vigencia.literal,
+        etiqueta: 'VIGENCIA',
+        confianza: confianzaVig,
+      };
+    } else if (e.valor && esRegistro) {
+      descartadas.push(
+        `INE: "${e.textoLiteral ?? e.valor}" es el año de registro, no la emisión; se dejó vacía.`,
+      );
+      detalle.fechaEmision = {
+        ...e,
+        valor: null,
+        precision: 'dia',
+        confianza: 'baja',
+      };
+    }
   }
 
   // Tipos que no vencen
@@ -272,6 +351,7 @@ export function validarFechasDocPersonal(
         `El vencimiento (${venc}) no es posterior a la ${NOMBRE_CAMPO[campo]} (${v}).`,
       );
       detalle[campo].confianza = 'baja';
+      conMotivo.add(campo);
     }
   }
 
@@ -304,6 +384,27 @@ export function validarFechasDocPersonal(
     }
   }
 
+  if (tipo === 'INE' && venc && desde) {
+    const anios = Number(venc.slice(0, 4)) - Number(desde.slice(0, 4));
+    if (anios !== ANIOS_VIGENCIA_INE) {
+      marcar(
+        'fechaVencimiento',
+        `La vigencia de la INE es de ${anios} años (${desde.slice(0, 4)} - ${venc.slice(0, 4)}); debe ser de ${ANIOS_VIGENCIA_INE}.`,
+      );
+    }
+  }
+
+  // Confianza baja (< 0.7) → Revisar, aunque ninguna regla la haya marcado.
+  for (const campo of Object.keys(detalle) as CampoFecha[]) {
+    const f = detalle[campo];
+    if (f.valor && f.confianza === 'baja' && !conMotivo.has(campo)) {
+      motivos.push(
+        `${CON_ARTICULO[campo]} (${formatearConPrecision(f.valor, f.precision) ?? f.valor}) tiene confianza baja (0.4); verifícala contra el documento.`,
+      );
+      conMotivo.add(campo);
+    }
+  }
+
   // 5. Tipo sospechoso
   const detectado = respuesta.tipoDetectado?.trim();
   const tipoSospechoso =
@@ -328,6 +429,7 @@ export function validarFechasDocPersonal(
     motivosRevision: motivos,
     tipoSospechoso,
     fechasDescartadas: descartadas,
+    noVence: Boolean(respuesta.noVence) && !detalle.fechaVencimiento.valor,
     ...(datosCurso ? { datosCurso } : {}),
   };
 }

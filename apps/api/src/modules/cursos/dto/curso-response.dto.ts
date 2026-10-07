@@ -2,6 +2,7 @@ import type { EstadoVigencia } from '../../resumen-fechas/vigencia.util';
 import type { OrigenVencimiento } from '../regla-vencimiento-curso';
 import type { EstadoExtraccion } from '../../docs-personales/ia/estado-extraccion';
 import type { PrecisionFecha } from '../../docs-personales/ia/formatos-fecha';
+import type { MetaFechaResumen } from '../../docs-personales/ia/meta-fechas-derivadas';
 
 type Confianza = 'alta' | 'media' | 'baja';
 
@@ -43,6 +44,13 @@ export class CursoItemResponseDto {
   extraccionEstado?: EstadoExtraccion;
   revisarFechas: boolean;
   motivosRevision: string[];
+  /** Fuente, precisión, confianza, evidencia y bloqueo de cada fecha. */
+  metaFechas?: Partial<
+    Record<
+      'fechaEmision' | 'fechaInicio' | 'fechaVencimiento',
+      MetaFechaResumen
+    >
+  >;
   creadoEn: string;
 }
 

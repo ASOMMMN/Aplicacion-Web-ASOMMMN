@@ -1,5 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import type {
+  CambioFecha,
+  MetaFechas,
+} from '../../docs-personales/ia/meta-fechas';
 import {
   ORIGENES_VENCIMIENTO,
   OrigenVencimiento,
@@ -110,6 +114,18 @@ export class Curso {
 
   @Prop({ type: [String], default: undefined })
   motivosRevision?: string[];
+
+  /**
+   * Por fecha: fuente (ia | manual | regla | cv), precisión, confianza
+   * (0–1), evidencia y bloqueo manual. Ausente en registros anteriores al
+   * 2026-10-06: se deduce al leer (meta-fechas-derivadas.ts) hasta migrar.
+   */
+  @Prop({ type: Object })
+  metaFechas?: MetaFechas;
+
+  /** Cambios de fechas: quién, cuándo, valor anterior → nuevo. */
+  @Prop({ type: [Object], default: undefined })
+  historialFechas?: CambioFecha[];
 
   @Prop()
   creadoEn: Date;

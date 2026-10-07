@@ -44,6 +44,7 @@ import {
   EstadoAnalisisGlobalDto,
   ResultadoAnalisisDocDto,
   VerificarFechasDocPersonalDto,
+  DesbloquearFechasDto,
 } from './dto/doc-personal.dto';
 import { AnalisisGlobalService } from './analisis-global.service';
 
@@ -391,6 +392,25 @@ export class DocsPersonalesController {
     @CurrentUser() user: AuthUser,
   ): Promise<DocPersonalResponseDto> {
     return this.svc.verificarFechas(user, id, body);
+  }
+
+  @Post(':id/desbloquear-reanalizar')
+  @Roles('evaluador', 'administrador')
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 120, ttl: 3_600_000 } })
+  @ApiOperation({
+    summary:
+      'Evaluador/Admin: quita el bloqueo manual de las fechas indicadas (o de todas) y vuelve a analizar',
+    description:
+      '"Volver a analizar" nunca toca las fechas corregidas a mano; esto sí, solo en los campos desbloqueados.',
+  })
+  @ApiResponse({ status: 201, type: ResultadoAnalisisDocDto })
+  desbloquearYReanalizar(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() body: DesbloquearFechasDto,
+    @CurrentUser() user: AuthUser,
+  ): Promise<ResultadoAnalisisDocDto> {
+    return this.svc.desbloquearYReanalizar(user, id, body.campos);
   }
 
   @Post(':id/propuesta/aceptar')

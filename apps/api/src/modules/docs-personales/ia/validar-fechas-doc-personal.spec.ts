@@ -295,3 +295,106 @@ describe('validarFechasDocPersonal: cursos (tipo "curso")', () => {
     expect(r.datosCurso?.fechaFinCurso.valor).toBe('2022-06-29');
   });
 });
+
+describe('validarFechasDocPersonal: reglas por tipo (fase 1 de vigencias)', () => {
+  it('INE de aceptación: VIGENCIA 2023 - 2033 con AÑO DE REGISTRO 2020 → emisión 2023, vence 2033, precisión año', () => {
+    const r = validar('INE', {
+      // El modelo tomó el año de registro como emisión (caso real).
+      fechaEmision: fecha('2020-01-01', 'AÑO DE REGISTRO 2020', {
+        etiqueta: 'AÑO DE REGISTRO',
+      }),
+      fechaVencimiento: fecha('2033-12-31', 'VIGENCIA 2023 - 2033'),
+    });
+    expect(r.fechaEmision).toBe('2023-01-01');
+    expect(r.detalle?.fechaEmision.precision).toBe('anio');
+    expect(r.fechaVencimiento).toBe('2033-12-31');
+    expect(r.detalle?.fechaVencimiento.precision).toBe('anio');
+    expect(r.detalle?.fechaEmision.textoLiteral).toBe('VIGENCIA 2023 - 2033');
+    expect(r.fechasDescartadas.join(' ')).toMatch(/año de registro/);
+    expect(r.revisar).toBe(false);
+  });
+
+  it('INE sin rango de VIGENCIA: el año de registro nunca es la emisión', () => {
+    const r = validar('INE', {
+      fechaEmision: fecha('2020-01-01', 'AÑO DE REGISTRO 2020', {
+        etiqueta: 'AÑO DE REGISTRO',
+      }),
+      fechaVencimiento: fecha('2033-12-31', 'VIGENCIA 2033'),
+    });
+    expect(r.fechaEmision).toBeNull();
+    expect(r.fechaVencimiento).toBe('2033-12-31');
+  });
+
+  it('INE con vigencia distinta de 10 años → Revisar', () => {
+    const r = validar('INE', {
+      fechaVencimiento: fecha('2032-12-31', 'VIGENCIA 2023 - 2032'),
+    });
+    expect(r.revisar).toBe(true);
+    expect(r.motivosRevision.join(' ')).toMatch(/9 años .*debe ser de 10/);
+  });
+
+  it('pasaporte: 3, 6 o 10 años; 1 año → Revisar', () => {
+    const ok = validar('pasaporte', {
+      fechaEmision: fecha('2026-04-15', '15 ABR 2026'),
+      fechaVencimiento: fecha('2032-04-15', '15 ABR 2032'),
+    });
+    expect(ok.revisar).toBe(false);
+    const raro = validar('pasaporte', {
+      fechaEmision: fecha('2025-04-15', '15 ABR 2025'),
+      fechaVencimiento: fecha('2026-04-15', '15 ABR 2026'),
+    });
+    expect(raro.motivosRevision.join(' ')).toMatch(/3, 6, 10 años/);
+  });
+
+  it('visa EUA "13MAY2024" se lee sin ambigüedad', () => {
+    const r = validar('visa', {
+      fechaEmision: fecha('2024-05-13', '13MAY2024'),
+    });
+    expect(r.fechaEmision).toBe('2024-05-13');
+    expect(r.revisar).toBe(false);
+  });
+
+  it('confianza baja (< 0.7) del modelo → Revisar con motivo', () => {
+    const r = validar('libreta_identidad_maritima', {
+      fechaVencimiento: fecha('2030-02-09', '09 FEB 2030', {
+        confianza: 'baja',
+      }),
+    });
+    expect(r.revisar).toBe(true);
+    expect(r.motivosRevision.join(' ')).toMatch(
+      /El vencimiento \(09\/02\/2030\) tiene confianza baja \(0\.4\)/,
+    );
+  });
+
+  it('dd/mm ambigua en un documento que no es de México → baja y Revisar', () => {
+    const r = validarFechasDocPersonal(
+      'certificado_competencia',
+      {
+        ...normalizarRespuesta({
+          paisEmisor: 'PA',
+          fechaEmision: fecha('2022-04-03', '03/04/2022'),
+          fechaInicio: fecha(null, null),
+          fechaVencimiento: fecha(null, null),
+        }),
+        formatoFechaIndicado: null,
+      },
+      HOY,
+    );
+    expect(r.fechaEmision).toBe('2022-04-03');
+    expect(r.confianza.fechaEmision).toBe('baja');
+    expect(r.motivosRevision.join(' ')).toMatch(/ambigua.*no es de México/);
+  });
+
+  it('noVence solo si no hay vencimiento', () => {
+    const sin = validar('constancia_participacion', {
+      noVence: true,
+      fechaEmision: fecha('2024-03-01', '01/03/2024'),
+    });
+    expect(sin.noVence).toBe(true);
+    const con = validar('constancia_participacion', {
+      noVence: true,
+      fechaVencimiento: fecha('2027-03-01', 'Vigencia: 01/03/2027'),
+    });
+    expect(con.noVence).toBe(false);
+  });
+});

@@ -15,6 +15,21 @@ import {
 } from './ia/extraer-fechas-doc-personal';
 import { ExtraccionIaService } from './extraccion-ia.service';
 import { cambiosPorAnalisis, resumenPropuesta } from './ia/cambios-analisis';
+import {
+  aConfianzaNumerica,
+  agregarHistorial,
+  CAMPOS_META,
+  CampoMeta,
+  cambiosDeFechas,
+  camposBloqueados,
+  completarFecha,
+  MetaFechas,
+} from './ia/meta-fechas';
+import {
+  metaFechasDocPersonal,
+  resumenMetaFechas,
+} from './ia/meta-fechas-derivadas';
+import type { PrecisionFecha } from './ia/formatos-fecha';
 import { estadoExtraccion } from './ia/estado-extraccion';
 import { resumenFuentes } from './ia/combinar-fuentes';
 import type { ResultadoExtraccionFechas } from './ia/extraer-fechas-doc-personal';
@@ -54,7 +69,19 @@ const STORAGE_CATEGORY = 'documentos';
 export type { ExtraerDocPersonalIaResponse } from './ia/extraer-fechas-doc-personal';
 
 /** Qué disparó un análisis (se guarda en auditoría). */
-export type DisparadorAnalisis = 'subida' | 'reanalisis' | 'lote';
+export type DisparadorAnalisis =
+  | 'subida'
+  | 'reanalisis'
+  | 'lote'
+  | 'desbloqueo';
+
+/** Para el historial de fechas: qué disparó el análisis. */
+const MOTIVO_ANALISIS: Record<DisparadorAnalisis, string> = {
+  subida: 'Análisis con IA al subir el documento',
+  reanalisis: 'Volver a analizar',
+  lote: 'Análisis por lotes',
+  desbloqueo: 'Desbloquear y reanalizar',
+};
 
 @Injectable()
 export class DocsPersonalesService {
@@ -123,6 +150,16 @@ export class DocsPersonalesService {
       motivosRevision: doc.motivosRevision ?? [],
       tipoSospechoso: doc.tipoSospechoso ?? null,
       propuestaFechas: resumenPropuesta(doc.propuestaFechasIa),
+      metaFechas: resumenMetaFechas(metaFechasDocPersonal(doc)),
+      historialFechas: (doc.historialFechas ?? []).map((h) => ({
+        campo: h.campo,
+        anterior: h.anterior,
+        nuevo: h.nuevo,
+        fuente: h.fuente,
+        motivo: h.motivo,
+        porEmail: h.porEmail ?? null,
+        en: new Date(h.en).toISOString(),
+      })),
       ...resumenFuentes(doc.detalleFechasIa, Boolean(doc.fechasVerificadas)),
       analizadoEn: doc.analisisIa?.analizadoEn,
       errorAnalisis: doc.analisisIa?.error,
@@ -228,6 +265,7 @@ export class DocsPersonalesService {
     buffer: Buffer,
     actor: AuthUser,
     disparadoPor: DisparadorAnalisis,
+    camposLibres: CampoMeta[] = [],
   ): Promise<ResultadoExtraccionFechas> {
     // Al subir se usa la caché (mismo archivo = mismas fechas). "Volver a
     // analizar" y el análisis por lotes la omiten y la actualizan.
@@ -238,7 +276,7 @@ export class DocsPersonalesService {
       usarCache: disparadoPor === 'subida',
       contextoLog: `[doc ${doc._id.toString()}]`,
     });
-    await this.guardarAnalisis(doc, r, actor, disparadoPor);
+    await this.guardarAnalisis(doc, r, actor, disparadoPor, camposLibres);
     return r;
   }
 
@@ -248,12 +286,25 @@ export class DocsPersonalesService {
     r: ResultadoExtraccionFechas,
     actor: AuthUser,
     disparadoPor: DisparadorAnalisis,
+    camposLibres: CampoMeta[] = [],
   ): Promise<void> {
     try {
       const cambios = cambiosPorAnalisis(r, {
         fechasVerificadas: Boolean(doc.fechasVerificadas),
-        // Protección: nunca pisar con null ni reemplazar en silencio.
-        anterior: doc,
+        // Protección: nunca pisar con null ni reemplazar en silencio; los
+        // campos bloqueados por una corrección manual no se tocan.
+        anterior: {
+          fechaEmision: doc.fechaEmision,
+          fechaInicio: doc.fechaInicio,
+          fechaVencimiento: doc.fechaVencimiento,
+          precisionFechas: doc.precisionFechas,
+          detalleFechasIa: doc.detalleFechasIa,
+          analisisIa: doc.analisisIa,
+          metaFechas: metaFechasDocPersonal(doc),
+          historialFechas: doc.historialFechas,
+        },
+        camposLibres,
+        motivo: MOTIVO_ANALISIS[disparadoPor],
       });
       // null = límite por minuto de OpenAI: el documento queda como estaba
       // (p. ej. "pendiente") para reintentarlo, no como error.
@@ -281,6 +332,7 @@ export class DocsPersonalesService {
     actor: AuthUser,
     docId: string,
     disparadoPor: DisparadorAnalisis = 'reanalisis',
+    camposLibres: CampoMeta[] = [],
   ): Promise<ResultadoAnalisisDocDto> {
     const doc = await this.docModel.findById(docId);
     if (!doc) throw new NotFoundException('Documento no encontrado.');
@@ -306,7 +358,13 @@ export class DocsPersonalesService {
     let aviso: string | undefined;
     let limitePorMinuto = false;
     if (buffer) {
-      const r = await this.analizarYGuardar(doc, buffer, actor, disparadoPor);
+      const r = await this.analizarYGuardar(
+        doc,
+        buffer,
+        actor,
+        disparadoPor,
+        camposLibres,
+      );
       if (r.errorOpenAI?.tipo === 'limite_por_minuto') {
         limitePorMinuto = true;
         aviso = r.resultado.errorMensaje;
@@ -435,13 +493,34 @@ export class DocsPersonalesService {
     const doc = await this.docModel.findById(docId);
     if (!doc) throw new NotFoundException('Documento no encontrado.');
 
-    const aFecha = (v: string | null | undefined) =>
-      v ? new Date(`${v}T00:00:00.000Z`) : null;
-    const nuevas = {
-      fechaEmision: aFecha(dto.fechaEmision),
-      fechaInicio: aFecha(dto.fechaInicio),
-      fechaVencimiento: aFecha(dto.fechaVencimiento),
+    // Solo los campos enviados se corrigen (y quedan bloqueados).
+    const campos = CAMPOS_META.filter((c) => dto[c] !== undefined);
+    if (campos.length === 0) {
+      throw new BadRequestException('Indica al menos una fecha.');
+    }
+    const precisionDto = dto.precisionFechas ?? {};
+    const precisiones: Partial<Record<CampoMeta, PrecisionFecha>> = {
+      ...(doc.precisionFechas ?? {}),
     };
+    const aFecha = (c: CampoMeta) => {
+      const v = dto[c];
+      if (!v) return null;
+      const p = precisionDto[c] ?? 'dia';
+      precisiones[c] = p;
+      return new Date(`${completarFecha(v, p, c)}T00:00:00.000Z`);
+    };
+    const nuevas: Record<CampoMeta, Date | null> = {
+      fechaEmision: campos.includes('fechaEmision')
+        ? aFecha('fechaEmision')
+        : (doc.fechaEmision ?? null),
+      fechaInicio: campos.includes('fechaInicio')
+        ? aFecha('fechaInicio')
+        : (doc.fechaInicio ?? null),
+      fechaVencimiento: campos.includes('fechaVencimiento')
+        ? aFecha('fechaVencimiento')
+        : (doc.fechaVencimiento ?? null),
+    };
+    for (const c of campos) if (!nuevas[c]) precisiones[c] = 'dia';
     const desde = nuevas.fechaEmision ?? nuevas.fechaInicio;
     if (desde && nuevas.fechaVencimiento && nuevas.fechaVencimiento <= desde) {
       throw new BadRequestException(
@@ -456,25 +535,55 @@ export class DocsPersonalesService {
       fechaVencimiento: iso(doc.fechaVencimiento),
     };
 
+    const ahora = new Date();
+    const actorId = new Types.ObjectId(actor.userId);
+    const meta: MetaFechas = { ...metaFechasDocPersonal(doc) };
+    for (const c of campos) {
+      meta[c] = {
+        fuente: 'manual',
+        precision: precisiones[c] ?? 'dia',
+        bloqueada: true,
+        evidencia: null,
+        editadoPor: actorId,
+        editadoPorEmail: actor.email,
+        editadoEn: ahora,
+      };
+    }
+    const historialFechas = agregarHistorial(
+      doc.historialFechas,
+      cambiosDeFechas(
+        doc,
+        doc.precisionFechas,
+        nuevas,
+        precisiones,
+        {
+          fuente: 'manual',
+          motivo: 'Corrección manual',
+          por: actorId,
+          porEmail: actor.email,
+          en: ahora,
+        },
+        campos,
+      ),
+    );
+
     doc.set({
       ...nuevas,
       revisarFechas: false,
       motivosRevision: [],
       // La corrección manual resuelve cualquier propuesta pendiente.
       propuestaFechasIa: null,
-      // El evaluador captura fechas completas.
-      precisionFechas: {
-        fechaEmision: 'dia',
-        fechaInicio: 'dia',
-        fechaVencimiento: 'dia',
-      },
+      precisionFechas: precisiones,
+      metaFechas: meta,
+      historialFechas,
       extraccionEstado: 'ok',
       extraccionError: null,
+      // Compatibilidad: hay al menos una fecha corregida a mano.
       fechasVerificadas: {
         ...nuevas,
-        verificadoPor: new Types.ObjectId(actor.userId),
+        verificadoPor: actorId,
         verificadoPorEmail: actor.email,
-        verificadoEn: new Date(),
+        verificadoEn: ahora,
       },
     });
     await doc.save();
@@ -547,7 +656,58 @@ export class DocsPersonalesService {
         if (f.fuente !== undefined) fuentes[c] = f.fuente;
       }
       if (detalle.fuentes) detalle.fuentes = fuentes;
-      doc.set({ detalleFechasIa: detalle, precisionFechas: precision });
+      const ahora = new Date();
+      const actorId = new Types.ObjectId(actor.userId);
+      const meta: MetaFechas = { ...metaFechasDocPersonal(doc) };
+      const aceptados = Object.keys(propuesta.fechas) as CampoMeta[];
+      for (const c of aceptados) {
+        const f = propuesta.fechas[c]!;
+        const det = f.detalle as
+          | { confianza?: string; textoLiteral?: string | null }
+          | undefined;
+        meta[c] = {
+          fuente: 'ia',
+          precision: f.precision,
+          confianza: aConfianzaNumerica(det?.confianza),
+          evidencia: det?.textoLiteral ?? null,
+          lector: (f.fuente as { fuente?: string } | undefined)?.fuente ?? 'ia',
+          bloqueada: false,
+          editadoPor: actorId,
+          editadoPorEmail: actor.email,
+          editadoEn: ahora,
+        };
+      }
+      const historialFechas = agregarHistorial(
+        doc.historialFechas,
+        cambiosDeFechas(
+          {
+            fechaEmision: antes.fechaEmision,
+            fechaInicio: antes.fechaInicio,
+            fechaVencimiento: antes.fechaVencimiento,
+          },
+          doc.precisionFechas,
+          {
+            fechaEmision: doc.fechaEmision,
+            fechaInicio: doc.fechaInicio,
+            fechaVencimiento: doc.fechaVencimiento,
+          },
+          precision,
+          {
+            fuente: 'ia',
+            motivo: 'Propuesta del reanálisis aceptada',
+            por: actorId,
+            porEmail: actor.email,
+            en: ahora,
+          },
+          aceptados,
+        ),
+      );
+      doc.set({
+        detalleFechasIa: detalle,
+        precisionFechas: precision,
+        metaFechas: meta,
+        historialFechas,
+      });
     }
     // Aceptar o descartar es la revisión del evaluador: se quita la marca.
     doc.set({
@@ -579,6 +739,48 @@ export class DocsPersonalesService {
       },
     });
     return this.toResponseDto(doc);
+  }
+
+  // ── Evaluador / Admin: desbloquear y reanalizar ───────────────────────────
+
+  /**
+   * Quita el bloqueo manual de los campos indicados (por defecto, todos los
+   * bloqueados) y vuelve a analizar: esos campos aceptan la lectura nueva.
+   * Solo desde el panel de detalle; "Volver a analizar" nunca desbloquea.
+   */
+  async desbloquearYReanalizar(
+    actor: AuthUser,
+    docId: string,
+    campos?: CampoMeta[],
+  ): Promise<ResultadoAnalisisDocDto> {
+    const doc = await this.docModel.findById(docId);
+    if (!doc) throw new NotFoundException('Documento no encontrado.');
+    const meta: MetaFechas = { ...metaFechasDocPersonal(doc) };
+    const bloqueados = camposBloqueados(meta);
+    const objetivo = campos?.length
+      ? campos.filter((c) => bloqueados.includes(c))
+      : bloqueados;
+    if (objetivo.length === 0) {
+      throw new BadRequestException(
+        'No hay fechas bloqueadas que desbloquear.',
+      );
+    }
+    for (const c of objetivo) meta[c] = { ...meta[c]!, bloqueada: false };
+    const siguenBloqueados = camposBloqueados(meta).length > 0;
+    doc.set({
+      metaFechas: meta,
+      ...(siguenBloqueados ? {} : { fechasVerificadas: null }),
+    });
+    await doc.save();
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'doc_personal_fechas_desbloqueadas',
+      recurso: 'DocPersonal',
+      recursoId: docId,
+      metadata: { tipoDocumento: doc.tipo, campos: objetivo },
+    });
+    return this.reanalizar(actor, docId, 'desbloqueo', objetivo);
   }
 
   // ── Postulante: subir ──────────────────────────────────────────────────────
@@ -808,13 +1010,14 @@ export class DocsPersonalesService {
         | 'precisionFechas'
         | 'detalleFechasIa'
         | 'propuestaFechasIa'
+        | 'metaFechas'
       > & { _id: Types.ObjectId }
     >
   > {
     return this.docModel
       .find({ postulanteId: new Types.ObjectId(postulanteId) })
       .select(
-        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError precisionFechas detalleFechasIa propuestaFechasIa',
+        'tipo nombreOriginal subidasEn fechaInicio fechaEmision fechaVencimiento revisarFechas motivosRevision fechasVerificadas analisisIa extraccionEstado extraccionError precisionFechas detalleFechasIa propuestaFechasIa metaFechas',
       )
       .sort({ subidasEn: -1 })
       .lean();

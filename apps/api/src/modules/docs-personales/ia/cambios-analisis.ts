@@ -23,6 +23,15 @@ import type { EstadoExtraccion } from './estado-extraccion';
 import type { PrecisionFechas } from '../schemas/doc-personal.schema';
 import { claveDeValor } from './combinar-fuentes';
 import { formatearConPrecision, PrecisionFecha } from './formatos-fecha';
+import {
+  aConfianzaNumerica,
+  agregarHistorial,
+  CambioFecha,
+  cambiosDeFechas,
+  camposBloqueados,
+  MetaFecha,
+  MetaFechas,
+} from './meta-fechas';
 
 /** Fecha nueva que el evaluador debe aceptar (no se aplicó sola). */
 export interface FechaPropuesta {
@@ -58,6 +67,10 @@ export interface CambiosAnalisis {
   motivosRevision?: string[];
   tipoSospechoso?: { tipoElegido: string; tipoDetectado: string } | null;
   propuestaFechasIa?: PropuestaFechasIa | null;
+  /** Fuente, precisión, confianza, evidencia y bloqueo de cada fecha. */
+  metaFechas?: MetaFechas;
+  /** Historial completo (anterior + cambios de este análisis). */
+  historialFechas?: CambioFecha[];
   extraccionEstado: EstadoExtraccion;
   /** Motivo si extraccionEstado = 'error'; null en los demás casos. */
   extraccionError: string | null;
@@ -99,6 +112,8 @@ export function detalleParaGuardar(
     ...(res.consenso ? { consenso: res.consenso } : {}),
     ...(res.reextraccion ? { reextraccion: res.reextraccion } : {}),
     ...(res.datosCurso ? { datosCurso: res.datosCurso } : {}),
+    ...(res.noVence ? { noVence: true } : {}),
+    ...(res.paisEmisor ? { paisEmisor: res.paisEmisor } : {}),
     ...(res.tipoDetectado
       ? {
           tipoDetectado: res.tipoDetectado,
@@ -116,6 +131,8 @@ export interface EstadoAnterior {
   precisionFechas?: PrecisionFechas | null;
   detalleFechasIa?: Record<string, unknown> | null;
   analisisIa?: { versionCanalizacion?: string } | null;
+  metaFechas?: MetaFechas | null;
+  historialFechas?: CambioFecha[] | null;
 }
 
 const aFecha = (iso: string | null) =>
@@ -144,6 +161,13 @@ export interface OpcionesCambios {
   fechasVerificadas?: boolean;
   /** Fechas y análisis que el documento ya tenía (protección de datos). */
   anterior?: EstadoAnterior;
+  /**
+   * "Desbloquear y reanalizar": estos campos aceptan la lectura nueva aunque
+   * el análisis anterior sea de esta versión (sin propuesta).
+   */
+  camposLibres?: CampoFecha[];
+  /** Para el historial: qué disparó el análisis. */
+  motivo?: string;
   ahora?: Date;
 }
 
@@ -184,7 +208,13 @@ export function cambiosPorAnalisis(
   const res = r.resultado;
 
   const detalleNuevo = detalleParaGuardar(res);
-  if (opciones.fechasVerificadas) {
+  const ant = opciones.anterior ?? {};
+  const bloqueados: CampoFecha[] = ant.metaFechas
+    ? camposBloqueados(ant.metaFechas)
+    : opciones.fechasVerificadas
+      ? [...CAMPOS_FECHA]
+      : [];
+  if (bloqueados.length === CAMPOS_FECHA.length) {
     return {
       detalleFechasIa: detalleNuevo,
       tipoSospechoso: res.tipoSospechoso ?? null,
@@ -195,8 +225,8 @@ export function cambiosPorAnalisis(
     };
   }
 
-  // ── Fecha final por campo: nueva, conservada o propuesta ──
-  const ant = opciones.anterior ?? {};
+  // ── Fecha final por campo: bloqueada, nueva, conservada o propuesta ──
+  const libres = opciones.camposLibres ?? [];
   const versionAnterior = ant.analisisIa?.versionCanalizacion ?? null;
   const hayAnterior = CAMPOS_FECHA.some((c) => aIso(ant[c]));
   const protegido = hayAnterior && versionAnterior === VERSION_CANALIZACION;
@@ -216,6 +246,11 @@ export function cambiosPorAnalisis(
     const precNueva = res.detalle?.[c].precision ?? 'dia';
     const vieja = aIso(ant[c]);
     const precVieja = ant.precisionFechas?.[c] ?? 'dia';
+    if (bloqueados.includes(c)) {
+      // Corrección manual: "Volver a analizar" nunca la toca.
+      finales[c] = { iso: vieja, precision: precVieja, deAnterior: true };
+      continue;
+    }
     const iguales =
       nueva !== null &&
       vieja !== null &&
@@ -228,7 +263,7 @@ export function cambiosPorAnalisis(
       continue;
     }
     if (vieja && nueva && !iguales) {
-      if (protegido) {
+      if (protegido && !libres.includes(c)) {
         finales[c] = { iso: vieja, precision: precVieja, deAnterior: true };
         propuesta[c] = {
           valor: aFecha(nueva),
@@ -277,6 +312,37 @@ export function cambiosPorAnalisis(
           }
         : { extraccionEstado: 'sin_fechas', extraccionError: null };
 
+  // Metadatos por fecha: los de la fecha que quedó (anterior o nueva).
+  const metaFechas: MetaFechas = {};
+  for (const c of CAMPOS_FECHA) {
+    if (finales[c].deAnterior) {
+      const previo = ant.metaFechas?.[c];
+      if (previo) metaFechas[c] = previo;
+      continue;
+    }
+    if (!finales[c].iso) continue;
+    const det = res.detalle?.[c];
+    const meta: MetaFecha = {
+      fuente: 'ia',
+      precision: finales[c].precision,
+      confianza: aConfianzaNumerica(res.confianza[c]),
+      evidencia: det?.textoLiteral ?? null,
+      lector: res.fuentes?.[c]?.fuente ?? 'ia',
+      bloqueada: false,
+    };
+    metaFechas[c] = meta;
+  }
+  const historialFechas = agregarHistorial(
+    ant.historialFechas,
+    cambiosDeFechas(
+      ant,
+      ant.precisionFechas ?? undefined,
+      Object.fromEntries(CAMPOS_FECHA.map((c) => [c, finales[c].iso])),
+      Object.fromEntries(CAMPOS_FECHA.map((c) => [c, finales[c].precision])),
+      { fuente: 'ia', motivo: opciones.motivo ?? 'Análisis con IA', en: ahora },
+    ),
+  );
+
   const hayPropuesta = Object.keys(propuesta).length > 0;
   const motivos = [...(res.motivosRevision ?? []), ...motivosPropuesta];
   return {
@@ -289,6 +355,8 @@ export function cambiosPorAnalisis(
       fechaVencimiento: finales.fechaVencimiento.precision,
     },
     detalleFechasIa,
+    metaFechas,
+    historialFechas,
     revisarFechas: Boolean(res.revisar) || hayPropuesta,
     motivosRevision: motivos,
     tipoSospechoso: res.tipoSospechoso ?? null,

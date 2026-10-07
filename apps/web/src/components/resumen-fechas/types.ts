@@ -38,6 +38,11 @@ export interface ResumenFechaItem {
   confianzaDocumento?: Partial<Record<'fechaInicio' | 'fechaEmision' | 'fechaVencimiento', ConfianzaIa>> | null;
   /** Cursos registrados que necesitan revisión, con sus motivos. */
   revisarFechasCurso?: { motivos: string[] } | null;
+  /**
+   * Por fecha: fuente (ia | manual | regla | cv), precisión, confianza 0–1,
+   * evidencia y si está bloqueada por una corrección manual.
+   */
+  metaFechas?: Partial<Record<CampoFecha, MetaFechaResumen>>;
   /** Confianza de la IA para las fechas tomadas del CV (si la devolvió). */
   confianzaCV: {
     fechaInicio?: ConfianzaIa;
@@ -92,6 +97,27 @@ export interface PropuestaFechas {
 }
 
 export type CampoFecha = 'fechaEmision' | 'fechaInicio' | 'fechaVencimiento';
+
+/** ia = leída del documento; manual = corregida a mano; regla = estimada (+5 años); cv = del CV. */
+export type FuenteMeta = 'ia' | 'manual' | 'regla' | 'cv';
+
+/** Menor a esto = confianza baja → revisar (igual que la API). */
+export const UMBRAL_CONFIANZA = 0.7;
+
+export interface MetaFechaResumen {
+  fuente: FuenteMeta;
+  precision: PrecisionFecha;
+  /** 0–1 (alta 0.9, media 0.7, baja 0.4). */
+  confianza: number | null;
+  /** Texto literal del documento de donde salió. */
+  evidencia: string | null;
+  /** Lector cuando fuente = ia: qr, texto o ia. */
+  lector: string | null;
+  /** Corrección manual: "Volver a analizar" no la cambia. */
+  bloqueada: boolean;
+  editadoPorEmail: string | null;
+  editadoEn: string | null;
+}
 
 /** qr = QR o cadena original; texto = etiqueta en el texto del PDF; ia = modelo. */
 export type FuenteFecha = 'qr' | 'texto' | 'ocr' | 'ia';

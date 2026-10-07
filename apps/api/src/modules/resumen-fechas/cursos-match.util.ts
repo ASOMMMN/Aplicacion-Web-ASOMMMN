@@ -308,3 +308,69 @@ export function unificarCursos(
 
   return resultado;
 }
+
+// ── Cursos del CV que son un documento personal (refrendo, título…) ────────
+
+/**
+ * Palabras del nombre en el CV que corresponden a cada tipo de documento
+ * personal. "Actualización para Maquinista Naval" ↔ refrendo.
+ */
+const PALABRAS_DOC_PERSONAL: Array<{ tipo: string; patron: RegExp }> = [
+  { tipo: 'refrendo', patron: /\b(refrendo|actualizacion|revalidacion|endoso|endorsement|renovacion)\b/ },
+  { tipo: 'certificado_competencia', patron: /\b(titulo|certificado de competencia|competencia|certificate of competency)\b/ },
+  { tipo: 'libreta_identidad_maritima', patron: /\b(libreta|seaman|seafarer)\b/ },
+  { tipo: 'certificado_medico', patron: /\b(medico|medical)\b/ },
+]; // prettier-ignore
+
+/** Mismo vencimiento: misma fecha; si alguno solo tiene año, mismo año. */
+function mismoVencimiento(cv: ItemBase, doc: ItemBase): boolean {
+  if (!cv.fechaVencimiento || !doc.fechaVencimiento) return false;
+  const soloAnio =
+    cv.precisionFechas?.fechaVencimiento === 'anio' ||
+    doc.precisionFechas?.fechaVencimiento === 'anio';
+  return soloAnio
+    ? cv.fechaVencimiento.slice(0, 4) === doc.fechaVencimiento.slice(0, 4)
+    : cv.fechaVencimiento === doc.fechaVencimiento;
+}
+
+/**
+ * Vincula los cursos que solo aparecen en el CV con el documento personal
+ * que los comprueba: nombre que corresponde al tipo (PALABRAS_DOC_PERSONAL)
+ * Y mismo vencimiento real. Se muestran como un solo registro (el
+ * documento, con su comprobante) y el curso del CV sale de la lista.
+ *
+ * Devuelve los cursos que quedan y los documentos (con nombreEnCV y la
+ * fuente "CV" en los vinculados). No modifica los arreglos recibidos.
+ */
+export function vincularCvConDocumentos(
+  cursos: ItemBase[],
+  documentos: ItemBase[],
+): { cursos: ItemBase[]; documentos: ItemBase[] } {
+  const docs = documentos.map((d) => ({ ...d, fuente: [...d.fuente] }));
+  const restantes: ItemBase[] = [];
+  for (const curso of cursos) {
+    if (curso.origen !== 'cv' || curso.fechaVencimientoEstimada) {
+      restantes.push(curso);
+      continue;
+    }
+    const nombre = quitarAcentos(curso.nombre).toLowerCase();
+    const tipos = PALABRAS_DOC_PERSONAL.filter((p) =>
+      p.patron.test(nombre),
+    ).map((p) => p.tipo);
+    const destino = docs.find(
+      (d) =>
+        d.docPersonal &&
+        tipos.includes(d.docPersonal.tipoDocumento ?? '') &&
+        !d.nombreEnCV &&
+        mismoVencimiento(curso, d),
+    );
+    if (!destino) {
+      restantes.push(curso);
+      continue;
+    }
+    destino.nombreEnCV = curso.nombre;
+    destino.confianzaCV = curso.confianzaCV;
+    destino.fuente = [...new Set([...destino.fuente, ...curso.fuente])];
+  }
+  return { cursos: restantes, documentos: docs };
+}

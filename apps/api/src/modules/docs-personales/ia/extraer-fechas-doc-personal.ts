@@ -143,6 +143,10 @@ export interface ExtraerDocPersonalIaResponse {
   tipoDetectado?: string | null;
   /** Qué tan seguro está el modelo del tipo detectado. */
   confianzaTipo?: Confianza;
+  /** País que emite el documento (ISO de 2 letras): "US" usa mm/dd. */
+  paisEmisor?: string | null;
+  /** El documento no tiene vencimiento (p. ej. constancia sin vigencia). */
+  noVence?: boolean;
   /** Cada lectura del modelo (doble lectura) con sus fechas validadas. */
   lecturasIa?: ResumenLecturaIa[];
   /** Consenso por campo entre lecturas (si hubo más de una). */
@@ -274,7 +278,12 @@ export function respuestaDesdeDetalle(
   detalle: Record<CampoFecha, FechaDetectada>,
   extra: Pick<
     ExtraerDocPersonalIaResponse,
-    'tipoDetectado' | 'formatoFechaIndicado' | 'confianzaTipo' | 'datosCurso'
+    | 'tipoDetectado'
+    | 'formatoFechaIndicado'
+    | 'confianzaTipo'
+    | 'datosCurso'
+    | 'paisEmisor'
+    | 'noVence'
   > = {},
 ): ExtraerDocPersonalIaResponse {
   return {
@@ -325,6 +334,8 @@ export function normalizarRespuesta(
     tipoDetectado: texto(parsed.tipoDetectado),
     formatoFechaIndicado: texto(parsed.formatoFechaIndicado),
     confianzaTipo: normalizarConfianza(parsed.confianzaTipo),
+    paisEmisor: texto(parsed.paisEmisor)?.toUpperCase().slice(0, 2) ?? null,
+    noVence: parsed.noVence === true,
     ...datosCursoDe(parsed),
   });
 }
@@ -401,7 +412,9 @@ export function formatoComprobado(
   ]);
   return (
     detectarIndicadorFormato(...doc.paginas.map((p) => p.texto)) ??
-    detectarIndicadorFormato(...deModelo)
+    detectarIndicadorFormato(...deModelo) ??
+    // Sin indicador escrito: dd/mm, salvo documentos emitidos en EE. UU.
+    (propuesta?.paisEmisor?.toUpperCase() === 'US' ? 'mm/dd/aaaa' : null)
   );
 }
 
@@ -451,6 +464,8 @@ export function combinarConIa(
       formatoFechaIndicado: validado.formatoFechaIndicado,
       confianzaTipo: validado.confianzaTipo,
       datosCurso: validado.datosCurso,
+      paisEmisor: validado.paisEmisor,
+      noVence: validado.noVence,
     }),
   );
 

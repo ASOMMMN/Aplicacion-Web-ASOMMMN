@@ -23,9 +23,11 @@ describe('prompts de documentos personales', () => {
     expect(r).toContain('Expiration date of medical certificate');
   });
 
-  it('INE: vigencia de solo año → 31/12 con precisión "anio"', () => {
-    expect(REGLAS_POR_TIPO.INE).toMatch(/AAAA-12-31/);
+  it('INE: emisión y vencimiento salen de VIGENCIA (año); ignora el año de registro', () => {
+    expect(REGLAS_POR_TIPO.INE).toMatch(/PRIMER año de VIGENCIA/);
+    expect(REGLAS_POR_TIPO.INE).toMatch(/SEGUNDO año de VIGENCIA/);
     expect(REGLAS_POR_TIPO.INE).toMatch(/precision "anio"/);
+    expect(REGLAS_POR_TIPO.INE).toMatch(/AÑO DE REGISTRO/);
   });
 
   it('prompt base: México es dd/mm y los casos ambiguos bajan la confianza', () => {
