@@ -350,7 +350,9 @@ export class EvaluacionesService {
             tamanio: cvActual.tamanio,
             version: cvActual.version,
             subidasEn: cvActual.subidasEn,
+            tipoMime: cvActual.tipoMime,
             urlDescargar: cvActual.urlDescargar,
+            urlVista: cvActual.urlVista,
             storageType: cvActual.storageType,
           }
         : null,

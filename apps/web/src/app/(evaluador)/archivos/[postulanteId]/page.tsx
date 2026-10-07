@@ -20,6 +20,7 @@ import {
 } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
+import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 
 interface EvalItem {
   _id: string;
@@ -30,7 +31,12 @@ interface EvalItem {
   tamanio?: number;
   creadoEn: string;
   urlDescargar?: string;
+  urlVista?: string;
   storageType?: 'local' | 'cloudinary';
+}
+
+function canPreview(item: EvalItem): boolean {
+  return Boolean(item.tipoMime?.startsWith('image/') || item.tipoMime === 'application/pdf');
 }
 
 function formatBytes(bytes: number): string {
@@ -58,6 +64,8 @@ export default function EvalArchivosPage() {
   const [buscando, setBuscando] = useState(false);
 
   const [showCarpetaModal, setShowCarpetaModal] = useState(false);
+  /** Archivo del que se está viendo la vista previa. */
+  const [previewItem, setPreviewItem] = useState<EvalItem | null>(null);
   const [nuevaCarpeta, setNuevaCarpeta] = useState('');
   const [creandoCarpeta, setCreandoCarpeta] = useState(false);
 
@@ -324,6 +332,17 @@ export default function EvalArchivosPage() {
                         >
                           📁 {item.nombre}
                         </span>
+                      ) : item.urlVista && canPreview(item) ? (
+                        <Button
+                          variant="link"
+                          className="p-0"
+                          style={{ color: 'inherit', textDecoration: 'none' }}
+                          title="Ver documento"
+                          onClick={() => setPreviewItem(item)}
+                        >
+                          <i className="bi bi-eye me-1" />
+                          {item.nombre}
+                        </Button>
                       ) : (
                         <span>📄 {item.nombre}</span>
                       )}
@@ -427,6 +446,25 @@ export default function EvalArchivosPage() {
           </Button>
         </Modal.Footer>
       </Modal>
+
+      {previewItem?.urlVista && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewItem(null)}
+          titulo="Archivos de evaluación"
+          nombreArchivo={previewItem.nombre}
+          cargar={() =>
+            Promise.resolve({
+              url: previewItem.urlVista!,
+              mimeType: previewItem.tipoMime ?? null,
+            })
+          }
+          onDescargar={() =>
+            previewItem.urlDescargar &&
+            window.open(previewItem.urlDescargar, '_blank', 'noopener,noreferrer')
+          }
+        />
+      )}
     </Container>
   );
 }

@@ -197,7 +197,9 @@ export class CandidatoDetalleDto {
     tamanio: number;
     version: number;
     subidasEn: Date;
+    tipoMime: string;
     urlDescargar?: string;
+    urlVista?: string;
     storageType: 'local' | 'cloudinary';
   } | null;
 }

@@ -121,6 +121,11 @@ export class DocumentosService {
         file.originalname,
         file.mimetype,
       );
+      const urlVista = await this.storageService.getPreviewUrl(
+        url,
+        file.originalname,
+        file.mimetype,
+      );
 
       return {
         _id: documento._id.toString(),
@@ -128,7 +133,9 @@ export class DocumentosService {
         tamanio: documento.tamanio,
         version: documento.version,
         subidasEn: documento.subidasEn,
+        tipoMime: documento.tipoMime,
         urlDescargar,
+        urlVista,
         storageType: 'cloudinary',
       };
     } catch (error: unknown) {
@@ -172,9 +179,18 @@ export class DocumentosService {
       tamanio: documento.tamanio,
       version: documento.version,
       subidasEn: documento.subidasEn,
+      tipoMime: documento.tipoMime,
       urlDescargar:
         storageType === 'cloudinary'
           ? await this.storageService.getSecureDownloadUrl(
+              documento.cloudinaryUrl!,
+              documento.nombreOriginal,
+              documento.tipoMime,
+            )
+          : undefined,
+      urlVista:
+        storageType === 'cloudinary'
+          ? await this.storageService.getPreviewUrl(
               documento.cloudinaryUrl!,
               documento.nombreOriginal,
               documento.tipoMime,

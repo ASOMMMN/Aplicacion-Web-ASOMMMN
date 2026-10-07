@@ -40,11 +40,20 @@ export class DocumentoActualResponseDto {
   @ApiProperty()
   declare subidasEn: Date;
 
+  @ApiProperty()
+  declare tipoMime: string;
+
   @ApiPropertyOptional({
     description:
       'Ausente si el archivo es de un almacenamiento anterior (storageType local)',
   })
   declare urlDescargar?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'URL firmada para vista previa (Content-Disposition: inline, TTL 15 min). Ausente si el archivo es de un almacenamiento anterior.',
+  })
+  declare urlVista?: string;
 
   @ApiProperty({
     enum: ['local', 'cloudinary'],

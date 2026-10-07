@@ -373,6 +373,13 @@ export class EvalArchivosService {
             i.tipoMime ?? 'application/octet-stream',
           )
         : undefined,
+      urlVista: esCloudinario
+        ? await this.storage.getPreviewUrl(
+            i.cloudinaryUrl!,
+            i.nombre ?? 'archivo',
+            i.tipoMime ?? 'application/octet-stream',
+          )
+        : undefined,
     };
   }
 
