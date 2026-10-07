@@ -172,12 +172,51 @@ Fases:
   `CastError` de Mongoose en 400), pero falta el mensaje específico por
   endpoint que sí tienen los controladores corregidos (cursos,
   docs-personales, expediente).
-- **Visor de documentos sin descarga:** no existe un visor embebido; hoy
-  todo (`documentos`, `mi-nube`, candidato) abre `urlDescargar`/`view`
-  con `window.open`, que el navegador puede ofrecer como descarga según su
-  configuración. Si se requiere que NUNCA sea descargable (p. ej. un
-  `<iframe>` con el PDF y `Content-Disposition: inline`, que `mi-nube/view`
-  ya manda), es una tarea de UI aparte, no incluida hoy.
+- **Visor de documentos sin descarga: resuelto en la Fase 7** (ver abajo)
+  para docs-personales, cursos y Mi Nube. Queda sin modal de vista previa
+  (siguen con `window.open`/enlace directo): el CV del candidato
+  (`detalle.cvActual`) y los archivos de evaluación (`eval-archivos`,
+  sección "Archivos" dentro del detalle del candidato) — no se pidieron
+  explícitamente y `documentos`/`eval-archivos` no exponen `urlVista`
+  todavía.
+
+## Fase 7 — vista previa de documentos y botón "Descargar bitácora" (2026-10-07)
+
+- **Backend:** `S3Service.getSignedUrl` ahora firma con
+  `ResponseContentDisposition`/`ResponseContentType` (inline o attachment
+  con el nombre real); antes `StorageService.getSecureDownloadUrl` recibía
+  `filename`/`mime` pero los ignoraba por completo (parámetros con `_` sin
+  usar). Nuevo `StorageService.getPreviewUrl` (inline). `docs-personales`
+  (`DocPersonalResponseDto`) y `cursos` (`documentoExtra`) exponen
+  `urlVista` junto a `urlDescargar`. Mismos guards de siempre; ningún
+  endpoint nuevo salvo el que ya exponía la URL.
+- **Frontend:** `DocumentoPreviewModal` (en
+  `components/documentos/`, reusable): PDF en `<iframe>` (controles de
+  página nativos del navegador, no se agregó `react-pdf` para no sumar el
+  worker de pdf.js con Turbopack), imagen en `<img>`, "Vista previa no
+  disponible" + Descargar para lo demás. Cierra con X/Esc/clic fuera
+  (default de `Modal` de react-bootstrap). Carga siempre al abrir (URL
+  fresca); si falla, un reintento automático antes de mostrar error con
+  botón "Reintentar" (cubre una URL firmada que expiró entre que se listó
+  y se abrió el modal); libera el `object URL` de Mi Nube al reemplazarlo,
+  cerrar o desmontar.
+  - Conectado en: Resumen de fechas (nombre del documento personal con
+    ícono de ojo), Cursos y certificaciones del candidato (botón "Ver"),
+    Mi Nube (nombre del archivo y botón "Ver"; antes abrían un blob en una
+    pestaña nueva).
+- **"Descargar bitácora":** botón con dropdown Word/PDF junto a "Analizar
+  documentos pendientes" (Resumen de fechas, detalle del candidato).
+  **Decisión (no confirmada con el usuario, documentada aquí):** a pesar
+  del nombre, la descripción pedida (secciones "Cursos y Certificaciones"
+  + "Documentos Personales", mismas columnas, "reutiliza el mismo
+  generador... sin cambiar nada visual") coincide exactamente con
+  "Generar Expediente" ya existente (que además incluye Bitácora de
+  Embarque). Se implementó como un segundo botón que llama al mismo
+  `GET /candidatos/:id/expediente`, sin generar un documento distinto. Si
+  el usuario quería un documento *solo* de bitácora de embarque (sin
+  cursos/documentos personales) o con otras columnas, falta ajustarlo.
+
+tsc/build/lint/Jest en verde en api y web (31/321).
 
 ## Objetivo
 
