@@ -118,6 +118,66 @@ Fases:
   de impartición, pasaporte con MRZ): 3/3 estables en 3 corridas.
   **Pendiente:** correrlo con los documentos reales cuando estén en
   `muestras-ia/`.
+- [x] **Fase 6 — cierre para producción (2026-10-07).** Normalización de
+  line endings (`.gitattributes`, commit aparte). Front consume
+  `metaFechas`/`historialFechas`: en "Resumen de fechas" cada fecha muestra
+  su fuente (lector o "Manual"), candado si está bloqueada por corrección
+  manual y badge "Revisar" si la confianza de la IA es baja; el corregir
+  ahora solo envía (y bloquea) los campos que de verdad cambiaron, con
+  selector de precisión (día/mes/año); nuevo botón "Desbloquear y
+  reanalizar" (con confirmación) llama a
+  `POST /docs-personales/:id/desbloquear-reanalizar`. "Generar Expediente"
+  agrega una tabla de Documentos Personales (mismas fechas y vigencia que
+  el Resumen, vía `ResumenFechasService` inyectado en `ExpedienteModule`) en
+  DOCX y PDF. `AllExceptionsFilter` convierte un `CastError` de Mongoose
+  (id mal formado) en 400 en vez de 500, para los controladores que aún no
+  usan `ParseObjectIdPipe` en cada parámetro (Mi Nube, documentos, etc.).
+  Test nuevo: guards/roles/validación del endpoint de desbloqueo
+  (`docs-personales.controller.spec.ts`). `apps/web/.env.example` (faltaba:
+  `NEXT_PUBLIC_API_URL`, requerida para el build de producción por el CSP).
+  Jest 31 suites / 321 tests.
+  **Aviso:** `cd apps/web && git ...` usa el `.git` anidado y obsoleto
+  (`apps/web/.git`, commit `c3fa8cf`, del 31-jul) en vez del repo
+  principal — mismo problema ya documentado abajo en "`.git` anidado".
+  Para cualquier `git status`/`diff`/`add` hay que pararse en la raíz del
+  repo (`C:\ASOMMMN`) y usar rutas `apps/web/...`, nunca `cd apps/web`.
+  Se confirmó de nuevo que es seguro borrar `apps/web/.git`.
+
+## Deuda técnica (no se tocó en esta fase)
+
+- **Lint de la API: 189 errores preexistentes**, ninguno introducido por
+  esta fase (`npx eslint "src/**/*.ts"` sin `--fix`). Casi todos
+  `@typescript-eslint/no-unsafe-*` por falta de tipado en lecturas de
+  Mongoose/Express: `evaluaciones.service.ts` (79), `postulantes.service.ts`
+  (24), `main.ts` (24), `mfa.service.ts` (16), `reportes.service.ts` (11) y
+  otros 7 archivos menores; 51 son solo de formato (`prettier/prettier`,
+  corregibles con `--fix`, que también reescribiría archivos sin tocar).
+  No son errores de tipo de TypeScript (`tsc --noEmit` pasa limpio) ni
+  bloquean build, tests ni los flujos de login/subida/Mi Nube/evaluación/
+  expediente — son avisos de tipado, no bugs confirmados. Corregirlos bien
+  (tipar las consultas de Mongoose en vez de silenciar la regla) es trabajo
+  de varias horas en código no relacionado con esta fase; se deja pendiente
+  para no arriesgar una regresión el día del deploy.
+- **Script de migración (`scripts/migrar-meta-fechas.ts`):** sigue sin
+  probarse contra Atlas real. Es idempotente y por defecto `--dry-run`
+  (confirmado leyendo el código: solo hace `find`, nunca escribe sin
+  `--ejecutar`), pero no se pudo ejecutar ni en modo lectura porque la IP
+  de este entorno no está en la whitelist de Atlas («Could not connect to
+  any servers in your MongoDB Atlas cluster»). Pendiente: correrlo en
+  dry-run desde una máquina con acceso a Atlas antes de ejecutarlo de
+  verdad.
+- **`@Param('id')` sin `ParseObjectIdPipe`** en Mi Nube, documentos,
+  chatbot, eval-archivos, evaluaciones, bitácora de embarque (~25
+  parámetros). Ya no da 500 (el filtro global ahora convierte el
+  `CastError` de Mongoose en 400), pero falta el mensaje específico por
+  endpoint que sí tienen los controladores corregidos (cursos,
+  docs-personales, expediente).
+- **Visor de documentos sin descarga:** no existe un visor embebido; hoy
+  todo (`documentos`, `mi-nube`, candidato) abre `urlDescargar`/`view`
+  con `window.open`, que el navegador puede ofrecer como descarga según su
+  configuración. Si se requiere que NUNCA sea descargable (p. ej. un
+  `<iframe>` con el PDF y `Content-Disposition: inline`, que `mi-nube/view`
+  ya manda), es una tarea de UI aparte, no incluida hoy.
 
 ## Objetivo
 
