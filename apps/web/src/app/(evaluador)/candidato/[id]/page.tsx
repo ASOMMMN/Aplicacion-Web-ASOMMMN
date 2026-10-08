@@ -72,6 +72,7 @@ interface DocPersonalFile {
   tipoMime: string;
   subidasEn: string;
   urlDescargar?: string;
+  urlVista?: string;
   storageType?: 'local' | 'cloudinary';
 }
 
@@ -362,6 +363,7 @@ export default function CandidatoDetallePage() {
   const [cursosData, setCursosData] = useState<CursosResponse | null>(null);
   /** Curso del que se está viendo el certificado adjunto. */
   const [previewCurso, setPreviewCurso] = useState<CursoItem | null>(null);
+  const [previewDocPersonal, setPreviewDocPersonal] = useState<DocPersonalFile | null>(null);
   /** Vista previa del CV actual abierta. */
   const [previewCV, setPreviewCV] = useState(false);
   const [docsPersonales, setDocsPersonales] = useState<DocsPersonalesResumen | null>(null);
@@ -876,17 +878,29 @@ export default function CandidatoDetallePage() {
                                     </div>
                                   </div>
                                   {f.urlDescargar ? (
-                                    <Button
-                                      size="sm"
-                                      variant="outline-primary"
-                                      href={f.urlDescargar}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="flex-shrink-0"
-                                    >
-                                      <i className="bi bi-download me-1" />
-                                      Descargar
-                                    </Button>
+                                    <div className="d-flex gap-2 flex-shrink-0">
+                                      {f.urlVista && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline-secondary"
+                                          title="Ver documento"
+                                          onClick={() => setPreviewDocPersonal(f)}
+                                        >
+                                          <i className="bi bi-eye me-1" />
+                                          Ver
+                                        </Button>
+                                      )}
+                                      <Button
+                                        size="sm"
+                                        variant="outline-primary"
+                                        href={f.urlDescargar}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        <i className="bi bi-download me-1" />
+                                        Descargar
+                                      </Button>
+                                    </div>
                                   ) : (
                                     <span className="text-warning small flex-shrink-0">
                                       ⚠️ Vuelve a subirlo
@@ -1295,6 +1309,24 @@ export default function CandidatoDetallePage() {
           onDescargar={() =>
             previewCurso.documentoExtra?.urlDescargar &&
             window.open(previewCurso.documentoExtra.urlDescargar, '_blank', 'noopener,noreferrer')
+          }
+        />
+      )}
+      {previewDocPersonal?.urlVista && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewDocPersonal(null)}
+          titulo="Documento personal"
+          nombreArchivo={previewDocPersonal.nombreOriginal}
+          cargar={() =>
+            Promise.resolve({
+              url: previewDocPersonal.urlVista!,
+              mimeType: previewDocPersonal.tipoMime,
+            })
+          }
+          onDescargar={() =>
+            previewDocPersonal.urlDescargar &&
+            window.open(previewDocPersonal.urlDescargar, '_blank', 'noopener,noreferrer')
           }
         />
       )}

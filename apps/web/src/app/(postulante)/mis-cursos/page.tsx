@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { IconTimon, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 import {
   formatearFechaCalendario,
   type OrigenVencimiento,
@@ -45,6 +46,7 @@ type CursoItem = {
     tamanio: number;
     tipoMime: string;
     urlDescargar?: string;
+    urlVista?: string;
     storageType?: 'local' | 'cloudinary';
   };
 };
@@ -161,6 +163,7 @@ export default function MisCursosPage() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
   const [data, setData]             = useState<CursosResponse | null>(null);
+  const [previewCurso, setPreviewCurso] = useState<CursoItem | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
   // AI flow
@@ -656,6 +659,16 @@ export default function MisCursosPage() {
                               </td>
                               <td className="text-end">
                                 <div className="d-flex gap-2 justify-content-end flex-wrap">
+                                  {curso.documentoExtra?.urlVista && (
+                                    <Button
+                                      variant="outline-secondary"
+                                      size="sm"
+                                      title="Ver certificado"
+                                      onClick={() => setPreviewCurso(curso)}
+                                    >
+                                      👁 Ver
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="outline-secondary"
                                     size="sm"
@@ -685,6 +698,26 @@ export default function MisCursosPage() {
 
         </Row>
       </div>
+      {previewCurso?.documentoExtra?.urlVista && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewCurso(null)}
+          titulo={previewCurso.nombreCurso}
+          nombreArchivo={previewCurso.documentoExtra.nombreOriginal}
+          fechaEmision={previewCurso.fechaInicio}
+          fechaVencimiento={previewCurso.fechaVencimiento}
+          cargar={() =>
+            Promise.resolve({
+              url: previewCurso.documentoExtra!.urlVista!,
+              mimeType: previewCurso.documentoExtra!.tipoMime,
+            })
+          }
+          onDescargar={() =>
+            previewCurso.documentoExtra?.urlDescargar &&
+            window.open(previewCurso.documentoExtra.urlDescargar, '_blank', 'noopener,noreferrer')
+          }
+        />
+      )}
     </div>
   );
 }

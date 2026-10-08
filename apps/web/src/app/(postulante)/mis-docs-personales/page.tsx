@@ -14,6 +14,7 @@ import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
 import { DocumentChecklist } from '@/components/documentos/DocumentChecklist';
+import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ interface DocFile {
   tipoMime: string;
   subidasEn: string;
   urlDescargar?: string;
+  urlVista?: string;
   storageType?: 'local' | 'cloudinary';
 }
 
@@ -120,6 +122,7 @@ function TarjetaTipo({
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
+  const [previewDoc, setPreviewDoc] = useState<DocFile | null>(null);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -223,6 +226,7 @@ function TarjetaTipo({
   };
 
   return (
+    <>
     <Card className="card-enmv card-enmv-top-azul card-riveted h-100">
       <Card.Body>
         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -266,6 +270,15 @@ function TarjetaTipo({
                   </div>
                 )}
                 <div className="d-flex gap-2 flex-wrap mt-2">
+                  {doc.urlVista && (
+                    <Button
+                      size="sm"
+                      variant="outline-secondary"
+                      onClick={() => setPreviewDoc(doc)}
+                    >
+                      👁 Ver
+                    </Button>
+                  )}
                   {doc.urlDescargar && (
                     <Button
                       size="sm"
@@ -329,6 +342,25 @@ function TarjetaTipo({
         )}
       </Card.Body>
     </Card>
+    {previewDoc?.urlVista && (
+      <DocumentoPreviewModal
+        show
+        onHide={() => setPreviewDoc(null)}
+        titulo={info.label}
+        nombreArchivo={previewDoc.nombreOriginal}
+        cargar={() =>
+          Promise.resolve({
+            url: previewDoc.urlVista!,
+            mimeType: previewDoc.tipoMime,
+          })
+        }
+        onDescargar={() =>
+          previewDoc.urlDescargar &&
+          window.open(previewDoc.urlDescargar, '_blank', 'noopener,noreferrer')
+        }
+      />
+    )}
+    </>
   );
 }
 

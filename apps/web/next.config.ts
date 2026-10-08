@@ -9,6 +9,16 @@ if (!rawApiUrl && !isDev) {
 }
 const apiOrigin = (rawApiUrl ?? "http://localhost:3001").replace(/\/$/, "");
 
+// Host del bucket S3 (sin esquema) donde se guardan los archivos. Las
+// vistas previas (certificados, documentos personales, CV) embeben la URL
+// firmada de S3 directamente en <iframe>/<img>, así que el CSP necesita
+// permitir ESTE host exacto en frame-src/img-src (nunca un wildcard tipo
+// "*.amazonaws.com"): sin esto, el navegador bloquea el iframe/imagen y se
+// ve como "archivo roto" aunque la URL firmada sea válida.
+const s3Host =
+  process.env.NEXT_PUBLIC_S3_HOST ??
+  "asommmn-reclutamiento.s3.us-east-2.amazonaws.com";
+
 // CSP sin nonces (patrón documentado por Next.js para apps con render estático/
 // ISR): un CSP con nonces obliga a "dynamic rendering" en TODAS las páginas
 // (ver node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md),
@@ -32,10 +42,11 @@ const securityHeaders = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      `img-src 'self' data: blob: https://${s3Host}`,
       `connect-src 'self' ${apiOrigin}`,
       "font-src 'self'",
       "object-src 'none'",
+      `frame-src 'self' https://${s3Host}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

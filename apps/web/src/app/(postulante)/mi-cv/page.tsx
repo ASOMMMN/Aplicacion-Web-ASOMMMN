@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 
 interface Documento {
   _id: string;
@@ -31,7 +32,9 @@ interface CVActual {
   tamanio: number;
   version: number;
   subidasEn: string;
+  tipoMime?: string;
   urlDescargar?: string;
+  urlVista?: string;
   storageType?: 'local' | 'cloudinary';
 }
 
@@ -63,6 +66,7 @@ export default function MiCVPage() {
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewCV, setPreviewCV] = useState(false);
 
   const cargarCV = useCallback(async () => {
     try {
@@ -287,6 +291,15 @@ export default function MiCVPage() {
                     </p>
                   )}
                   <div className="d-flex gap-2 flex-wrap">
+                    {cvActual.storageType !== 'local' && (
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => setPreviewCV(true)}
+                      >
+                        👁 Ver
+                      </Button>
+                    )}
                     <Button
                       variant="outline-success"
                       size="sm"
@@ -496,6 +509,20 @@ export default function MiCVPage() {
           </Col>
         </Row>
       </Container>
+      {previewCV && cvActual && (
+        <DocumentoPreviewModal
+          show
+          onHide={() => setPreviewCV(false)}
+          titulo="CV"
+          nombreArchivo={cvActual.nombreOriginal}
+          cargar={async () => {
+            const res = await api.get<CVActual>(`/documentos/${cvActual._id}/descargar`);
+            if (!res.data.urlVista) throw new Error('Documento no disponible.');
+            return { url: res.data.urlVista, mimeType: res.data.tipoMime ?? 'application/pdf' };
+          }}
+          onDescargar={() => descargarCV(cvActual._id)}
+        />
+      )}
     </div>
   );
 }
