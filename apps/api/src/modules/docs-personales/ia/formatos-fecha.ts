@@ -77,6 +77,124 @@ export function normalizarTexto(t: string): string {
     .replace(/(\d)\s*[°º]/g, '$1');
 }
 
+// ── Números en letras (fechas escritas completamente con palabras) ────────
+//
+// "veinticuatro de mayo de dos mil diecisiete" (ES) o "twenty-fourth of May
+// 2017" (EN): se convierten las palabras numéricas a dígitos ANTES de los
+// patrones de arriba, que ya saben leer "24 de mayo de 2017"/"May 24, 2017".
+// Así no hace falta un patrón de fecha nuevo por cada combinación.
+
+/** Unidades, decenas y compuestos 1-99 en español (acentos ya quitados). */
+const UNIDAD_ES: Record<string, number> = {
+  primero: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7,
+  ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14,
+  quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
+  veinte: 20, veintiuno: 21, veintidos: 22, veintitres: 23, veinticuatro: 24,
+  veinticinco: 25, veintiseis: 26, veintisiete: 27, veintiocho: 28,
+  veintinueve: 29, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60,
+  setenta: 70, ochenta: 80, noventa: 90,
+}; // prettier-ignore
+
+/** Centenas en español (cien/ciento 100, y las formas en -os/-as). */
+const CENTENA_ES: Record<string, number> = {
+  cien: 100, ciento: 100, doscientos: 200, doscientas: 200,
+  trescientos: 300, trescientas: 300, cuatrocientos: 400, cuatrocientas: 400,
+  quinientos: 500, quinientas: 500, seiscientos: 600, seiscientas: 600,
+  setecientos: 700, setecientas: 700, ochocientos: 800, ochocientas: 800,
+  novecientos: 900, novecientas: 900,
+}; // prettier-ignore
+
+/** Suma unidades/decenas/centenas y multiplica por 1000 en "mil"; null si no hay número. */
+function parseNumeroPalabrasEs(tokens: string[]): number | null {
+  let total = 0;
+  let actual = 0;
+  let huboNumero = false;
+  for (const tk of tokens) {
+    if (tk === 'y') continue;
+    if (tk === 'mil') {
+      total += (actual || 1) * 1000;
+      actual = 0;
+      huboNumero = true;
+      continue;
+    }
+    const centena = CENTENA_ES[tk];
+    if (centena !== undefined) {
+      actual += centena;
+      huboNumero = true;
+      continue;
+    }
+    const unidad = UNIDAD_ES[tk];
+    if (unidad !== undefined) {
+      actual += unidad;
+      huboNumero = true;
+      continue;
+    }
+    return null;
+  }
+  return huboNumero ? total + actual : null;
+}
+
+const TOKENS_ES = [
+  ...Object.keys(UNIDAD_ES),
+  ...Object.keys(CENTENA_ES),
+  'mil',
+  'y',
+].sort((a, b) => b.length - a.length);
+const PATRON_NUM_ES = new RegExp(
+  `\\b(?:${TOKENS_ES.join('|')})(?:\\s+(?:${TOKENS_ES.join('|')}))*\\b`,
+  'g',
+);
+
+/** Día 1-31 en inglés, cardinal u ordinal ("four"/"fourth"); se suman decena+unidad. */
+const UNIDAD_EN: Record<string, number> = {
+  one: 1, first: 1, two: 2, second: 2, three: 3, third: 3, four: 4, fourth: 4,
+  five: 5, fifth: 5, six: 6, sixth: 6, seven: 7, seventh: 7, eight: 8,
+  eighth: 8, nine: 9, ninth: 9, ten: 10, tenth: 10, eleven: 11, eleventh: 11,
+  twelve: 12, twelfth: 12, thirteen: 13, thirteenth: 13, fourteen: 14,
+  fourteenth: 14, fifteen: 15, fifteenth: 15, sixteen: 16, sixteenth: 16,
+  seventeen: 17, seventeenth: 17, eighteen: 18, eighteenth: 18, nineteen: 19,
+  nineteenth: 19, twenty: 20, twentieth: 20, thirty: 30, thirtieth: 30,
+}; // prettier-ignore
+
+function parseNumeroPalabrasEn(tokens: string[]): number | null {
+  let total = 0;
+  let huboNumero = false;
+  for (const tk of tokens) {
+    const v = UNIDAD_EN[tk];
+    if (v === undefined) return null;
+    total += v;
+    huboNumero = true;
+  }
+  return huboNumero ? total : null;
+}
+
+const TOKENS_EN = Object.keys(UNIDAD_EN).sort((a, b) => b.length - a.length);
+const PATRON_NUM_EN = new RegExp(
+  `\\b(?:${TOKENS_EN.join('|')})(?:[\\s-]+(?:${TOKENS_EN.join('|')}))*\\b`,
+  'g',
+);
+
+/**
+ * Reemplaza secuencias de números escritos con palabras (día o año, español
+ * e inglés) por sus dígitos, para que los patrones numéricos/de mes de
+ * arriba los lean igual que "24 de mayo de 2017". Si una secuencia no forma
+ * un número válido (p. ej. una "y" suelta sin número alrededor) se deja tal
+ * cual: esto es una normalización de texto, no una extracción de fechas —
+ * el resultado solo cuenta como fecha si además pasa los patrones de abajo
+ * (que exigen un nombre de mes al lado), así que un reemplazo de más en
+ * texto sin fecha no inventa una.
+ */
+export function expandirNumerosEnLetras(t: string): string {
+  const conEs = t.replace(PATRON_NUM_ES, (m) => {
+    const n = parseNumeroPalabrasEs(m.split(/\s+/));
+    return n !== null ? String(n) : m;
+  });
+  return conEs.replace(PATRON_NUM_EN, (m) => {
+    const n = parseNumeroPalabrasEn(m.split(/[\s-]+/));
+    return n !== null ? String(n) : m;
+  });
+}
+
 /** ¿El formato indicado es mes/día? ("mm/dd/aaaa", "MM DD YYYY"…). */
 const esMesDia = (formato?: string | null) =>
   /^\s*m/.test(normalizarTexto(formato ?? ''));
@@ -146,7 +264,7 @@ const PATRONES: Array<{ re: RegExp; leer: Lector }> = [
   // dd [de] MES [de|,] aaaa → "11 de abril de 2025", "09MAY2024", "19 dec/dic 2025"
   {
     re: new RegExp(
-      `(?<!\\d)(\\d{1,2})\\s*(?:de\\s+|[-/.]\\s*)?(${NOMBRE_MES})\\.?(?:\\s*/\\s*(?:${NOMBRE_MES})\\.?)?\\s*(?:de[l]?\\s+|[-/.,]\\s*)?(\\d{4})(?!\\d)`,
+      `(?<!\\d)(\\d{1,2})\\s*(?:dias?\\s+del\\s+mes\\s+de\\s+|day\\s+of\\s+(?:the\\s+month\\s+of\\s+)?|of\\s+|de\\s+|[-/.]\\s*)?(${NOMBRE_MES})\\.?(?:\\s*/\\s*(?:${NOMBRE_MES})\\.?)?\\s*(?:de[l]?\\s+|[-/.,]\\s*)?(\\d{4})(?!\\d)`,
       'g',
     ),
     leer: (m) => {
@@ -241,7 +359,8 @@ export function leerFechasLiteral(
   formatoIndicado?: string | null,
 ): FechaLeida[] {
   if (!literal) return [];
-  return coincidencias(normalizarTexto(literal), esMesDia(formatoIndicado))
+  const t = expandirNumerosEnLetras(normalizarTexto(literal));
+  return coincidencias(t, esMesDia(formatoIndicado))
     .map((c) => c.fecha)
     .filter((f): f is FechaLeida => f !== null);
 }
@@ -256,7 +375,8 @@ export function leerFechaLiteral(
   formatoIndicado?: string | null,
 ): FechaLeida | null {
   if (!literal) return null;
-  const cs = coincidencias(normalizarTexto(literal), esMesDia(formatoIndicado));
+  const t = expandirNumerosEnLetras(normalizarTexto(literal));
+  const cs = coincidencias(t, esMesDia(formatoIndicado));
   const dia = cs.find((c) => !c.fecha || c.fecha.precision === 'dia');
   if (dia) return dia.fecha;
   return (

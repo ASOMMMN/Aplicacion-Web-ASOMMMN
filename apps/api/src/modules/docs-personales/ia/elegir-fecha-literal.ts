@@ -20,6 +20,7 @@
  */
 import type { CampoFecha } from './extraer-fechas-doc-personal';
 import {
+  expandirNumerosEnLetras,
   FechaLeida,
   leerFechasLiteral,
   normalizarTexto,
@@ -132,7 +133,11 @@ export function elegirFechaDelLiteral(
     }
   }
 
-  const t = normalizarTexto(literal);
+  // Mismo texto que usa internamente leerFechasLiteral: si el literal trae
+  // un número en letras ("veinticuatro de mayo de dos mil diecisiete"), su
+  // longitud cambia al convertirlo a dígitos y las posiciones ini/fin de
+  // las fechas ya no corresponderían a normalizarTexto(literal) a secas.
+  const t = expandirNumerosEnLetras(normalizarTexto(literal));
   let candidatas = leerFechasLiteral(literal, formato);
   if (candidatas.length === 0) return null;
   const todas = candidatas;

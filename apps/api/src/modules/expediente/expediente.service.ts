@@ -693,22 +693,6 @@ export class ExpedienteService {
         .font('Helvetica-Bold')
         .fontSize(13)
         .fillColor('#0A2240')
-        .text('Cursos y Certificaciones')
-        .fillColor('#000000');
-      doc.moveDown(0.5);
-      this.dibujarTablaCursosPDF(doc, cursosData);
-
-      // dibujarTablaCursosPDF deja doc.x en la última columna de la tabla
-      // (cada celda se dibuja con un x explícito). Sin este reset, el
-      // título y las líneas siguientes heredan ese x y salen corridas a la
-      // derecha con el ancho de wrap achicado.
-      doc.x = doc.page.margins.left;
-      doc.moveDown(1);
-      if (doc.y > doc.page.height - 150) doc.addPage();
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(13)
-        .fillColor('#0A2240')
         .text('Documentos Personales')
         .fillColor('#000000');
       doc.moveDown(0.5);
@@ -718,6 +702,23 @@ export class ExpedienteService {
         ENCABEZADOS_DOCS,
         'Sin documentos personales registrados.',
       );
+
+      // dibujarTablaVigenciaPDF/dibujarTablaCursosPDF dejan doc.x en la
+      // última columna de la tabla (cada celda se dibuja con un x
+      // explícito). Sin este reset, el título y las líneas siguientes
+      // heredan ese x y salen corridas a la derecha con el ancho de wrap
+      // achicado.
+      doc.x = doc.page.margins.left;
+      doc.moveDown(1);
+      if (doc.y > doc.page.height - 150) doc.addPage();
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(13)
+        .fillColor('#0A2240')
+        .text('Cursos y Certificaciones')
+        .fillColor('#000000');
+      doc.moveDown(0.5);
+      this.dibujarTablaCursosPDF(doc, cursosData);
       doc.x = doc.page.margins.left;
       doc.moveDown(1);
       doc

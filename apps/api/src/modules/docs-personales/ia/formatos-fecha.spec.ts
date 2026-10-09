@@ -2,6 +2,7 @@ import {
   claveFecha,
   formatearConPrecision,
   detectarIndicadorFormato,
+  expandirNumerosEnLetras,
   formatoPorFechasDelDocumento,
   leerFechaLiteral,
   leerFechasLiteral,
@@ -42,6 +43,57 @@ describe('leerFechaLiteral: formatos con día', () => {
 
   it('fechas imposibles no se aceptan como día', () => {
     expect(leerFechaLiteral('31/02/2024')?.precision).not.toBe('dia');
+  });
+});
+
+describe('leerFechaLiteral: fechas escritas completamente con palabras', () => {
+  it.each([
+    ['veinticuatro de mayo de dos mil diecisiete', '2017-05-24'],
+    ['veinticuatro de mayo del dos mil diecisiete', '2017-05-24'],
+    ['primero de enero de dos mil veinticuatro', '2024-01-01'],
+    ['a los nueve días del mes de mayo de dos mil diecisiete', '2017-05-09'],
+    [
+      'treinta y uno de diciembre de mil novecientos noventa y siete',
+      '1997-12-31',
+    ],
+    ['twenty-fourth of May 2017', '2017-05-24'],
+    ['twenty fourth of May 2017', '2017-05-24'],
+    ['first of January 2024', '2024-01-01'],
+    ['thirty-first of December 1997', '1997-12-31'],
+  ])('%s → %s', (texto, esperado) => {
+    const f = leerFechaLiteral(texto);
+    expect(f?.precision).toBe('dia');
+    expect(f?.iso).toBe(esperado);
+  });
+
+  it('un año solo en letras (sin día) da precisión año', () => {
+    const f = leerFechaLiteral('dos mil diecisiete')!;
+    expect(f.precision).toBe('anio');
+    expect(f.anio).toBe(2017);
+  });
+});
+
+describe('expandirNumerosEnLetras', () => {
+  it('convierte día y año en letras a dígitos (español)', () => {
+    expect(
+      expandirNumerosEnLetras('veinticuatro de mayo de dos mil diecisiete'),
+    ).toBe('24 de mayo de 2017');
+  });
+
+  it('convierte día en letras a dígitos (inglés), año ya numérico', () => {
+    expect(expandirNumerosEnLetras('twenty-fourth of may 2017')).toBe(
+      '24 of may 2017',
+    );
+  });
+
+  it('texto sin números en letras queda igual', () => {
+    expect(expandirNumerosEnLetras('fecha de expedición: 24/05/2017')).toBe(
+      'fecha de expedición: 24/05/2017',
+    );
+  });
+
+  it('una "y" suelta sin número alrededor no se toca', () => {
+    expect(expandirNumerosEnLetras('mayo y junio')).toBe('mayo y junio');
   });
 });
 

@@ -34,6 +34,11 @@ FORMATO DE FECHA (muy importante):
   como máximo (nunca "alta").
 - Meses con letra (ENE, FEB, MAR, ABR, MAY, JUN, JUL, AGO, SEP, OCT, NOV, DIC /
   JAN, APR, AUG, DEC…) no son ambiguos.
+- También son fechas válidas las escritas completamente con palabras, en español
+  ("veinticuatro de mayo de dos mil diecisiete") o en inglés ("twenty-fourth of May 2017",
+  donde el día está en palabras y el año casi siempre en dígitos). Cópialas en
+  "textoLiteral" exactamente como aparecen (con las palabras, no las conviertas tú a
+  número): el código las interpreta a partir de ese texto.
 - Devuelve el valor normalizado como AAAA-MM-DD.
 - Precisión "anio": solo cuando las reglas del tipo lo indiquen expresamente (INE).
 
