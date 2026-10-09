@@ -33,6 +33,10 @@ export class ExpedienteController {
       await this.expedienteService.generarExpediente(postulanteId, fmt);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    // El expediente se genera de nuevo en cada petición (fechas, cursos y
+    // documentos pueden haber cambiado): sin esto, el navegador o un proxy
+    // intermedio puede servir una descarga anterior cacheada.
+    res.setHeader('Cache-Control', 'no-store');
     res.end(buffer);
   }
 
@@ -58,6 +62,7 @@ export class ExpedienteController {
       );
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
     res.end(buffer);
   }
 }
