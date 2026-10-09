@@ -56,6 +56,15 @@ describe('prompts de documentos personales', () => {
       'VIGENCIA 2031',
     );
   });
+
+  it('curso: "Date of course" y "Date of completion" cuentan como emisión', () => {
+    expect(REGLAS_POR_TIPO.curso).toContain('Date of course');
+    expect(REGLAS_POR_TIPO.curso).toContain('Date of completion');
+  });
+
+  it('refrendo: "Date of revalidation" cuenta como emisión', () => {
+    expect(REGLAS_POR_TIPO.refrendo).toContain('Date of revalidation');
+  });
 });
 
 describe('normalizarRespuesta', () => {

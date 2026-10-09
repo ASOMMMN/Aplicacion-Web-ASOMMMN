@@ -107,10 +107,21 @@ const NOMBRE_CAMPO: Record<CampoFecha, string> = {
   fechaVencimiento: 'vencimiento',
 };
 
+export interface OpcionesValidacion {
+  /**
+   * El documento tiene fechas que demuestran AMBOS formatos numéricos
+   * (ver hayConflictoFormatoFechas): solo entonces una fecha ambigua se
+   * marca "Revisar". Sin esto, el país emisor (poco confiable) ya no basta
+   * para marcarla: se adivina dd/mm sin alarmar al evaluador de más.
+   */
+  hayConflictoFormato?: boolean;
+}
+
 export function validarFechasDocPersonal(
   tipo: TipoDocumentoIa,
   respuesta: ExtraerDocPersonalIaResponse,
   hoy: string = hoyISO(),
+  opciones: OpcionesValidacion = {},
 ): ResultadoValidado {
   const motivos: string[] = [];
   const descartadas: string[] = [];
@@ -139,8 +150,6 @@ export function validarFechasDocPersonal(
     motivos.push(motivo);
     conMotivo.add(campo);
   };
-  const pais = respuesta.paisEmisor?.trim().toUpperCase() || null;
-
   // 1-2. El valor y la precisión salen SIEMPRE del texto literal, nunca de
   // lo que diga el modelo ("EMISIÓN 2016" es año aunque el modelo dé
   // 2016-01-01). Si el literal tiene varias fechas, elegirFechaDelLiteral
@@ -226,11 +235,14 @@ export function validarFechasDocPersonal(
         `La ${NOMBRE_CAMPO[campo]} (${f.valor}) no coincide con el texto "${f.textoLiteral}"; se usó la del texto.`,
       );
     } else if (lectura.ambigua && !formato) {
-      // Día y mes ≤ 12 sin indicador de formato en el documento: dd/mm.
-      if (pais && pais !== 'MX') {
+      // Día y mes ≤ 12 sin indicador ni evidencia de formato: dd/mm. Solo se
+      // marca "Revisar" cuando OTRA fecha del mismo documento demuestra que
+      // hay ambos formatos mezclados (hayConflictoFormato); el país emisor
+      // por sí solo ya no basta (el modelo puede no detectarlo bien).
+      if (opciones.hayConflictoFormato) {
         marcar(
           campo,
-          `${CON_ARTICULO[campo]} "${f.textoLiteral}" es ambigua (día y mes ≤ 12) y el documento no es de México; se leyó como dd/mm.`,
+          `${CON_ARTICULO[campo]} "${f.textoLiteral}" es ambigua (día y mes ≤ 12) y el documento tiene otras fechas que indican tanto dd/mm como mm/dd; se leyó como dd/mm.`,
         );
       } else {
         f.confianza = minConfianza(f.confianza, 'media');

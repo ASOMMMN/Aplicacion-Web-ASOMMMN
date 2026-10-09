@@ -2,6 +2,7 @@ import {
   claveFecha,
   formatearConPrecision,
   detectarIndicadorFormato,
+  formatoPorFechasDelDocumento,
   leerFechaLiteral,
   leerFechasLiteral,
   valorGuardado,
@@ -152,5 +153,38 @@ describe('detectarIndicadorFormato', () => {
     expect(detectarIndicadorFormato('Fecha: 03/04/2025')).toBeNull();
     expect(detectarIndicadorFormato('dd/mm/aaaa', 'mm/dd/yyyy')).toBeNull();
     expect(detectarIndicadorFormato(null, undefined)).toBeNull();
+  });
+});
+
+describe('formatoPorFechasDelDocumento', () => {
+  it('otra fecha con el primer número > 12 confirma dd/mm', () => {
+    expect(
+      formatoPorFechasDelDocumento(
+        'Fecha de expedición: 03/04/2025\nFecha de vencimiento: 25/12/2030',
+      ),
+    ).toBe('dd/mm/aaaa');
+  });
+
+  it('otra fecha con el segundo número > 12 confirma mm/dd', () => {
+    expect(
+      formatoPorFechasDelDocumento(
+        'Issue date: 03/04/2025\nExpiration date: 12/25/2030',
+      ),
+    ).toBe('mm/dd/aaaa');
+  });
+
+  it('fechas que implican ambos formatos → conflicto', () => {
+    expect(
+      formatoPorFechasDelDocumento(
+        'Documento 1: 25/12/2025\nDocumento 2: 12/25/2030',
+      ),
+    ).toBe('conflicto');
+  });
+
+  it('sin ninguna fecha no ambigua en el documento → null', () => {
+    expect(
+      formatoPorFechasDelDocumento('Fecha de expedición: 03/04/2025'),
+    ).toBeNull();
+    expect(formatoPorFechasDelDocumento(null, undefined)).toBeNull();
   });
 });

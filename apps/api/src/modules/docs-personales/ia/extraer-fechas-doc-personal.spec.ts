@@ -3,10 +3,12 @@ import OpenAI, { RateLimitError } from 'openai';
 import {
   extraerFechasDocPersonal,
   formatoComprobado,
+  hayConflictoFormatoFechas,
   lecturasDeterministas,
   normalizarRespuesta,
   normalizarConfianza,
   normalizarFechaIa,
+  requiereSegundaLectura,
 } from './extraer-fechas-doc-personal';
 
 // Preparar imágenes (dos variantes por documento) cuesta CPU; con la suite
@@ -415,5 +417,58 @@ describe('formatoComprobado: documentos emitidos en EE. UU.', () => {
     expect(formatoComprobado(doc, p('US'))).toBe('mm/dd/aaaa');
     expect(formatoComprobado(doc, p('MX'))).toBeNull();
     expect(formatoComprobado(doc, p(null))).toBeNull();
+  });
+});
+
+describe('formatoComprobado y hayConflictoFormatoFechas: evidencia de otras fechas', () => {
+  it('otra fecha del documento con día > 12 resuelve el formato sin país', () => {
+    const doc = {
+      paginas: [
+        {
+          numero: 1,
+          texto:
+            'Fecha de expedición: 03/04/2025\nFecha de vencimiento: 25/12/2030',
+          estructuradas: [],
+        },
+      ],
+    };
+    expect(formatoComprobado(doc)).toBe('dd/mm/aaaa');
+    expect(hayConflictoFormatoFechas(doc)).toBe(false);
+  });
+
+  it('fechas que implican ambos formatos: no se asume ninguno y se marca conflicto', () => {
+    const doc = {
+      paginas: [
+        {
+          numero: 1,
+          texto: 'Documento 1: 25/12/2025\nDocumento 2: 12/25/2030',
+          estructuradas: [],
+        },
+      ],
+    };
+    expect(formatoComprobado(doc)).toBeNull();
+    expect(hayConflictoFormatoFechas(doc)).toBe(true);
+  });
+});
+
+describe('requiereSegundaLectura', () => {
+  it('siempre en documentos visuales (imagen o PDF escaneado)', () => {
+    expect(requiereSegundaLectura('CURP', true, false)).toBe(true);
+  });
+
+  it('en PDF con texto, solo si la IA difiere de lo determinista...', () => {
+    expect(requiereSegundaLectura('CURP', false, true)).toBe(true);
+    expect(requiereSegundaLectura('CURP', false, false)).toBe(false);
+  });
+
+  it('...o si el tipo es pasaporte, visa o certificado médico (causa 5)', () => {
+    expect(requiereSegundaLectura('pasaporte', false, false)).toBe(true);
+    expect(requiereSegundaLectura('visa', false, false)).toBe(true);
+    expect(requiereSegundaLectura('certificado_medico', false, false)).toBe(
+      true,
+    );
+    // Otros tipos sensibles a vigencia (p. ej. INE) no están en la lista:
+    // solo se agregó para los 3 tipos que pediste.
+    expect(requiereSegundaLectura('INE', false, false)).toBe(false);
   });
 });

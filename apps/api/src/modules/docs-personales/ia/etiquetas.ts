@@ -26,8 +26,8 @@ export const ETIQUETAS: EtiquetaFecha[] = [
   { campo: 'fechaVencimiento', patron: /\bvigencia\b|\bvencimiento\b|\bvence\b/ },
   // ── Emisión ──────────────────────────────────────────────────────────────
   { campo: 'fechaEmision', patron: /fecha (?:en la )?que se realizo el reconocimiento medico|date on which (?:the )?medical examination was carried out/ },
-  { campo: 'fechaEmision', patron: /fecha de (?:expedicion|emision|otorgamiento|refrendo|dictamen|vacunacion|inscripcion|registro(?! de (?:la |el )?nacimiento))/ },
-  { campo: 'fechaEmision', patron: /date of (?:issu(?:e|ance)|endorsement|vaccination)|issue date|issued on|issuance date/ },
+  { campo: 'fechaEmision', patron: /fecha de (?:expedicion|emision|otorgamiento|refrendo|dictamen|vacunacion|inscripcion|curso|termino del curso|terminacion del curso|registro(?! de (?:la |el )?nacimiento))/ },
+  { campo: 'fechaEmision', patron: /date of (?:issu(?:e|ance)|endorsement|revalidation|vaccination|course|completion)|issue date|issued on|issuance date|completion date/ },
   { campo: 'fechaEmision', patron: /expedid[oa] (?:el|en)\b|emitid[oa] (?:el|en)\b|se expide(?: la presente| el presente)?/ },
   { campo: 'fechaEmision', patron: /\bdictamen\b|\bemision\b/ },
   // ── Inicio ───────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ export const ETIQUETAS_POR_TIPO_DESCRIPCION: Record<string, string> = {
   certificado_medico:
     'emisión = "Fecha en la que se realizó el reconocimiento médico / Date on which medical examination was carried out" o "DICTAMEN"; vencimiento = "Fecha en la que expira el certificado médico / Expiration date of medical certificate" o "VIGENCIA".',
   refrendo:
-    'emisión = "Fecha de Expedición / Date of issuance"; vencimiento = "Fecha de Vencimiento / Expiration Date".',
+    'emisión = "Fecha de Expedición / Date of issuance / Date of revalidation"; vencimiento = "Fecha de Vencimiento / Expiration Date".',
   certificado_competencia:
     'emisión = "Fecha de expedición / Date of issue"; vencimiento = "Fecha de vencimiento / Date of expiry / Valid until".',
   libreta_identidad_maritima:
@@ -61,7 +61,7 @@ export const ETIQUETAS_POR_TIPO_DESCRIPCION: Record<string, string> = {
   constancia_participacion:
     'emisión = "Fecha de emisión (Date of issue)"; vencimiento = "Fecha de expiración (Date of expiry)" o "Vigencia".',
   curso:
-    'emisión = "Fecha de emisión / expedición / Date of issue"; inicio = "Fecha de inicio / del …"; vencimiento = "Vigencia / Válido hasta / Date of expiry".',
+    'emisión = "Fecha de emisión / expedición / curso / Date of issue / Date of course / Date of completion"; inicio = "Fecha de inicio / del …"; vencimiento = "Vigencia / Válido hasta / Date of expiry".',
   CURP: 'emisión = "Fecha de inscripción / registro" (no la de nacimiento); no vence.',
   acta_nacimiento:
     'emisión = fecha de expedición de la copia certificada (no la de nacimiento ni la de registro del nacimiento); no vence.',

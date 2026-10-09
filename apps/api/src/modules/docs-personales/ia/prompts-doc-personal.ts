@@ -79,7 +79,7 @@ CERTIFICADO DE COMPETENCIA (STCW, Certificate of Competency / título profesiona
 
   refrendo: `
 REFRENDO (Endorsement, p. ej. refrendo de reconocimiento STCW regla I/10 o refrendo del título):
-- fechaEmision = "Fecha de expedición" / "Date of issue" / "Fecha de refrendo".
+- fechaEmision = "Fecha de expedición" / "Date of issue" / "Fecha de refrendo" / "Date of revalidation".
 - fechaVencimiento = "Válido hasta" / "Valid until" / "Fecha de vencimiento" / "Date of expiry".
 - La vigencia del certificado original no es la del refrendo si ambas aparecen: usa la del refrendo.`,
 
@@ -132,7 +132,8 @@ Primeros auxilios, Protección del buque / PBIP, ECDIS, Control de multitudes, e
   ni de la institución. null si no se identifica con claridad.
 - institucion = centro de formación o institución que expide el documento. null si no aparece.
 - fechaEmision = fecha de EXPEDICIÓN o EMISIÓN del certificado: "Fecha de expedición",
-  "Fecha de emisión", "Date of issue", "Issued on", "Se expide la presente… a los DD días…".
+  "Fecha de emisión", "Date of issue", "Issued on", "Date of course", "Date of completion",
+  "Se expide la presente… a los DD días…".
   Solo si no hay ninguna de esas, usa la fecha de terminación del curso ("Fecha de término",
   "Completion date") como emisión.
 - fechaInicio = inicio del curso: "Fecha de inicio", "Start date", o la primera fecha del

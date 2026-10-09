@@ -102,4 +102,25 @@ Fecha en la que expira el certificado médico / Expiration date of medical certi
   it('un año suelto con etiqueta de día es un error de lectura, no una fecha', () => {
     expect(leer('Fecha de Vencimiento: 2008-2023')).toEqual([]);
   });
+
+  it('curso: "Date of course" y "Date of completion" como emisión (inglés)', () => {
+    expect(resumen(leer('Date of course: 12 June 2026'))).toEqual([
+      '0:fechaEmision=2026-06-12',
+    ]);
+    expect(resumen(leer('Completion date: 12 June 2026'))).toEqual([
+      '0:fechaEmision=2026-06-12',
+    ]);
+  });
+
+  it('curso: "Fecha de curso" como emisión (español)', () => {
+    expect(resumen(leer('Fecha de curso: 12 de junio de 2026'))).toEqual([
+      '0:fechaEmision=2026-06-12',
+    ]);
+  });
+
+  it('refrendo: "Date of revalidation" como emisión', () => {
+    expect(resumen(leer('Date of revalidation: 12 June 2026'))).toEqual([
+      '0:fechaEmision=2026-06-12',
+    ]);
+  });
 });

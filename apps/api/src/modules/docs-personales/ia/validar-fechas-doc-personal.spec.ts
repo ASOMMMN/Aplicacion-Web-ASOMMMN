@@ -366,7 +366,7 @@ describe('validarFechasDocPersonal: reglas por tipo (fase 1 de vigencias)', () =
     );
   });
 
-  it('dd/mm ambigua en un documento que no es de México → baja y Revisar', () => {
+  it('dd/mm ambigua sin evidencia contradictoria → confianza media, sin Revisar (el país solo ya no basta)', () => {
     const r = validarFechasDocPersonal(
       'certificado_competencia',
       {
@@ -381,8 +381,27 @@ describe('validarFechasDocPersonal: reglas por tipo (fase 1 de vigencias)', () =
       HOY,
     );
     expect(r.fechaEmision).toBe('2022-04-03');
+    expect(r.confianza.fechaEmision).toBe('media');
+    expect(r.revisar).toBe(false);
+  });
+
+  it('dd/mm ambigua con evidencia contradictoria en el mismo documento → baja y Revisar', () => {
+    const r = validarFechasDocPersonal(
+      'certificado_competencia',
+      {
+        ...normalizarRespuesta({
+          fechaEmision: fecha('2022-04-03', '03/04/2022'),
+          fechaInicio: fecha(null, null),
+          fechaVencimiento: fecha(null, null),
+        }),
+        formatoFechaIndicado: null,
+      },
+      HOY,
+      { hayConflictoFormato: true },
+    );
+    expect(r.fechaEmision).toBe('2022-04-03');
     expect(r.confianza.fechaEmision).toBe('baja');
-    expect(r.motivosRevision.join(' ')).toMatch(/ambigua.*no es de México/);
+    expect(r.motivosRevision.join(' ')).toMatch(/ambigua.*dd\/mm.*mm\/dd/);
   });
 
   it('noVence solo si no hay vencimiento', () => {

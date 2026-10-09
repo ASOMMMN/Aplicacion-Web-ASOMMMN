@@ -37,7 +37,11 @@ import {
 } from './validar-fechas-doc-personal';
 import { combinarFuentes, FuenteCampo, GrupoFechas } from './combinar-fuentes';
 import { extraerPorEtiquetas, LecturaFecha } from './extractor-etiquetas';
-import { detectarIndicadorFormato, FormatoNumerico } from './formatos-fecha';
+import {
+  detectarIndicadorFormato,
+  FormatoNumerico,
+  formatoPorFechasDelDocumento,
+} from './formatos-fecha';
 import { leerMrz } from './mrz';
 import {
   ConsensoCampo,
@@ -91,7 +95,7 @@ export const seedDesdeEnv = (
  * análisis de una versión anterior se puede reemplazar al reanalizar.
  * Subirla cuando un cambio altere las fechas que se obtienen.
  */
-export const VERSION_CANALIZACION = '2026-10-05';
+export const VERSION_CANALIZACION = '2026-10-09';
 
 /** Formatos que la extracción IA sabe leer. */
 export const MIMES_EXTRACCION_IA = [
@@ -399,8 +403,10 @@ export function lecturasDeterministas(
 /**
  * Formato numérico comprobado: solo si el documento lo declara por escrito
  * (capa de texto) o aparece en lo que el modelo copió del documento
- * (texto literal o etiqueta). Lo que el modelo diga en formatoFechaIndicado
- * no cuenta: sin indicador, dd/mm.
+ * (texto literal o etiqueta), o si OTRA fecha del documento lo demuestra
+ * (formatoPorFechasDelDocumento: p. ej. "25/12/2030" solo puede ser dd/mm).
+ * Lo que el modelo diga en formatoFechaIndicado no cuenta: sin evidencia,
+ * dd/mm.
  */
 export function formatoComprobado(
   doc: Pick<DocumentoLeido, 'paginas'>,
@@ -410,11 +416,32 @@ export function formatoComprobado(
     propuesta?.detalle?.[c].textoLiteral,
     propuesta?.detalle?.[c].etiqueta,
   ]);
+  const porFechas = formatoPorFechasDelDocumento(
+    ...doc.paginas.map((p) => p.texto),
+  );
   return (
     detectarIndicadorFormato(...doc.paginas.map((p) => p.texto)) ??
     detectarIndicadorFormato(...deModelo) ??
-    // Sin indicador escrito: dd/mm, salvo documentos emitidos en EE. UU.
+    (porFechas !== 'conflicto' ? porFechas : null) ??
+    // Sin indicador ni evidencia: dd/mm, salvo documentos emitidos en EE. UU.
     (propuesta?.paisEmisor?.toUpperCase() === 'US' ? 'mm/dd/aaaa' : null)
+  );
+}
+
+/**
+ * ¿El documento tiene fechas que demuestran AMBOS formatos numéricos (p. ej.
+ * varios documentos distintos mezclados en el mismo archivo)? Solo en ese
+ * caso una fecha ambigua (día y mes ≤ 12, sin indicador) se marca "Revisar":
+ * hay evidencia real de que no se puede asumir dd/mm con seguridad, en vez
+ * de adivinar por el país emisor (poco confiable: el modelo puede no
+ * detectarlo).
+ */
+export function hayConflictoFormatoFechas(
+  doc: Pick<DocumentoLeido, 'paginas'>,
+): boolean {
+  return (
+    formatoPorFechasDelDocumento(...doc.paginas.map((p) => p.texto)) ===
+    'conflicto'
   );
 }
 
@@ -431,6 +458,7 @@ export function combinarConIa(
   validado: ExtraerDocPersonalIaResponse,
   lecturas: LecturaFecha[],
   evidencia: EvidenciaEstructurada[] = [],
+  hayConflictoFormato = false,
 ): ExtraerDocPersonalIaResponse {
   const comb = combinarFuentes({ lecturas, ia: validado });
   const extra = {
@@ -467,6 +495,8 @@ export function combinarConIa(
       paisEmisor: validado.paisEmisor,
       noVence: validado.noVence,
     }),
+    undefined,
+    { hayConflictoFormato },
   );
 
   // Las fechas que la validación dejó vacías tampoco cuentan como fuente.
@@ -820,6 +850,33 @@ const LECTURAS: Array<{ id: IdLectura; variante: VariantePreparacion }> = [
 ];
 
 /**
+ * Tipos cuya vigencia es más sensible a un error de un solo dígito: se pide
+ * una segunda lectura de confirmación incluso en PDF con texto (donde
+ * normalmente basta una), porque el texto y la IA pueden compartir el mismo
+ * error de lectura sin que nada lo detecte (ver causa 5 del diagnóstico de
+ * fechas: texto "suficiente" pero con un carácter mal extraído).
+ */
+const TIPOS_DOBLE_LECTURA_TEXTO: TipoDocumentoIa[] = [
+  'pasaporte',
+  'visa',
+  'certificado_medico',
+];
+
+/**
+ * ¿Hace falta una segunda lectura de confirmación? Siempre en documentos
+ * visuales (imagen o PDF escaneado); en PDF con texto, solo si la IA y las
+ * lecturas deterministas discrepan, o si el tipo es uno de los más
+ * sensibles a un error de un solo dígito (TIPOS_DOBLE_LECTURA_TEXTO).
+ */
+export function requiereSegundaLectura(
+  tipo: TipoDocumentoIa,
+  visual: boolean,
+  iaDifiere: boolean,
+): boolean {
+  return visual || iaDifiere || TIPOS_DOBLE_LECTURA_TEXTO.includes(tipo);
+}
+
+/**
  * Analiza un documento y devuelve solo las fechas que aparecen
  * explícitamente. Nunca lanza: los errores vuelven en `errorMensaje`.
  *
@@ -987,10 +1044,15 @@ export async function extraerFechasDocPersonal(
     // El modelo propone; el código verifica (día/mes, INE, orden, duración,
     // tipo) contra el texto literal, con el formato comprobado.
     const propuesta = normalizarRespuesta(parsed);
-    const validado = validarFechasDocPersonal(tipo, {
-      ...propuesta,
-      formatoFechaIndicado: formatoComprobado(doc, propuesta),
-    });
+    const validado = validarFechasDocPersonal(
+      tipo,
+      {
+        ...propuesta,
+        formatoFechaIndicado: formatoComprobado(d, propuesta),
+      },
+      undefined,
+      { hayConflictoFormato: hayConflictoFormatoFechas(d) },
+    );
     return { id, variante, raw: respuesta.raw, propuesta, validado };
   };
 
@@ -1049,12 +1111,14 @@ export async function extraerFechasDocPersonal(
       ? lecturasDeterministas(doc, f, tipo)
       : lecturasPrevias;
   const visual = doc.modo !== 'pdf-texto';
-  const pedirSegunda =
-    visual ||
+  const pedirSegunda = requiereSegundaLectura(
+    tipo,
+    visual,
     iaDifiereDeDeterministas(
       r1.validado,
       lecturasDe(r1.validado.formatoFechaIndicado),
-    );
+    ),
+  );
 
   const intentar = async (n: 1 | 2): Promise<LecturaModelo | null> => {
     const { id, variante } = LECTURAS[n];
@@ -1103,7 +1167,9 @@ export async function extraerFechasDocPersonal(
   // Resultado de la IA: el consenso (vuelto a validar) o la única lectura.
   let validado: ExtraerDocPersonalIaResponse;
   if (consenso) {
-    const v = validarFechasDocPersonal(tipo, consenso.resultado);
+    const v = validarFechasDocPersonal(tipo, consenso.resultado, undefined, {
+      hayConflictoFormato: hayConflictoFormatoFechas(doc),
+    });
     validado = {
       ...v,
       motivosRevision: [
@@ -1204,7 +1270,13 @@ export async function extraerFechasDocPersonal(
       texto: e.texto.slice(0, 2000),
     })),
   );
-  const combinado = combinarConIa(tipo, validado, lecturas, evidencia);
+  const combinado = combinarConIa(
+    tipo,
+    validado,
+    lecturas,
+    evidencia,
+    hayConflictoFormatoFechas(doc),
+  );
   return {
     ...meta,
     tokens,

@@ -294,6 +294,41 @@ export function detectarIndicadorFormato(
   return ddmm ? 'dd/mm/aaaa' : 'mm/dd/aaaa';
 }
 
+/** Patrón numérico crudo dd/mm/aaaa (o mm/dd), sin asumir cuál es cuál. */
+const NUMERICA_CRUDA =
+  /(?<!\d)(\d{1,2})\s*[-/.\s]\s*(\d{1,2})\s*[-/.\s]\s*(\d{4}|\d{2})(?!\d)/g;
+
+/**
+ * Evidencia del formato numérico en OTRAS fechas del mismo documento: si el
+ * primer componente de alguna fecha es > 12, solo puede ser el día (dd/mm);
+ * si es el segundo el que es > 12, solo puede ser el día en mm/dd. A
+ * diferencia de `detectarIndicadorFormato` (busca "dd/mm/aaaa" escrito) o del
+ * país emisor (poco confiable: el modelo puede no detectarlo), esto se basa
+ * en los propios valores numéricos del documento, sin adivinar.
+ *
+ * 'conflicto' cuando el documento tiene evidencia de AMBOS formatos (p. ej.
+ * varios documentos distintos mezclados en un mismo archivo): en ese caso no
+ * hay que asumir ninguno, sino marcar la fecha ambigua para revisión.
+ */
+export function formatoPorFechasDelDocumento(
+  ...textos: Array<string | null | undefined>
+): FormatoNumerico | 'conflicto' | null {
+  const t = normalizarTexto(textos.filter(Boolean).join('\n'));
+  let ddmm = false;
+  let mmdd = false;
+  for (const m of t.matchAll(new RegExp(NUMERICA_CRUDA.source, 'g'))) {
+    const a = +m[1];
+    const b = +m[2];
+    const y = anioCompleto(+m[3]);
+    if (a > 12 && b <= 12 && isoValida(y, b, a)) ddmm = true;
+    else if (b > 12 && a <= 12 && isoValida(y, a, b)) mmdd = true;
+  }
+  if (ddmm && mmdd) return 'conflicto';
+  if (ddmm) return 'dd/mm/aaaa';
+  if (mmdd) return 'mm/dd/aaaa';
+  return null;
+}
+
 /**
  * Valor que se guarda para una fecha leída. Día: la fecha exacta. Parcial:
  * inicio del periodo (emisión/inicio) o fin (vencimiento), siempre junto
