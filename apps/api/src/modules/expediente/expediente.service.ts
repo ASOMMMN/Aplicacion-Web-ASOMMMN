@@ -896,14 +896,14 @@ export class ExpedienteService {
         .font('Helvetica-Bold')
         .fontSize(13)
         .fillColor('#0A2240')
-        .text('Cursos y Certificaciones')
+        .text('Documentos Personales')
         .fillColor('#000000');
       doc.moveDown(0.5);
       this.dibujarTablaVigenciaPDF(
         doc,
-        cursos,
+        docsPersonales,
         ENCABEZADOS_VIGENCIA,
-        'Sin cursos registrados.',
+        'Sin documentos personales registrados.',
       );
 
       doc.x = doc.page.margins.left;
@@ -913,14 +913,14 @@ export class ExpedienteService {
         .font('Helvetica-Bold')
         .fontSize(13)
         .fillColor('#0A2240')
-        .text('Documentos Personales')
+        .text('Cursos y Certificaciones')
         .fillColor('#000000');
       doc.moveDown(0.5);
       this.dibujarTablaVigenciaPDF(
         doc,
-        docsPersonales,
+        cursos,
         ENCABEZADOS_VIGENCIA,
-        'Sin documentos personales registrados.',
+        'Sin cursos registrados.',
       );
 
       doc.end();
