@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { extname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import {
   EvalArchivo,
@@ -138,8 +140,7 @@ export class EvalArchivosService {
       );
 
     const carpeta = await this.resolverCarpetaPostulante(postulanteId);
-    const ts = Date.now();
-    const key = `${carpeta}/${ts}-${nombre}`;
+    const key = `${carpeta}/${randomUUID()}${extname(nombre)}`;
     const storagePath = `${EVAL_CATEGORY}/${key}`;
 
     const { url, key: s3Key } = await this.storage.putObject(

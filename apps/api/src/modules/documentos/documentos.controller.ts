@@ -32,6 +32,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 
 @ApiTags('documentos')
 @ApiBearerAuth('access-token')
@@ -57,6 +58,7 @@ export class DocumentosController {
     if (!file) {
       throw new BadRequestException('No se envió archivo');
     }
+    file.originalname = corregirMojibakeLatin1(file.originalname);
     return this.documentosService.subirCV(user.userId, file);
   }
 

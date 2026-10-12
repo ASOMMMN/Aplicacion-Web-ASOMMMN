@@ -30,6 +30,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
+import { construirContentDisposition } from '../../common/utils/content-disposition.util';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('administrador', 'evaluador')
@@ -67,6 +69,9 @@ export class MiNubeController {
     @Query('parentId') parentId: string | undefined,
     @UploadedFile() file: Express.Multer.File | undefined,
   ) {
+    if (file) {
+      file.originalname = corregirMojibakeLatin1(file.originalname);
+    }
     return this.service.subirArchivo(actor, parentId, file);
   }
 
@@ -79,7 +84,7 @@ export class MiNubeController {
     const archivo = await this.service.obtenerArchivo(actor, id);
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${encodeURIComponent(archivo.nombre)}"`,
+      construirContentDisposition('attachment', archivo.nombre),
     );
     res.setHeader('Content-Type', archivo.mimeType);
     res.setHeader('Content-Length', archivo.size);
@@ -97,7 +102,7 @@ export class MiNubeController {
     res.setHeader('Content-Type', archivo.mimeType);
     res.setHeader(
       'Content-Disposition',
-      `inline; filename="${encodeURIComponent(archivo.nombre)}"`,
+      construirContentDisposition('inline', archivo.nombre),
     );
     res.setHeader('Content-Length', archivo.size);
     res.send(archivo.buffer);

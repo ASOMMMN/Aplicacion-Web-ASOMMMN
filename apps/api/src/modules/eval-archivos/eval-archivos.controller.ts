@@ -30,6 +30,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('evaluador', 'administrador')
@@ -80,6 +81,7 @@ export class EvalArchivosController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() actor: AuthUser,
   ) {
+    file.originalname = corregirMojibakeLatin1(file.originalname);
     return this.service.subirArchivo(postulanteId, parentId, file, actor);
   }
 

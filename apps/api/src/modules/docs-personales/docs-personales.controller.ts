@@ -29,6 +29,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 import { TIPOS_DOC_PERSONAL } from './constants/tipos-doc-personal';
 
 import {
@@ -226,6 +227,9 @@ export class DocsPersonalesController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: AuthUser,
   ): Promise<DocPersonalResponseDto> {
+    if (file) {
+      file.originalname = corregirMojibakeLatin1(file.originalname);
+    }
     return this.svc.subir(user, body.tipo, file);
   }
 

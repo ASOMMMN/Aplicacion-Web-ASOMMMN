@@ -29,6 +29,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 import { CursosService } from './cursos.service';
 import { CreateCursoDto, RenombrarCursoDto } from './dto/create-curso.dto';
 import {
@@ -99,6 +100,9 @@ export class CursosController {
     @Body() dto: CreateCursoDto,
     @UploadedFile() file?: Express.Multer.File,
   ): Promise<{ message: string; cursoId: string }> {
+    if (file) {
+      file.originalname = corregirMojibakeLatin1(file.originalname);
+    }
     return this.cursosService.crearCurso(user.userId, dto, file);
   }
 

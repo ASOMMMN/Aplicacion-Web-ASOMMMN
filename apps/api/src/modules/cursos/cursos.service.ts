@@ -18,7 +18,8 @@ import {
 } from 'docx';
 import PDFDocument from 'pdfkit';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, extname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
@@ -122,7 +123,7 @@ export class CursosService {
         const carpeta =
           construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
           userId;
-        const key = `${carpeta}/${Date.now()}-${file.originalname.replace(/\s+/g, '_')}`;
+        const key = `${carpeta}/${randomUUID()}${extname(file.originalname)}`;
 
         const { url, key: s3Key } = await this.storageService.putObject(
           CURSOS_CATEGORY,
