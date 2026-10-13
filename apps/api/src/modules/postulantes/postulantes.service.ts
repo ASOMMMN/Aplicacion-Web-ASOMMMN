@@ -31,6 +31,7 @@ import {
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { capitalizarTitulo } from '../../common/utils/normalizar-texto.util';
 import {
   CrearCarpetaDto,
   SubirDocumentoNubeDto,
@@ -142,9 +143,17 @@ export class PostulantesService {
       }
     }
 
+    // Normaliza capitalización/acentos de ubicación y vacante antes de guardar.
+    const dtoNormalizado = {
+      ...dto,
+      ciudad: dto.ciudad ? capitalizarTitulo(dto.ciudad) : dto.ciudad,
+      pais: dto.pais ? capitalizarTitulo(dto.pais) : dto.pais,
+      vacante: dto.vacante ? capitalizarTitulo(dto.vacante) : dto.vacante,
+    };
+
     // Actualizar
     Object.assign(postulante, {
-      ...dto,
+      ...dtoNormalizado,
       actualizadoEn: new Date(),
     });
 
