@@ -12,3 +12,6 @@ verify-email.js
 # Datos personales reales: muestras para pruebas de IA y reportes de reanálisis
 apps/api/muestras-ia/
 apps/api/reportes-ia/
+
+# Mongo local de desarrollo (mongodb-memory-server) — ver scripts/dev-db-local.ts
+apps/api/.mongodb-dev-data/

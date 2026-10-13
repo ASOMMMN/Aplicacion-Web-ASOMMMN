@@ -10,6 +10,9 @@
     "dev": "node scripts/hacker-dev.js",
     "dev:api": "npm --workspace=apps/api run start:dev",
     "dev:web": "npm --workspace=apps/web run dev",
+    "dev:db:local": "npm --workspace=apps/api run dev:db:local",
+    "seed:dev:local": "npm --workspace=apps/api run seed:dev:local",
+    "dev:api:local": "npm --workspace=apps/api run start:dev:local",
     "build:api": "npm --workspace=apps/api run build",
     "build:web": "npm --workspace=apps/web run build"
   },

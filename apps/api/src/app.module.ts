@@ -40,7 +40,9 @@ import { HealthController } from './health.controller';
     ConfigModule.forRoot({
       isGlobal: true,
       validate,
-      envFilePath: ['.env'],
+      // ENV_FILE permite apuntar a un .env alterno (ej. .env.dev-local con
+      // Mongo local + seed de prueba) sin tocar el .env real de cada dev.
+      envFilePath: [process.env.ENV_FILE ?? '.env'],
     }),
 
     // ── Logging ─────────────────────────────────────────────────────────────
