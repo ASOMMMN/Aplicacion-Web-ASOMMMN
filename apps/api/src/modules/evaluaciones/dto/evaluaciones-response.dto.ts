@@ -7,6 +7,14 @@ export class CandidatoListaItemDto {
   @ApiProperty()
   nombreCompleto: string;
 
+  /** Nombre(s) de pila, por separado, para calcular iniciales sin ambigüedad en el frontend. */
+  @ApiProperty()
+  nombre: string;
+
+  /** Apellido(s), por separado, para calcular iniciales sin ambigüedad en el frontend. */
+  @ApiProperty()
+  apellidos: string;
+
   @ApiProperty()
   email: string;
 

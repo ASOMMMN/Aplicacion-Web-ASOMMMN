@@ -208,6 +208,8 @@ export class EvaluacionesService {
       return {
         postulanteId: String(p._id),
         nombreCompleto: `${user?.nombre ?? ''} ${user?.apellidos ?? ''}`.trim(),
+        nombre: user?.nombre ?? '',
+        apellidos: user?.apellidos ?? '',
         email: user?.email ?? '',
         estadoPostulacion: p.estadoPostulacion,
         ciudad: p.ciudad,

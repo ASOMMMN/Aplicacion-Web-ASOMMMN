@@ -276,7 +276,7 @@ function EvaluacionDocumentoPanel({
         <div>
           {ultima ? (
             <>
-              <Badge bg={resultadoColor[ultima.resultadoEvaluacion ?? 'EN_REVISION']} className="badge-pill-enmv me-2">
+              <Badge bg={resultadoColor[ultima.resultadoEvaluacion ?? 'EN_REVISION']} className="badge-pill-asommmn me-2">
                 {resultadoLabel[ultima.resultadoEvaluacion ?? 'EN_REVISION']}
               </Badge>
               <span className="small text-muted">
@@ -308,7 +308,7 @@ function EvaluacionDocumentoPanel({
         <div className="mt-2 d-flex flex-column gap-2">
           {evaluacion.historial.map((h) => (
             <div key={h.id} className="small border-top pt-1">
-              <Badge bg={resultadoColor[h.resultadoEvaluacion ?? 'EN_REVISION']} className="badge-pill-enmv me-2">
+              <Badge bg={resultadoColor[h.resultadoEvaluacion ?? 'EN_REVISION']} className="badge-pill-asommmn me-2">
                 {resultadoLabel[h.resultadoEvaluacion ?? 'EN_REVISION']}
               </Badge>
               {h.evaluadorNombre} · {formatDate(h.fechaEvaluacion ?? h.creadoEn)}
@@ -704,7 +704,7 @@ export default function CandidatoDetallePage() {
 
         <Row className="g-4">
           <Col lg={6}>
-            <Card className="card-enmv card-enmv-top-azul mb-4">
+            <Card className="card-asommmn card-asommmn-top-azul mb-4">
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <IconAncla size={17} className="nautical-icon" />
@@ -712,7 +712,7 @@ export default function CandidatoDetallePage() {
                   <span className="anchor-glyph">⚓</span>
                 </h5>
                 <div className="d-flex align-items-center gap-3 mb-2">
-                  <PortholeAvatar nombre={`${detalle.nombre} ${detalle.apellidos}`} size={52} />
+                  <PortholeAvatar nombre={detalle.nombre} apellidos={detalle.apellidos} size={52} />
                   <div>
                     <p className="mb-0"><strong>{detalle.nombre} {detalle.apellidos}</strong></p>
                     <p className="mb-0 text-muted small">{detalle.email}</p>
@@ -723,7 +723,7 @@ export default function CandidatoDetallePage() {
                 </p>
                 <p className="mb-0">
                   Estado actual:{' '}
-                  <Badge bg={estadoColor[detalle.estadoPostulacion]} className="badge-pill-enmv">
+                  <Badge bg={estadoColor[detalle.estadoPostulacion]} className="badge-pill-asommmn">
                     <i className={`bi ${estadoIconClass[detalle.estadoPostulacion]}`} />
                     {estadoLabel[detalle.estadoPostulacion]}
                   </Badge>
@@ -739,7 +739,7 @@ export default function CandidatoDetallePage() {
               </Card.Body>
             </Card>
 
-            <Card className="card-enmv card-enmv-top-verde">
+            <Card className="card-asommmn card-asommmn-top-verde">
               <Card.Body>
                 <h5 className="section-title mb-3">
                   CV actual
@@ -748,7 +748,7 @@ export default function CandidatoDetallePage() {
                 {detalle.cvActual ? (
                   <div className="d-flex align-items-center justify-content-between gap-3 border rounded px-3 py-2 bg-light">
                     <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
-                      <i className="bi bi-file-earmark-text flex-shrink-0" style={{ fontSize: '1.3rem', color: 'var(--enmv-verde)' }} />
+                      <i className="bi bi-file-earmark-text flex-shrink-0" style={{ fontSize: '1.3rem', color: 'var(--asommmn-verde)' }} />
                       <div style={{ minWidth: 0 }}>
                         <div className="text-truncate" style={{ maxWidth: 320 }} title={detalle.cvActual.nombreOriginal}>
                           {detalle.cvActual.urlVista ? (
@@ -803,7 +803,7 @@ export default function CandidatoDetallePage() {
               </Card.Body>
             </Card>
 
-            <Card className="card-enmv card-enmv-top-azul mt-4">
+            <Card className="card-asommmn card-asommmn-top-azul mt-4">
               <Card.Body>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h5 className="section-title mb-0">
@@ -815,7 +815,7 @@ export default function CandidatoDetallePage() {
                     <Badge
                       bg={docsPersonalesReqConArchivos === TIPOS_DOC_PERSONAL_REQUERIDOS.length ? 'success' : 'warning'}
                       text={docsPersonalesReqConArchivos === TIPOS_DOC_PERSONAL_REQUERIDOS.length ? undefined : 'dark'}
-                      className="badge-pill-enmv"
+                      className="badge-pill-asommmn"
                     >
                       {docsPersonalesReqConArchivos === TIPOS_DOC_PERSONAL_REQUERIDOS.length && (
                         <i className="bi bi-check-lg" />
@@ -853,7 +853,7 @@ export default function CandidatoDetallePage() {
                             {cantidad > 0 || esOpcional ? (
                               <span className="text-muted small">{cantidad} archivo{cantidad !== 1 ? 's' : ''}</span>
                             ) : (
-                              <span className="badge badge-pill-enmv badge-estado-rechazado">
+                              <span className="badge badge-pill-asommmn badge-estado-rechazado">
                                 <i className="bi bi-exclamation-triangle" />
                                 Pendiente por subir
                               </span>
@@ -925,7 +925,7 @@ export default function CandidatoDetallePage() {
               </Card.Body>
             </Card>
 
-            <Card id="cursos-y-certificaciones" className="card-enmv card-enmv-top-dorado mt-4">
+            <Card id="cursos-y-certificaciones" className="card-asommmn card-asommmn-top-dorado mt-4">
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <IconTimon size={17} className="nautical-icon" />
@@ -971,7 +971,7 @@ export default function CandidatoDetallePage() {
                                 <span style={{ color: vencido ? '#dc3545' : undefined }}>
                                   {formatDateOnly(curso.fechaVencimiento)}
                                   {vencido && (
-                                    <Badge bg="danger" className="ms-1 badge-pill-enmv" style={{ fontSize: '0.6rem' }}>
+                                    <Badge bg="danger" className="ms-1 badge-pill-asommmn" style={{ fontSize: '0.6rem' }}>
                                       Vencido
                                     </Badge>
                                   )}
@@ -1016,7 +1016,7 @@ export default function CandidatoDetallePage() {
               </Card.Body>
             </Card>
 
-            <Card id="bitacora-de-embarque" className="card-enmv card-enmv-top-dorado mt-4">
+            <Card id="bitacora-de-embarque" className="card-asommmn card-asommmn-top-dorado mt-4">
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <IconBarco size={17} className="nautical-icon" />
@@ -1042,7 +1042,7 @@ export default function CandidatoDetallePage() {
           </Col>
 
           <Col lg={6}>
-            <Card className="card-enmv card-enmv-top-verde mb-4">
+            <Card className="card-asommmn card-asommmn-top-verde mb-4">
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <i className="bi bi-compass nautical-icon" />
@@ -1055,7 +1055,7 @@ export default function CandidatoDetallePage() {
                 </p>
                 <p className="mb-3">
                   Estado actual:{' '}
-                  <Badge bg={estadoColor[detalle.estadoPostulacion]} className="badge-pill-enmv">
+                  <Badge bg={estadoColor[detalle.estadoPostulacion]} className="badge-pill-asommmn">
                     <i className={`bi ${estadoIconClass[detalle.estadoPostulacion]}`} />
                     {estadoLabel[detalle.estadoPostulacion]}
                   </Badge>
@@ -1077,7 +1077,7 @@ export default function CandidatoDetallePage() {
               </Card.Body>
             </Card>
 
-            <Card className="card-enmv card-enmv-top-azul">
+            <Card className="card-asommmn card-asommmn-top-azul">
               <Card.Body>
                 <h5 className="section-title mb-3">
                   Historial de comentarios
@@ -1144,7 +1144,7 @@ export default function CandidatoDetallePage() {
         {/* ── Resumen de fechas (no depende de que exista extracción del CV) ── */}
         <Row className="mt-4">
           <Col>
-            <Card id="resumen-de-fechas" className="card-enmv card-enmv-top-azul">
+            <Card id="resumen-de-fechas" className="card-asommmn card-asommmn-top-azul">
               <Card.Body className="p-4">
                 <h5 className="section-title mb-1">
                   <IconAncla size={17} className="nautical-icon" />
@@ -1187,7 +1187,7 @@ export default function CandidatoDetallePage() {
         {/* ── Panel Extracción IA ──────────────────────────────────────────── */}
         <Row className="mt-4">
           <Col>
-            <Card className="card-enmv card-enmv-top-dorado">
+            <Card className="card-asommmn card-asommmn-top-dorado">
               <Card.Body className="p-4">
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                   <div>
@@ -1197,7 +1197,7 @@ export default function CandidatoDetallePage() {
                         <Badge
                           bg={extraccion.estado === 'confirmado' ? 'success' : extraccion.estado === 'rechazado' ? 'danger' : 'warning'}
                           text={extraccion.estado === 'propuesto' ? 'dark' : undefined}
-                          className="ms-2 badge-pill-enmv"
+                          className="ms-2 badge-pill-asommmn"
                         >
                           <i className={`bi ${extraccion.estado === 'confirmado' ? 'bi-check-lg' : extraccion.estado === 'rechazado' ? 'bi-x-lg' : 'bi-clock'}`} />
                           {extraccion.estado === 'confirmado' ? 'Confirmado' : extraccion.estado === 'rechazado' ? 'Rechazado' : 'Propuesto — pendiente de revisión'}
@@ -1376,7 +1376,7 @@ function NivelDots({ nivel }: { nivel?: string | null }) {
         <i
           key={n}
           className={`bi ${n <= dots ? 'bi-circle-fill' : 'bi-circle'}`}
-          style={{ fontSize: '0.5rem', color: n <= dots ? 'var(--enmv-dorado)' : 'rgba(10,34,64,.25)' }}
+          style={{ fontSize: '0.5rem', color: n <= dots ? 'var(--asommmn-dorado)' : 'rgba(10,34,64,.25)' }}
         />
       ))}
     </span>
@@ -1393,8 +1393,8 @@ function LineaTiempoItem({ isLast, children }: { isLast: boolean; children: Reac
             width: 12,
             height: 12,
             borderRadius: '50%',
-            background: 'var(--enmv-azul)',
-            border: '2px solid var(--enmv-dorado)',
+            background: 'var(--asommmn-azul)',
+            border: '2px solid var(--asommmn-dorado)',
             flexShrink: 0,
             marginTop: 3,
           }}
@@ -1426,7 +1426,7 @@ function ExtraccionVistaLectura({ datos }: { datos: DatosCV }) {
           ].map((f) => (
             <div className="col-4" key={f.label}>
               <div className="border rounded p-2 h-100 bg-light text-center">
-                <i className={`bi ${f.icon}`} style={{ fontSize: '1.1rem', color: 'var(--enmv-azul)' }} />
+                <i className={`bi ${f.icon}`} style={{ fontSize: '1.1rem', color: 'var(--asommmn-azul)' }} />
                 <div
                   className="text-muted mt-1"
                   style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '.03em' }}
@@ -1447,7 +1447,7 @@ function ExtraccionVistaLectura({ datos }: { datos: DatosCV }) {
             <div
               className="ps-3 py-2"
               style={{
-                borderLeft: '4px solid var(--enmv-dorado)',
+                borderLeft: '4px solid var(--asommmn-dorado)',
                 background: 'rgba(201,162,75,.08)',
                 borderRadius: '0 6px 6px 0',
               }}
