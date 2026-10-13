@@ -85,7 +85,7 @@ export default function CambiarContrasenaPage() {
     <div className="auth-page">
       <div className="auth-card" style={{ maxWidth: 480 }}>
         <div className="text-center mb-3">
-          <i className="bi bi-key-fill mb-2 d-block" style={{ fontSize: '2rem', color: 'var(--enmv-azul)' }} />
+          <i className="bi bi-key-fill mb-2 d-block" style={{ fontSize: '2rem', color: 'var(--asommmn-azul)' }} />
           <p className="nombre-escuela mb-0">Cambio obligatorio de contraseña</p>
           <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.8rem' }}>
             Ingresa tu contraseña temporal y define una nueva segura.

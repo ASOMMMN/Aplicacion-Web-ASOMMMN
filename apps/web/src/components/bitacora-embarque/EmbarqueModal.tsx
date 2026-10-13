@@ -71,7 +71,7 @@ export function EmbarqueModal({
   };
 
   return (
-    <Modal show={show} onHide={onHide} centered className="enmv-modal" size="lg">
+    <Modal show={show} onHide={onHide} centered className="asommmn-modal" size="lg">
       <Modal.Header closeButton>
         <Modal.Title>
           {embarqueEditando ? 'Editar embarque' : 'Agregar embarque'}
@@ -217,7 +217,7 @@ export function EmbarqueModal({
           Cancelar
         </Button>
         <Button
-          style={{ background: 'var(--enmv-azul)', borderColor: 'var(--enmv-azul)' }}
+          style={{ background: 'var(--asommmn-azul)', borderColor: 'var(--asommmn-azul)' }}
           onClick={handleGuardar}
           disabled={!esValido || saving}
         >

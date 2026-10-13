@@ -598,7 +598,7 @@ export function ResumenFechasTabla({
                   )}
                 </td>
                 <td>
-                  <span className={`badge badge-pill-enmv ${origen.className}`}>{origen.label}</span>
+                  <span className={`badge badge-pill-asommmn ${origen.className}`}>{origen.label}</span>
                   {c.discrepancia && (
                     <span
                       className="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle ms-1"

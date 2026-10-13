@@ -376,7 +376,7 @@ export default function MisCursosPage() {
 
           {/* ── Panel izquierdo: upload / formulario de confirmación ── */}
           <Col lg={5}>
-            <Card className="card-enmv card-enmv-top-dorado">
+            <Card className="card-asommmn card-asommmn-top-dorado">
               <Card.Body>
 
                 {error && (
@@ -423,7 +423,7 @@ export default function MisCursosPage() {
                 {iaLoading && (
                   <div className="text-center py-4">
                     <SpinnerTimon size={40} className="mb-3" />
-                    <p className="fw-semibold" style={{ color: 'var(--enmv-azul)' }}>
+                    <p className="fw-semibold" style={{ color: 'var(--asommmn-azul)' }}>
                       Analizando el documento con IA…
                     </p>
                     <p className="text-muted small">
@@ -561,7 +561,7 @@ export default function MisCursosPage() {
                       <div className="d-flex gap-2">
                         <Button
                           size="sm"
-                          style={{ background: 'var(--enmv-azul)', borderColor: 'var(--enmv-azul)' }}
+                          style={{ background: 'var(--asommmn-azul)', borderColor: 'var(--asommmn-azul)' }}
                           disabled={saving || !formNombre.trim()}
                           onClick={() => void guardarCurso()}
                         >
@@ -581,7 +581,7 @@ export default function MisCursosPage() {
 
           {/* ── Panel derecho: tabla de cursos ── */}
           <Col lg={7}>
-            <Card className="card-enmv card-enmv-top-azul card-riveted">
+            <Card className="card-asommmn card-asommmn-top-azul card-riveted">
               <Card.Body>
                 <h5 className="section-title mb-3" style={{ fontSize: '1rem' }}>
                   <IconTimon size={16} className="nautical-icon" />

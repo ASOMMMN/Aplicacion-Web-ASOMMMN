@@ -159,7 +159,7 @@ export default function MiPerfilPage() {
         </Row>
         <Row className="justify-content-center">
           <Col lg={8}>
-            <Card className="card-enmv card-enmv-top-azul card-riveted">
+            <Card className="card-asommmn card-asommmn-top-azul card-riveted">
               <Card.Body className="p-4">
                 <h1 className="section-title mb-1">
                   <IconAncla size={20} className="nautical-icon" />
@@ -277,7 +277,7 @@ export default function MiPerfilPage() {
                   <Form.Group className="mb-4">
                     <Form.Label>
                       Vacante a la que vas a postularte{' '}
-                      <span style={{ color: 'var(--enmv-dorado)', fontWeight: 600 }}>*</span>
+                      <span style={{ color: 'var(--asommmn-dorado)', fontWeight: 600 }}>*</span>
                     </Form.Label>
                     <Form.Control
                       placeholder="Ej. Oficial de Puente, Maquinista, Práctico de Puerto…"

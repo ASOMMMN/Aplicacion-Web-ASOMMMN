@@ -3,6 +3,7 @@ import { Playfair_Display, Public_Sans } from 'next/font/google';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import '@/styles/globals.css';
+import { TITULO_SISTEMA, DESCRIPCION_SISTEMA } from '@/lib/branding';
 
 // Playfair Display: reservada ÚNICAMENTE para el nombre de la escuela
 // (navbar y pantallas de autenticación). Todo lo demás usa Public Sans.
@@ -20,8 +21,8 @@ const publicSans = Public_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'ASOMMMN — Evaluación Curricular',
-  description: 'Sistema de evaluación curricular — Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional',
+  title: TITULO_SISTEMA,
+  description: DESCRIPCION_SISTEMA,
 };
 
 export default function RootLayout({

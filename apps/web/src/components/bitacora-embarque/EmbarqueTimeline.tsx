@@ -28,16 +28,16 @@ export function EmbarqueTimeline({
   return (
     <div className="embarque-timeline">
       {embarques.map((embarque) => (
-        <div key={embarque._id} className="card-enmv embarque-card">
+        <div key={embarque._id} className="card-asommmn embarque-card">
           <div className="p-3">
             <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
               <div className="d-flex align-items-center gap-2">
                 <IconBarco size={20} className="nautical-icon flex-shrink-0" />
-                <span className="fw-bold" style={{ color: 'var(--enmv-azul)', fontSize: '1.05rem' }}>
+                <span className="fw-bold" style={{ color: 'var(--asommmn-azul)', fontSize: '1.05rem' }}>
                   {embarque.nombreNave}
                 </span>
               </div>
-              <Badge className="badge-rango-embarque badge-pill-enmv">
+              <Badge className="badge-rango-embarque badge-pill-asommmn">
                 {embarque.rango}
               </Badge>
             </div>

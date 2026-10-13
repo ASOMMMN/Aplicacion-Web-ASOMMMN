@@ -179,7 +179,7 @@ export default function DashboardPostulantePage() {
         {/* Header */}
         <Row className="align-items-end mb-4 g-3">
           <Col lg={8}>
-            <span className="badge badge-pill-enmv badge-estado-proceso mb-2">Postulación</span>
+            <span className="badge badge-pill-asommmn badge-estado-proceso mb-2">Postulación</span>
             <h1 className="section-title">
               Bienvenida, {perfil.nombre}
             </h1>
@@ -204,7 +204,7 @@ export default function DashboardPostulantePage() {
         {/* Barra de progreso del expediente */}
         <Row className="mb-4">
           <Col>
-            <Card className={`card-enmv card-riveted ${enviado ? 'card-enmv-top-verde' : 'card-enmv-top-dorado'}`}>
+            <Card className={`card-asommmn card-riveted ${enviado ? 'card-asommmn-top-verde' : 'card-asommmn-top-dorado'}`}>
               <Card.Body>
                 <div className="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
                   <div>
@@ -226,12 +226,12 @@ export default function DashboardPostulantePage() {
                   <div className="text-end">
                     <span
                       className="fw-bold"
-                      style={{ fontSize: '1.6rem', color: pct === 100 ? 'var(--enmv-verde)' : 'var(--enmv-dorado)' }}
+                      style={{ fontSize: '1.6rem', color: pct === 100 ? 'var(--asommmn-verde)' : 'var(--asommmn-dorado)' }}
                     >
                       {pct}%
                     </span>
                     {enviado && (
-                      <span className="badge badge-pill-enmv badge-estado-aprobado ms-2">
+                      <span className="badge badge-pill-asommmn badge-estado-aprobado ms-2">
                         Enviado
                       </span>
                     )}
@@ -248,8 +248,8 @@ export default function DashboardPostulantePage() {
                       height: '100%',
                       width: `${pct}%`,
                       background: pct === 100
-                        ? 'var(--enmv-verde)'
-                        : `linear-gradient(90deg, var(--enmv-dorado), var(--enmv-azul))`,
+                        ? 'var(--asommmn-verde)'
+                        : `linear-gradient(90deg, var(--asommmn-dorado), var(--asommmn-azul))`,
                       transition: 'width .5s ease',
                     }}
                   />
@@ -273,13 +273,13 @@ export default function DashboardPostulantePage() {
                                 : pendienteOpcional
                                   ? 'rgba(108,117,125,.08)'
                                   : 'rgba(201,162,75,.08)',
-                              border: `1px solid ${req.cumplido ? 'var(--enmv-verde)' : pendienteOpcional ? '#adb5bd' : 'var(--enmv-dorado)'}`,
+                              border: `1px solid ${req.cumplido ? 'var(--asommmn-verde)' : pendienteOpcional ? '#adb5bd' : 'var(--asommmn-dorado)'}`,
                             }}
                           >
                             <span style={{ fontSize: '1rem' }}>
                               {req.cumplido ? '✅' : pendienteOpcional ? '➖' : '❌'}
                             </span>
-                            <span className="small fw-semibold flex-grow-1" style={{ color: 'var(--enmv-azul)' }}>
+                            <span className="small fw-semibold flex-grow-1" style={{ color: 'var(--asommmn-azul)' }}>
                               {req.label}
                               {!req.requerido && (
                                 <span className="badge bg-secondary ms-2" style={{ fontSize: '0.65rem', fontWeight: 500 }}>
@@ -304,19 +304,19 @@ export default function DashboardPostulantePage() {
                     data-testid="link-bitacora-embarque"
                     className="item-opcional-bitacora d-flex align-items-center gap-2 rounded px-3 py-2 text-decoration-none"
                   >
-                    <span style={{ color: 'var(--enmv-dorado)' }}>
+                    <span style={{ color: 'var(--asommmn-dorado)' }}>
                       <IconBarco size={18} />
                     </span>
-                    <span className="small fw-semibold flex-grow-1" style={{ color: 'var(--enmv-azul)' }}>
+                    <span className="small fw-semibold flex-grow-1" style={{ color: 'var(--asommmn-azul)' }}>
                       Bitácora de Embarque
-                      <span className="badge badge-opcional-enmv badge-pill-enmv ms-2" style={{ fontSize: '0.65rem' }}>
+                      <span className="badge badge-opcional-asommmn badge-pill-asommmn ms-2" style={{ fontSize: '0.65rem' }}>
                         Opcional
                       </span>
                     </span>
                     {bitacora && bitacora.total > 0 ? (
                       <span className="text-muted small">{formatTiempoTotal(bitacora.tiempoTotal)}</span>
                     ) : null}
-                    <span className="fw-bold" style={{ fontSize: '1rem', color: 'var(--enmv-dorado)' }}>›</span>
+                    <span className="fw-bold" style={{ fontSize: '1rem', color: 'var(--asommmn-dorado)' }}>›</span>
                   </Link>
                 </div>
 
@@ -325,8 +325,8 @@ export default function DashboardPostulantePage() {
                   <div className="mt-4 d-flex align-items-center gap-3 flex-wrap">
                     <Button
                       style={{
-                        background: pct === 100 ? 'var(--enmv-azul)' : undefined,
-                        borderColor: pct === 100 ? 'var(--enmv-azul)' : undefined,
+                        background: pct === 100 ? 'var(--asommmn-azul)' : undefined,
+                        borderColor: pct === 100 ? 'var(--asommmn-azul)' : undefined,
                       }}
                       variant={pct === 100 ? 'primary' : 'secondary'}
                       disabled={pct < 100 || enviando}
@@ -354,7 +354,7 @@ export default function DashboardPostulantePage() {
         {perfil.vacante && (
           <Row className="mb-4">
             <Col>
-              <Card className="card-enmv card-enmv-top-azul">
+              <Card className="card-asommmn card-asommmn-top-azul">
                 <Card.Body className="d-flex align-items-center gap-3 flex-wrap">
                   <div className="flex-grow-1">
                     <div className="text-muted small mb-1">Vacante a la que aplicas</div>
@@ -378,7 +378,7 @@ export default function DashboardPostulantePage() {
         {/* CV + comentarios */}
         <Row className="mb-4 g-3">
           <Col lg={6}>
-            <Card className="card-enmv card-enmv-top-verde h-100">
+            <Card className="card-asommmn card-asommmn-top-verde h-100">
               <Card.Body>
                 <h5 className="section-title mb-3">Tu CV</h5>
                 {cv ? (
@@ -403,7 +403,7 @@ export default function DashboardPostulantePage() {
           </Col>
 
           <Col lg={6}>
-            <Card className="card-enmv card-enmv-top-dorado h-100">
+            <Card className="card-asommmn card-asommmn-top-dorado h-100">
               <Card.Body>
                 <h5 className="section-title mb-3">Comentarios del evaluador</h5>
                 {comentarios.length === 0 ? (

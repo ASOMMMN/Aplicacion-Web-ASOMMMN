@@ -1,36 +1,37 @@
 /* ============================================================
-   ENMV — Escuela Náutica Mercante de Veracruz
+   ASOMMMN — Asociación Sindical de Oficiales de Máquinas de la
+   Marina Mercante Nacional
    Paleta institucional y overrides de Bootstrap
    ============================================================ */
 
 /* ---------- Tokens de marca ---------- */
 :root {
   /* Colores */
-  --enmv-azul:        #0A2240;
-  --enmv-azul-hover:  #11315C;
-  --enmv-dorado:      #C9A24B;
-  --enmv-dorado-dark: #a8832e;
-  --enmv-verde:       #1D9E75;
-  --enmv-verde-dark:  #0F6E56;
-  --enmv-rojo:        #C0392B;
-  --enmv-rojo-dark:   #96281D;
-  --enmv-fondo:       #F5F7FA;
-  --enmv-blanco:      #FFFFFF;
-  --enmv-text-muted:  #495057;
+  --asommmn-azul:        #0A2240;
+  --asommmn-azul-hover:  #11315C;
+  --asommmn-dorado:      #C9A24B;
+  --asommmn-dorado-dark: #a8832e;
+  --asommmn-verde:       #1D9E75;
+  --asommmn-verde-dark:  #0F6E56;
+  --asommmn-rojo:        #C0392B;
+  --asommmn-rojo-dark:   #96281D;
+  --asommmn-fondo:       #F5F7FA;
+  --asommmn-blanco:      #FFFFFF;
+  --asommmn-text-muted:  #495057;
 
   /* Radios y sombras */
-  --enmv-radius-card: 12px;
-  --enmv-shadow-card: 0 2px 12px rgba(10,34,64,.10);
-  --enmv-shadow-nav:  0 2px 8px rgba(10,34,64,.18);
+  --asommmn-radius-card: 12px;
+  --asommmn-shadow-card: 0 2px 12px rgba(10,34,64,.10);
+  --asommmn-shadow-nav:  0 2px 8px rgba(10,34,64,.18);
 
   /* Bootstrap overrides vía custom props */
-  --bs-primary:          var(--enmv-azul);
+  --bs-primary:          var(--asommmn-azul);
   --bs-primary-rgb:      10,34,64;
   --bs-font-sans-serif:  var(--font-public-sans), 'Segoe UI', system-ui, sans-serif;
   --bs-body-line-height: 1.6;
-  --bs-body-bg:          var(--enmv-fondo);
+  --bs-body-bg:          var(--asommmn-fondo);
   --bs-body-color:       #1a2638;
-  --bs-border-radius:    var(--enmv-radius-card);
+  --bs-border-radius:    var(--asommmn-radius-card);
 }
 
 html, body {
@@ -43,7 +44,7 @@ html, body {
    clase .font-serif aplicada explícitamente ahí — en ningún otro lado. */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-public-sans), 'Segoe UI', system-ui, sans-serif;
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
 }
 .font-serif {
   font-family: 'Playfair Display', 'Merriweather', Georgia, serif;
@@ -53,13 +54,13 @@ p {
 }
 .text-muted,
 .text-secondary {
-  color: var(--enmv-text-muted) !important;
+  color: var(--asommmn-text-muted) !important;
 }
 
 /* ---------- Galón dorado bajo títulos de sección ---------- */
 .section-title {
   font-family: var(--font-public-sans), 'Segoe UI', system-ui, sans-serif;
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 0.25rem;
@@ -74,49 +75,49 @@ h1.section-title {
   display: block;
   width: 60px;
   height: 3px;
-  background: var(--enmv-dorado);
+  background: var(--asommmn-dorado);
   margin-top: 0.35rem;
 }
 
-/* ---------- Barra de navegación ENMV ---------- */
-.navbar-enmv {
-  background-color: var(--enmv-azul) !important;
-  border-bottom: 3px solid var(--enmv-dorado) !important;
-  box-shadow: var(--enmv-shadow-nav);
+/* ---------- Barra de navegación ASOMMMN ---------- */
+.navbar-asommmn {
+  background-color: var(--asommmn-azul) !important;
+  border-bottom: 3px solid var(--asommmn-dorado) !important;
+  box-shadow: var(--asommmn-shadow-nav);
 }
-.navbar-enmv .navbar-brand {
+.navbar-asommmn .navbar-brand {
   color: #fff !important;
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
-.navbar-enmv .navbar-brand .lema {
+.navbar-asommmn .navbar-brand .lema {
   display: block;
   font-family: var(--font-public-sans), sans-serif;
   font-size: 0.7rem;
   font-weight: 400;
-  color: var(--enmv-dorado);
+  color: var(--asommmn-dorado);
   letter-spacing: 0.08em;
   line-height: 1;
 }
-.navbar-enmv .nav-link {
+.navbar-asommmn .nav-link {
   color: rgba(255,255,255,.85) !important;
   font-size: .875rem;
   transition: color .2s;
 }
-.navbar-enmv .nav-link:hover,
-.navbar-enmv .nav-link.active {
-  color: var(--enmv-dorado) !important;
+.navbar-asommmn .nav-link:hover,
+.navbar-asommmn .nav-link.active {
+  color: var(--asommmn-dorado) !important;
 }
-.navbar-enmv .navbar-toggler {
+.navbar-asommmn .navbar-toggler {
   border-color: rgba(255,255,255,.4);
 }
-.navbar-enmv .navbar-toggler-icon {
+.navbar-asommmn .navbar-toggler-icon {
   filter: brightness(0) invert(1);
 }
 
 /* Campana de notificaciones en navbar */
-.btn-campana-enmv {
+.btn-campana-asommmn {
   position: relative;
   color: rgba(255,255,255,.85) !important;
   font-size: 1.15rem;
@@ -124,59 +125,59 @@ h1.section-title {
   padding: .25rem .5rem;
   text-decoration: none !important;
 }
-.btn-campana-enmv:hover,
-.btn-campana-enmv:focus {
-  color: var(--enmv-dorado) !important;
+.btn-campana-asommmn:hover,
+.btn-campana-asommmn:focus {
+  color: var(--asommmn-dorado) !important;
 }
-.badge-campana-enmv {
+.badge-campana-asommmn {
   position: absolute;
   top: -.2rem;
   right: -.1rem;
   font-size: .6rem;
   padding: .25em .4em;
 }
-.panel-notificaciones-enmv {
+.panel-notificaciones-asommmn {
   min-width: 320px;
   max-width: 380px;
   max-height: 420px;
   overflow-y: auto;
   padding: 0;
-  border-top: 3px solid var(--enmv-dorado);
+  border-top: 3px solid var(--asommmn-dorado);
 }
-.panel-notificaciones-enmv .dropdown-item {
+.panel-notificaciones-asommmn .dropdown-item {
   white-space: normal;
   padding: .6rem .9rem;
   border-bottom: 1px solid rgba(0,0,0,.06);
 }
-.panel-notificaciones-enmv .notificacion-no-leida {
+.panel-notificaciones-asommmn .notificacion-no-leida {
   background-color: rgba(201,162,75,.12);
 }
 
 /* Botón "Cerrar sesión" en navbar */
-.btn-logout-enmv {
-  color: var(--enmv-azul) !important;
-  background: var(--enmv-dorado) !important;
-  border-color: var(--enmv-dorado) !important;
+.btn-logout-asommmn {
+  color: var(--asommmn-azul) !important;
+  background: var(--asommmn-dorado) !important;
+  border-color: var(--asommmn-dorado) !important;
   font-size: .8rem;
   font-weight: 600;
   border-radius: 6px;
   transition: background .2s, opacity .2s;
 }
-.btn-logout-enmv:hover {
+.btn-logout-asommmn:hover {
   opacity: .88;
 }
 
 /* ---------- Tarjetas ---------- */
-.card-enmv {
+.card-asommmn {
   border: none !important;
-  border-radius: var(--enmv-radius-card) !important;
-  box-shadow: var(--enmv-shadow-card) !important;
-  background: var(--enmv-blanco);
+  border-radius: var(--asommmn-radius-card) !important;
+  box-shadow: var(--asommmn-shadow-card) !important;
+  background: var(--asommmn-blanco);
 }
-.card-enmv-top-azul  { border-top: 3px solid var(--enmv-azul)   !important; }
-.card-enmv-top-dorado{ border-top: 3px solid var(--enmv-dorado) !important; }
-.card-enmv-top-verde { border-top: 3px solid var(--enmv-verde)  !important; }
-.card-enmv-top-rojo  { border-top: 3px solid var(--enmv-rojo)   !important; }
+.card-asommmn-top-azul  { border-top: 3px solid var(--asommmn-azul)   !important; }
+.card-asommmn-top-dorado{ border-top: 3px solid var(--asommmn-dorado) !important; }
+.card-asommmn-top-verde { border-top: 3px solid var(--asommmn-verde)  !important; }
+.card-asommmn-top-rojo  { border-top: 3px solid var(--asommmn-rojo)   !important; }
 
 /* Affordance sin depender de hover: todo elemento clickeable debe
    distinguirse en reposo (borde, fondo o sombra), no solo al pasar el mouse. */
@@ -195,20 +196,20 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 /* ---------- Botones globales ---------- */
 .btn-primary,
 .btn.btn-primary {
-  background-color: var(--enmv-azul) !important;
-  border-color: var(--enmv-azul) !important;
+  background-color: var(--asommmn-azul) !important;
+  border-color: var(--asommmn-azul) !important;
   color: #fff !important;
   transition: background .2s;
 }
 .btn-primary:hover,
 .btn.btn-primary:hover {
-  background-color: var(--enmv-azul-hover) !important;
-  border-color: var(--enmv-azul-hover) !important;
+  background-color: var(--asommmn-azul-hover) !important;
+  border-color: var(--asommmn-azul-hover) !important;
 }
 .btn-dorado {
-  background-color: var(--enmv-dorado) !important;
-  border-color: var(--enmv-dorado) !important;
-  color: var(--enmv-azul) !important;
+  background-color: var(--asommmn-dorado) !important;
+  border-color: var(--asommmn-dorado) !important;
+  color: var(--asommmn-azul) !important;
   font-weight: 600;
   transition: background .2s, opacity .2s;
 }
@@ -216,19 +217,25 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   opacity: .88;
 }
 .btn-outline-primary {
-  color: var(--enmv-azul) !important;
-  border-color: var(--enmv-azul) !important;
+  color: var(--asommmn-azul) !important;
+  border-color: var(--asommmn-azul) !important;
 }
 .btn-outline-primary:hover {
-  background-color: var(--enmv-azul) !important;
+  background-color: var(--asommmn-azul) !important;
   color: #fff !important;
 }
 
-/* ---------- Badges de estado ---------- */
-.badge-estado-proceso   { background: var(--enmv-dorado) !important; color: var(--enmv-azul) !important; }
-.badge-estado-aprobado  { background: var(--enmv-verde)  !important; color: #fff !important; }
+/* ---------- Badges de estado ----------
+   Estado general del expediente/postulación (único, no contradictorio):
+   incompleto -> rechazado | en_proceso -> proceso | completo -> aprobado
+   | enviado -> enviado | evaluado -> evaluado. Ver estadoGeneral() en
+   apps/web/src/lib/estadoCandidato.ts. */
+.badge-estado-proceso   { background: var(--asommmn-dorado) !important; color: var(--asommmn-azul) !important; }
+.badge-estado-aprobado  { background: var(--asommmn-verde)  !important; color: #fff !important; }
 .badge-estado-rechazado { background: #C0392B !important; color: #fff !important; }
-.badge-pill-enmv {
+.badge-estado-enviado   { background: var(--asommmn-azul)   !important; color: #fff !important; }
+.badge-estado-evaluado  { background: #0F6E4F !important; color: #fff !important; }
+.badge-pill-asommmn {
   border-radius: 999px;
   padding: .3em .75em;
   font-size: .775rem;
@@ -237,20 +244,20 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 }
 
 /* Bootstrap badge overrides */
-.badge.bg-warning { background-color: var(--enmv-dorado) !important; color: var(--enmv-azul) !important; }
-.badge.bg-success { background-color: var(--enmv-verde)  !important; }
-.badge.bg-primary { background-color: var(--enmv-azul)   !important; }
+.badge.bg-warning { background-color: var(--asommmn-dorado) !important; color: var(--asommmn-azul) !important; }
+.badge.bg-success { background-color: var(--asommmn-verde)  !important; }
+.badge.bg-primary { background-color: var(--asommmn-azul)   !important; }
 
 /* ---------- Footer ---------- */
-.footer-enmv {
-  background-color: var(--enmv-azul);
+.footer-asommmn {
+  background-color: var(--asommmn-azul);
   color: rgba(255,255,255,.8);
   padding: 1.5rem 0;
   font-size: .8rem;
-  border-top: 3px solid var(--enmv-dorado);
+  border-top: 3px solid var(--asommmn-dorado);
 }
-.footer-enmv .lema-footer {
-  color: var(--enmv-dorado);
+.footer-asommmn .lema-footer {
+  color: var(--asommmn-dorado);
   font-style: italic;
   letter-spacing: .08em;
 }
@@ -269,7 +276,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  border-radius: var(--enmv-radius-card);
+  border-radius: var(--asommmn-radius-card);
   box-shadow: 0 8px 40px rgba(10,34,64,.35);
   padding: 2.5rem 2rem;
   width: 100%;
@@ -283,7 +290,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 }
 /* text-muted — gris oscuro legible */
 .auth-card .text-muted,
-.auth-card p[style*="enmv-text-muted"] {
+.auth-card p[style*="asommmn-text-muted"] {
   color: #4B5563 !important;
 }
 /* Helper text pequeño */
@@ -291,8 +298,8 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   color: #4B5563;
 }
 /* Links de acción — ámbar oscuro #92400E con halo blanco */
-.auth-card a[style*="enmv-dorado"],
-.auth-card a[style*="enmv-azul"] {
+.auth-card a[style*="asommmn-dorado"],
+.auth-card a[style*="asommmn-azul"] {
   color: #92400E !important;
   font-weight: 600;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
@@ -308,7 +315,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 }
 .auth-card .nombre-escuela {
   font-family: 'Playfair Display', serif;
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.3;
@@ -325,20 +332,20 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 .auth-divider {
   width: 60px;
   height: 2px;
-  background: var(--enmv-dorado);
+  background: var(--asommmn-dorado);
   margin: .75rem auto 1.25rem;
   border-radius: 1px;
 }
 
 /* ---------- Spinners / loading ---------- */
 .spinner-border {
-  color: var(--enmv-azul) !important;
+  color: var(--asommmn-azul) !important;
 }
 
 /* ---------- Form controls ---------- */
 .form-control:focus,
 .form-select:focus {
-  border-color: var(--enmv-dorado);
+  border-color: var(--asommmn-dorado);
   box-shadow: 0 0 0 .2rem rgba(201,162,75,.2);
 }
 
@@ -352,25 +359,25 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--enmv-text-muted);
+  background: var(--asommmn-text-muted);
   animation: chatbotDot 1.4s infinite;
 }
 .chatbot-dot:nth-child(2) { animation-delay: 0.2s; }
 .chatbot-dot:nth-child(3) { animation-delay: 0.4s; }
 .chatbot-input:focus {
-  border-color: var(--enmv-dorado) !important;
+  border-color: var(--asommmn-dorado) !important;
   box-shadow: 0 0 0 .15rem rgba(201,162,75,.2);
 }
 
 /* ============================================================
    Portal EVALUADOR — pulido náutico
    Todo va bajo .nautical-panel para NO afectar postulante/admin,
-   que también usan .card-enmv / .section-title.
+   que también usan .card-asommmn / .section-title.
    ============================================================ */
 
 /* Textura de fondo tipo carta náutica: cuadrícula muy tenue (~3.5%) */
 .nautical-panel {
-  background-color: var(--enmv-fondo);
+  background-color: var(--asommmn-fondo);
   background-image:
     linear-gradient(rgba(10, 34, 64, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(10, 34, 64, 0.035) 1px, transparent 1px);
@@ -378,12 +385,12 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 }
 
 /* Tarjetas: más aire, sombra más difusa, micro-interacción al hover */
-.nautical-panel .card-enmv {
+.nautical-panel .card-asommmn {
   margin-bottom: 2rem !important;
   box-shadow: 0 4px 22px rgba(10, 34, 64, .07) !important;
   transition: box-shadow .2s ease, transform .2s ease;
 }
-.nautical-panel .card-enmv:hover {
+.nautical-panel .card-asommmn:hover {
   box-shadow: 0 10px 30px rgba(10, 34, 64, .15) !important;
   transform: translateY(-3px);
 }
@@ -399,7 +406,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   transform: translateY(-1px);
 }
 .nautical-panel .requisito-checklist-item .requisito-chevron {
-  color: var(--enmv-dorado);
+  color: var(--asommmn-dorado);
   opacity: .75;
 }
 
@@ -407,7 +414,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 .nautical-panel .anchor-glyph {
   display: inline-block;
   font-size: .65em;
-  color: var(--enmv-dorado);
+  color: var(--asommmn-dorado);
   margin-left: .45em;
   opacity: .85;
   vertical-align: middle;
@@ -415,7 +422,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 
 /* Ícono temático junto al título de cada sección */
 .nautical-panel .nautical-icon {
-  color: var(--enmv-dorado);
+  color: var(--asommmn-dorado);
   margin-right: .5rem;
   vertical-align: -3px;
 }
@@ -425,7 +432,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   display: flex;
   align-items: center;
   gap: .5rem;
-  color: var(--enmv-text-muted);
+  color: var(--asommmn-text-muted);
 }
 .nautical-panel .empty-state svg,
 .nautical-panel .empty-state i {
@@ -452,7 +459,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 /* ============================================================
    Portal EVALUADOR — pulido de detalle (tipografía, botones,
    formularios, tablas, badges, tarjetas, scrollbars, espaciado)
-   .enmv-modal se aplica a los <Modal> de react-bootstrap: se
+   .asommmn-modal se aplica a los <Modal> de react-bootstrap: se
    renderizan en un portal fuera de .nautical-panel (van a
    document.body), así que necesitan su propia clase de scope
    para recibir el mismo pulido sin salirnos de "solo evaluador".
@@ -460,18 +467,18 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 
 /* ---------- 8. Variables de espaciado, propias del portal evaluador ---------- */
 .nautical-panel,
-.enmv-modal {
-  --enmv-space-xs: .5rem;
-  --enmv-space-sm: 1rem;
-  --enmv-space-md: 1.5rem;
-  --enmv-space-lg: 2rem;
-  --enmv-space-xl: 3rem;
+.asommmn-modal {
+  --asommmn-space-xs: .5rem;
+  --asommmn-space-sm: 1rem;
+  --asommmn-space-md: 1.5rem;
+  --asommmn-space-lg: 2rem;
+  --asommmn-space-xl: 3rem;
 }
 
 /* ---------- 1. Tipografía: hereda la escala global (Public Sans); solo line-height aquí ---------- */
 .nautical-panel td,
-.nautical-panel .card-enmv .card-body,
-.enmv-modal .modal-body {
+.nautical-panel .card-asommmn .card-body,
+.asommmn-modal .modal-body {
   line-height: 1.65;
 }
 
@@ -481,12 +488,12 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 .nautical-panel input,
 .nautical-panel select,
 .nautical-panel textarea,
-.nautical-panel .card-enmv,
-.enmv-modal a,
-.enmv-modal button,
-.enmv-modal input,
-.enmv-modal select,
-.enmv-modal textarea {
+.nautical-panel .card-asommmn,
+.asommmn-modal a,
+.asommmn-modal button,
+.asommmn-modal input,
+.asommmn-modal select,
+.asommmn-modal textarea {
   transition: background-color .2s ease, background-image .2s ease,
     border-color .2s ease, color .2s ease, box-shadow .2s ease,
     transform .2s ease, opacity .2s ease;
@@ -494,23 +501,23 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 
 /* ---------- 2. Botones ---------- */
 .nautical-panel .btn,
-.enmv-modal .btn {
+.asommmn-modal .btn {
   border-radius: 8px;
 }
 .nautical-panel .btn:hover:not(:disabled):not(.disabled),
-.enmv-modal .btn:hover:not(:disabled):not(.disabled) {
+.asommmn-modal .btn:hover:not(:disabled):not(.disabled) {
   transform: scale(1.02);
   box-shadow: 0 4px 14px rgba(10, 34, 64, .16);
 }
 .nautical-panel .btn:active:not(:disabled):not(.disabled),
-.enmv-modal .btn:active:not(:disabled):not(.disabled) {
+.asommmn-modal .btn:active:not(:disabled):not(.disabled) {
   transform: scale(.98);
   box-shadow: 0 1px 4px rgba(10, 34, 64, .18);
 }
 .nautical-panel .btn:disabled,
 .nautical-panel .btn.disabled,
-.enmv-modal .btn:disabled,
-.enmv-modal .btn.disabled {
+.asommmn-modal .btn:disabled,
+.asommmn-modal .btn.disabled {
   opacity: .55;
   cursor: not-allowed;
   transform: none !important;
@@ -520,76 +527,76 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 /* Primario (azul marino) y dorado con gradiente sutil */
 .nautical-panel .btn-primary,
 .nautical-panel .btn.btn-primary,
-.enmv-modal .btn-primary,
-.enmv-modal .btn.btn-primary {
-  background-image: linear-gradient(180deg, var(--enmv-azul-hover), var(--enmv-azul)) !important;
-  border-color: var(--enmv-azul) !important;
+.asommmn-modal .btn-primary,
+.asommmn-modal .btn.btn-primary {
+  background-image: linear-gradient(180deg, var(--asommmn-azul-hover), var(--asommmn-azul)) !important;
+  border-color: var(--asommmn-azul) !important;
 }
 .nautical-panel .btn-primary:hover,
 .nautical-panel .btn.btn-primary:hover,
-.enmv-modal .btn-primary:hover,
-.enmv-modal .btn.btn-primary:hover {
-  background-image: linear-gradient(180deg, var(--enmv-azul), #071a30) !important;
+.asommmn-modal .btn-primary:hover,
+.asommmn-modal .btn.btn-primary:hover {
+  background-image: linear-gradient(180deg, var(--asommmn-azul), #071a30) !important;
 }
 .nautical-panel .btn-dorado,
-.enmv-modal .btn-dorado {
-  background-image: linear-gradient(180deg, #dcbd72, var(--enmv-dorado)) !important;
-  border-color: var(--enmv-dorado) !important;
+.asommmn-modal .btn-dorado {
+  background-image: linear-gradient(180deg, #dcbd72, var(--asommmn-dorado)) !important;
+  border-color: var(--asommmn-dorado) !important;
 }
 .nautical-panel .btn-dorado:hover,
-.enmv-modal .btn-dorado:hover {
-  background-image: linear-gradient(180deg, var(--enmv-dorado), var(--enmv-dorado-dark)) !important;
+.asommmn-modal .btn-dorado:hover {
+  background-image: linear-gradient(180deg, var(--asommmn-dorado), var(--asommmn-dorado-dark)) !important;
   opacity: 1;
 }
 .nautical-panel .btn-outline-primary,
-.enmv-modal .btn-outline-primary {
+.asommmn-modal .btn-outline-primary {
   background-color: transparent;
 }
 
 /* Destructivos (eliminar, rechazar) — rojo con hover más oscuro */
 .nautical-panel .btn-outline-danger,
-.enmv-modal .btn-outline-danger {
-  color: var(--enmv-rojo) !important;
-  border-color: var(--enmv-rojo) !important;
+.asommmn-modal .btn-outline-danger {
+  color: var(--asommmn-rojo) !important;
+  border-color: var(--asommmn-rojo) !important;
 }
 .nautical-panel .btn-outline-danger:hover,
-.enmv-modal .btn-outline-danger:hover {
-  background-color: var(--enmv-rojo-dark) !important;
-  border-color: var(--enmv-rojo-dark) !important;
+.asommmn-modal .btn-outline-danger:hover {
+  background-color: var(--asommmn-rojo-dark) !important;
+  border-color: var(--asommmn-rojo-dark) !important;
   color: #fff !important;
 }
 .nautical-panel .btn-danger,
-.enmv-modal .btn-danger {
-  background-color: var(--enmv-rojo) !important;
-  border-color: var(--enmv-rojo) !important;
+.asommmn-modal .btn-danger {
+  background-color: var(--asommmn-rojo) !important;
+  border-color: var(--asommmn-rojo) !important;
 }
 .nautical-panel .btn-danger:hover,
-.enmv-modal .btn-danger:hover {
-  background-color: var(--enmv-rojo-dark) !important;
-  border-color: var(--enmv-rojo-dark) !important;
+.asommmn-modal .btn-danger:hover {
+  background-color: var(--asommmn-rojo-dark) !important;
+  border-color: var(--asommmn-rojo-dark) !important;
 }
 
 /* ---------- 3. Formularios ---------- */
 .nautical-panel .form-control,
 .nautical-panel .form-select,
-.enmv-modal .form-control,
-.enmv-modal .form-select {
+.asommmn-modal .form-control,
+.asommmn-modal .form-select {
   border: 1px solid #d7dce3;
 }
 .nautical-panel .form-control:focus,
 .nautical-panel .form-select:focus,
-.enmv-modal .form-control:focus,
-.enmv-modal .form-select:focus {
-  border-color: var(--enmv-azul);
+.asommmn-modal .form-control:focus,
+.asommmn-modal .form-select:focus {
+  border-color: var(--asommmn-azul);
   box-shadow: 0 0 0 .2rem rgba(10, 34, 64, .1), 0 0 10px rgba(201, 162, 75, .25);
 }
 .nautical-panel .form-control::placeholder,
-.enmv-modal .form-control::placeholder {
+.asommmn-modal .form-control::placeholder {
   color: #9aa3af;
   opacity: 1;
 }
 .nautical-panel textarea.form-control,
-.enmv-modal textarea.form-control {
+.asommmn-modal textarea.form-control {
   resize: vertical;
   padding: .75rem .9rem;
   min-height: 96px;
@@ -597,13 +604,13 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 
 /* ---------- 4. Tablas ---------- */
 .nautical-panel .table,
-.enmv-modal .table {
+.asommmn-modal .table {
   --bs-table-border-color: rgba(10, 34, 64, .08);
 }
 .nautical-panel .table thead th,
-.enmv-modal .table thead th {
+.asommmn-modal .table thead th {
   background-color: rgba(10, 34, 64, .035);
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
   font-size: .72rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -613,46 +620,46 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   padding-bottom: .75rem;
 }
 .nautical-panel .table > tbody > tr,
-.enmv-modal .table > tbody > tr {
+.asommmn-modal .table > tbody > tr {
   transition: background-color .15s ease;
 }
 .nautical-panel .table-hover > tbody > tr:hover > *,
-.enmv-modal .table-hover > tbody > tr:hover > * {
+.asommmn-modal .table-hover > tbody > tr:hover > * {
   background-color: rgba(201, 162, 75, .07);
 }
 .nautical-panel .table > tbody > tr:nth-of-type(even):not([style]) > *,
-.enmv-modal .table > tbody > tr:nth-of-type(even) > * {
+.asommmn-modal .table > tbody > tr:nth-of-type(even) > * {
   background-color: rgba(10, 34, 64, .015);
 }
 
 /* ---------- 5. Badges / píldoras ---------- */
-.nautical-panel .badge-pill-enmv,
-.enmv-modal .badge-pill-enmv,
-.nautical-panel .badge.badge-pill-enmv,
-.enmv-modal .badge.badge-pill-enmv {
+.nautical-panel .badge-pill-asommmn,
+.asommmn-modal .badge-pill-asommmn,
+.nautical-panel .badge.badge-pill-asommmn,
+.asommmn-modal .badge.badge-pill-asommmn {
   box-shadow: 0 1px 3px rgba(10, 34, 64, .18);
   display: inline-flex;
   align-items: center;
   gap: .3em;
 }
 .nautical-panel .badge,
-.enmv-modal .badge {
+.asommmn-modal .badge {
   box-shadow: 0 1px 3px rgba(10, 34, 64, .12);
 }
 
 /* ---------- 6. Tarjetas: borde superior en degradado + separador interno ---------- */
-.nautical-panel .card-enmv-top-azul,
-.nautical-panel .card-enmv-top-dorado,
-.nautical-panel .card-enmv-top-verde,
-.nautical-panel .card-enmv-top-rojo {
+.nautical-panel .card-asommmn-top-azul,
+.nautical-panel .card-asommmn-top-dorado,
+.nautical-panel .card-asommmn-top-verde,
+.nautical-panel .card-asommmn-top-rojo {
   border-top: none !important;
   position: relative;
   overflow: hidden;
 }
-.nautical-panel .card-enmv-top-azul::before,
-.nautical-panel .card-enmv-top-dorado::before,
-.nautical-panel .card-enmv-top-verde::before,
-.nautical-panel .card-enmv-top-rojo::before {
+.nautical-panel .card-asommmn-top-azul::before,
+.nautical-panel .card-asommmn-top-dorado::before,
+.nautical-panel .card-asommmn-top-verde::before,
+.nautical-panel .card-asommmn-top-rojo::before {
   content: '';
   position: absolute;
   top: 0;
@@ -660,69 +667,69 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   right: 0;
   height: 4px;
 }
-.nautical-panel .card-enmv-top-azul::before {
-  background: linear-gradient(90deg, var(--enmv-azul-hover), var(--enmv-azul));
+.nautical-panel .card-asommmn-top-azul::before {
+  background: linear-gradient(90deg, var(--asommmn-azul-hover), var(--asommmn-azul));
 }
-.nautical-panel .card-enmv-top-dorado::before {
-  background: linear-gradient(90deg, var(--enmv-dorado-dark), var(--enmv-dorado));
+.nautical-panel .card-asommmn-top-dorado::before {
+  background: linear-gradient(90deg, var(--asommmn-dorado-dark), var(--asommmn-dorado));
 }
-.nautical-panel .card-enmv-top-verde::before {
-  background: linear-gradient(90deg, var(--enmv-verde-dark), var(--enmv-verde));
+.nautical-panel .card-asommmn-top-verde::before {
+  background: linear-gradient(90deg, var(--asommmn-verde-dark), var(--asommmn-verde));
 }
-.nautical-panel .card-enmv-top-rojo::before {
-  background: linear-gradient(90deg, var(--enmv-rojo-dark), var(--enmv-rojo));
+.nautical-panel .card-asommmn-top-rojo::before {
+  background: linear-gradient(90deg, var(--asommmn-rojo-dark), var(--asommmn-rojo));
 }
-.nautical-panel .card-enmv .card-body {
-  padding: var(--enmv-space-md);
+.nautical-panel .card-asommmn .card-body {
+  padding: var(--asommmn-space-md);
 }
-.nautical-panel .card-enmv .section-title {
-  padding-bottom: var(--enmv-space-xs);
-  margin-bottom: var(--enmv-space-sm);
+.nautical-panel .card-asommmn .section-title {
+  padding-bottom: var(--asommmn-space-xs);
+  margin-bottom: var(--asommmn-space-sm);
   border-bottom: 1px solid rgba(10, 34, 64, .08);
 }
-.enmv-modal .modal-content {
-  border-radius: var(--enmv-radius-card);
+.asommmn-modal .modal-content {
+  border-radius: var(--asommmn-radius-card);
   border: none;
   box-shadow: 0 12px 36px rgba(10, 34, 64, .25);
   overflow: hidden;
 }
-.enmv-modal .modal-header {
+.asommmn-modal .modal-header {
   border-bottom: 1px solid rgba(10, 34, 64, .08);
 }
-.enmv-modal .modal-footer {
+.asommmn-modal .modal-footer {
   border-top: 1px solid rgba(10, 34, 64, .08);
 }
 
 /* ---------- 7. Scrollbars personalizados ---------- */
 .nautical-panel,
-.enmv-modal {
+.asommmn-modal {
   scrollbar-width: thin;
-  scrollbar-color: var(--enmv-azul) rgba(10, 34, 64, .05);
+  scrollbar-color: var(--asommmn-azul) rgba(10, 34, 64, .05);
 }
 .nautical-panel *,
-.enmv-modal * {
+.asommmn-modal * {
   scrollbar-width: thin;
-  scrollbar-color: var(--enmv-azul) rgba(10, 34, 64, .05);
+  scrollbar-color: var(--asommmn-azul) rgba(10, 34, 64, .05);
 }
 .nautical-panel ::-webkit-scrollbar,
-.enmv-modal ::-webkit-scrollbar {
+.asommmn-modal ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .nautical-panel ::-webkit-scrollbar-track,
-.enmv-modal ::-webkit-scrollbar-track {
+.asommmn-modal ::-webkit-scrollbar-track {
   background: rgba(10, 34, 64, .05);
 }
 .nautical-panel ::-webkit-scrollbar-thumb,
-.enmv-modal ::-webkit-scrollbar-thumb {
-  background-color: var(--enmv-azul);
+.asommmn-modal ::-webkit-scrollbar-thumb {
+  background-color: var(--asommmn-azul);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 .nautical-panel ::-webkit-scrollbar-thumb:hover,
-.enmv-modal ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--enmv-dorado);
+.asommmn-modal ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--asommmn-dorado);
   background-clip: padding-box;
 }
 
@@ -765,7 +772,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
     radial-gradient(circle 1.6px at 50% 94%, var(--porthole-rivet) 95%, transparent 100%),
     radial-gradient(circle 1.6px at 12% 72%, var(--porthole-rivet) 95%, transparent 100%),
     radial-gradient(circle 1.6px at 12% 28%, var(--porthole-rivet) 95%, transparent 100%),
-    var(--enmv-azul);
+    var(--asommmn-azul);
 }
 .nautical-panel .porthole-ring {
   display: flex;
@@ -774,13 +781,13 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  border: 2px solid var(--enmv-dorado);
+  border: 2px solid var(--asommmn-dorado);
   background: linear-gradient(155deg, #eef2f6, #dbe1e9);
 }
 .nautical-panel .porthole-face {
   font-family: 'Playfair Display', serif;
   font-weight: 700;
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
   line-height: 1;
   letter-spacing: .02em;
 }
@@ -788,8 +795,8 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 /* ---------- Badge de vacante tipo banderín ---------- */
 .nautical-panel .pennant-vacante {
   display: inline-block;
-  background: var(--enmv-dorado);
-  color: var(--enmv-azul);
+  background: var(--asommmn-dorado);
+  color: var(--asommmn-azul);
   font-weight: 700;
   font-size: .76rem;
   line-height: 1.5;
@@ -813,9 +820,9 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   to { transform: rotate(360deg); }
 }
 .nautical-panel .spin-timon,
-.enmv-modal .spin-timon {
+.asommmn-modal .spin-timon {
   animation: spin-timon 1.4s linear infinite;
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
 }
 
 /* ============================================================
@@ -829,7 +836,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   font-weight: 600;
 }
 .btn,
-.badge-pill-enmv {
+.badge-pill-asommmn {
   font-weight: 600;
 }
 
@@ -839,8 +846,8 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 
 /* KPI: tiempo total de mar acumulado — azul marino con acento dorado */
 .nautical-panel .kpi-tiempo-mar {
-  background: linear-gradient(135deg, var(--enmv-azul) 0%, var(--enmv-azul-hover) 100%);
-  border-top: 3px solid var(--enmv-dorado) !important;
+  background: linear-gradient(135deg, var(--asommmn-azul) 0%, var(--asommmn-azul-hover) 100%);
+  border-top: 3px solid var(--asommmn-dorado) !important;
   color: #fff;
 }
 .nautical-panel .kpi-tiempo-mar .kpi-label {
@@ -851,13 +858,13 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   font-weight: 600;
 }
 .nautical-panel .kpi-tiempo-mar .kpi-valor {
-  color: var(--enmv-dorado);
+  color: var(--asommmn-dorado);
   font-weight: 700;
   font-size: 2rem;
   line-height: 1.2;
 }
 .nautical-panel .kpi-tiempo-mar .kpi-icono {
-  color: var(--enmv-dorado);
+  color: var(--asommmn-dorado);
   opacity: .9;
 }
 
@@ -865,7 +872,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 .nautical-panel .item-opcional-bitacora {
   cursor: pointer;
   transition: background-color .15s ease, border-color .15s ease, transform .15s ease;
-  border: 1px dashed var(--enmv-dorado) !important;
+  border: 1px dashed var(--asommmn-dorado) !important;
   background: rgba(201, 162, 75, .06);
 }
 .nautical-panel .item-opcional-bitacora:hover,
@@ -873,9 +880,9 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   background-color: rgba(201, 162, 75, .12) !important;
   transform: translateY(-1px);
 }
-.nautical-panel .badge-opcional-enmv {
+.nautical-panel .badge-opcional-asommmn {
   background: rgba(10, 34, 64, .08);
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
   border: 1px solid rgba(10, 34, 64, .18);
 }
 
@@ -891,7 +898,7 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   top: 6px;
   bottom: 6px;
   width: 2px;
-  background: linear-gradient(180deg, var(--enmv-dorado), rgba(10,34,64,.15));
+  background: linear-gradient(180deg, var(--asommmn-dorado), rgba(10,34,64,.15));
 }
 .nautical-panel .embarque-card {
   position: relative;
@@ -906,19 +913,19 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--enmv-dorado);
-  border: 2px solid var(--enmv-blanco);
+  background: var(--asommmn-dorado);
+  border: 2px solid var(--asommmn-blanco);
   box-shadow: 0 0 0 2px rgba(10,34,64,.15);
 }
 .nautical-panel .badge-rango-embarque {
   background: rgba(201, 162, 75, .16);
-  color: var(--enmv-dorado-dark);
+  color: var(--asommmn-dorado-dark);
   border: 1px solid rgba(201, 162, 75, .45);
 }
 .nautical-panel .duracion-pill {
   display: inline-block;
   background: rgba(10, 34, 64, .06);
-  color: var(--enmv-azul);
+  color: var(--asommmn-azul);
   border-radius: 999px;
   padding: .25em .85em;
   font-size: .78rem;

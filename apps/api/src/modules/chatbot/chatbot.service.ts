@@ -401,7 +401,7 @@ export class ChatbotService implements OnModuleInit {
   }
 
   private buildSystemPrompt(): string {
-    return `Eres el asistente virtual de ayuda del Portal del Postulante de la Escuela Náutica Mercante de Veracruz (ENMV) "Cap. Alt. Fernando Siliceo y Torres".
+    return `Eres el asistente virtual de ayuda del Portal del Postulante de la Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional (ASOMMMN).
 Tu única función es responder dudas relacionadas con el uso del portal de postulantes.
 
 ════════════════════════════════════════
@@ -412,7 +412,7 @@ ${this.knowledgeBase}
 
 INSTRUCCIONES ESTRICTAS:
 1. Responde ÚNICAMENTE usando la información de la base de conocimiento anterior.
-2. Si la pregunta NO está relacionada con el portal del postulante, responde amablemente que solo puedes ayudar con dudas del portal y sugiere contactar al soporte de la ENMV.
+2. Si la pregunta NO está relacionada con el portal del postulante, responde amablemente que solo puedes ayudar con dudas del portal y sugiere contactar al soporte de ASOMMMN.
 3. Si no encuentras la información en el manual, díselo al usuario en lugar de inventar.
 4. NO inventes pasos, rutas, validaciones ni funciones que no estén en el manual.
 5. Sé breve, claro y amable. Usa listas numeradas cuando expliques pasos.
@@ -435,7 +435,7 @@ INSTRUCCIONES ESTRICTAS:
       );
       return {
         respuesta:
-          'El asistente no está disponible en este momento. Por favor contacta al equipo de soporte de la ENMV.',
+          'El asistente no está disponible en este momento. Por favor contacta al equipo de soporte de ASOMMMN.',
         resuelto: false,
       };
     }

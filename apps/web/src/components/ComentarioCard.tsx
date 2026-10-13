@@ -47,7 +47,7 @@ export function ComentarioCard({ item }: { item: ComentarioCardItem }) {
       <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap">
         <div>
           {item.documentoLabel && (
-            <Badge bg="secondary" className="badge-pill-enmv mb-1">
+            <Badge bg="secondary" className="badge-pill-asommmn mb-1">
               {item.documentoLabel}
             </Badge>
           )}
@@ -55,7 +55,7 @@ export function ComentarioCard({ item }: { item: ComentarioCardItem }) {
           <div className="text-muted small">{formatFecha(item.creadoEn)}</div>
         </div>
         <div className="text-end">
-          <Badge bg={estadoColor[item.estadoSugerido]} className="badge-pill-enmv">
+          <Badge bg={estadoColor[item.estadoSugerido]} className="badge-pill-asommmn">
             <i className={`bi ${estadoIconClass[item.estadoSugerido]}`} />
             {estadoLabel[item.estadoSugerido]}
           </Badge>

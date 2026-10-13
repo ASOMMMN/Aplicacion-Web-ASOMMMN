@@ -1,8 +1,8 @@
 # BASE DE CONOCIMIENTO — PORTAL DEL POSTULANTE
-## Sistema de Evaluación Curricular — Escuela Náutica Mercante de Veracruz (ENMV)
+## Sistema de Evaluación Curricular — Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional (ASOMMMN)
 
 > **Uso interno:** Este archivo es el contexto de referencia para el chatbot de ayuda
-> del portal del postulante de ENMV. Cubre únicamente el rol **postulante**.
+> del portal del postulante de ASOMMMN. Cubre únicamente el rol **postulante**.
 > Los roles evaluador y administrador se documentarán por separado.
 > Última revisión: 2026-07-01
 
@@ -785,7 +785,7 @@ Corrígelas directamente en el formulario que aparece después del análisis. Lo
 
 **P8: ¿Puedo modificar mi postulación después de haberla finalizado?**
 
-Una vez que confirmas "Finalizar postulación", el expediente queda en estado **"Enviado"** y no puedes revertirlo desde el portal. Puedes seguir viendo tus documentos, pero no puedes cambiar el estado. Si necesitas hacer alguna corrección urgente (por ejemplo, cambiar la vacante), contacta directamente al equipo de recursos humanos de la ENMV.
+Una vez que confirmas "Finalizar postulación", el expediente queda en estado **"Enviado"** y no puedes revertirlo desde el portal. Puedes seguir viendo tus documentos, pero no puedes cambiar el estado. Si necesitas hacer alguna corrección urgente (por ejemplo, cambiar la vacante), contacta directamente al equipo de recursos humanos de ASOMMMN.
 
 ---
 
@@ -797,7 +797,7 @@ Ve a la sección **"Estado"** desde el menú superior. Si el evaluador ha revisa
 
 **P10: No llegó el correo de recuperación de contraseña. ¿Qué hago?**
 
-Espera al menos 5 minutos y luego revisa también tu carpeta de **spam o correo no deseado**. Verifica que el correo que escribiste en el formulario sea el mismo con el que te registraste (sin errores tipográficos). Puedes intentar solicitar el enlace de nuevo desde `/recuperar-contrasena`. Si después de todo eso sigue sin llegar, contacta al equipo de soporte de la ENMV con tu nombre y correo para que puedan ayudarte.
+Espera al menos 5 minutos y luego revisa también tu carpeta de **spam o correo no deseado**. Verifica que el correo que escribiste en el formulario sea el mismo con el que te registraste (sin errores tipográficos). Puedes intentar solicitar el enlace de nuevo desde `/recuperar-contrasena`. Si después de todo eso sigue sin llegar, contacta al equipo de soporte de ASOMMMN con tu nombre y correo para que puedan ayudarte.
 
 ---
 
@@ -840,5 +840,5 @@ Ejemplo válido: `MiContrasena2026`. Después de cambiarla, ya puedes entrar con
 
 ---
 
-*Fin del manual — Base de conocimiento v1.1 | Portal del Postulante ENMV*  
+*Fin del manual — Base de conocimiento v1.1 | Portal del Postulante ASOMMMN*  
 *Generado: 2026-07-01 | Basado en el código fuente de apps/web y apps/api*

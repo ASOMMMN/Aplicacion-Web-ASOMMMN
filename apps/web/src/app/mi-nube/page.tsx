@@ -338,7 +338,7 @@ export default function MiNubePage() {
   return (
     <div className="nautical-panel min-vh-100 py-4">
       <div className="container-fluid px-3 px-lg-4">
-        <Card className="card-enmv card-enmv-top-azul">
+        <Card className="card-asommmn card-asommmn-top-azul">
           <Card.Body>
             <Row className="mb-3">
               <Col>
@@ -560,7 +560,7 @@ export default function MiNubePage() {
         show={showFolderModal}
         onHide={() => setShowFolderModal(false)}
         centered
-        className="enmv-modal"
+        className="asommmn-modal"
       >
         <Modal.Header closeButton>
           <Modal.Title>Nueva carpeta</Modal.Title>
@@ -592,7 +592,7 @@ export default function MiNubePage() {
         show={Boolean(renameTarget)}
         onHide={() => setRenameTarget(null)}
         centered
-        className="enmv-modal"
+        className="asommmn-modal"
       >
         <Modal.Header closeButton>
           <Modal.Title>Renombrar</Modal.Title>
@@ -624,7 +624,7 @@ export default function MiNubePage() {
         show={Boolean(moveTarget)}
         onHide={() => setMoveTarget(null)}
         centered
-        className="enmv-modal"
+        className="asommmn-modal"
       >
         <Modal.Header closeButton>
           <Modal.Title>Mover</Modal.Title>

@@ -38,7 +38,7 @@ function VerificarEmailContent() {
         <div className="mb-3">
           <i
             className="bi bi-envelope-check mb-2 d-block"
-            style={{ fontSize: '2rem', color: 'var(--enmv-azul)' }}
+            style={{ fontSize: '2rem', color: 'var(--asommmn-azul)' }}
           />
           <p className="nombre-escuela mb-0">Verificación de correo</p>
           <div className="auth-divider" />

@@ -61,7 +61,7 @@ function RestablecerContrasenaContent() {
       >
         <div className="auth-card">
           <div className="text-center mb-3">
-            <i className="bi bi-shield-lock-fill mb-2 d-block" style={{ fontSize: '2rem', color: 'var(--enmv-azul)' }} />
+            <i className="bi bi-shield-lock-fill mb-2 d-block" style={{ fontSize: '2rem', color: 'var(--asommmn-azul)' }} />
             <p className="nombre-escuela mb-0">Restablecer contraseña</p>
             <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.8rem' }}>
               Define tu nueva contraseña.
@@ -139,9 +139,9 @@ function RestablecerContrasenaContent() {
             </>
           )}
 
-          <hr className="my-3" style={{ borderColor: 'var(--enmv-dorado)', opacity: 0.4 }} />
+          <hr className="my-3" style={{ borderColor: 'var(--asommmn-dorado)', opacity: 0.4 }} />
           <p className="text-center small mb-0">
-            <Link href="/login" className="text-decoration-none fw-semibold" style={{ color: 'var(--enmv-azul)' }}>
+            <Link href="/login" className="text-decoration-none fw-semibold" style={{ color: 'var(--asommmn-azul)' }}>
               ← Volver al login
             </Link>
           </p>

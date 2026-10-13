@@ -4,13 +4,14 @@ import { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Navbar, Nav, Container, Button } from 'react-bootstrap';
+import { ALT_ESCUDO, NOMBRE_LARGO, NOMBRE_CORTO } from '@/lib/branding';
 
 export interface NavItem {
   href: string;
   label: string;
 }
 
-interface NavbarENMVProps {
+interface AppNavbarProps {
   /** Href del brand (logo) */
   brandHref: string;
   /** Rol mostrado debajo del nombre: "Postulante" | "Evaluador" | "Administrador" */
@@ -23,22 +24,22 @@ interface NavbarENMVProps {
   rightContent?: ReactNode;
 }
 
-export default function NavbarENMV({
+export default function AppNavbar({
   brandHref,
   rolLabel,
   navItems,
   onLogout,
   rightContent,
-}: NavbarENMVProps) {
+}: AppNavbarProps) {
   return (
-    <Navbar expand="lg" className="navbar-enmv sticky-top" collapseOnSelect>
+    <Navbar expand="lg" className="navbar-asommmn sticky-top" collapseOnSelect>
       <Container fluid>
         {/* Marca: escudo + nombre de la Asociación + lema */}
         <Navbar.Brand as={Link} href={brandHref} className="d-flex align-items-center gap-2">
           <Image
             src="/escudo-ASOMMMN-transparente.png"
-            alt="Escudo de la Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional"
-            title="Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional"
+            alt={ALT_ESCUDO}
+            title={NOMBRE_LARGO}
             width={46}
             height={46}
             style={{ flexShrink: 0 }}
@@ -49,16 +50,16 @@ export default function NavbarENMV({
               Asociación Sindical
             </span>
             <span className="d-block fw-bold font-serif" style={{ fontSize: '0.9rem', lineHeight: 1.2 }}>
-              ASOMMMN&nbsp;
-              <span className="fw-normal" style={{ fontFamily: 'var(--font-public-sans), sans-serif', color: 'var(--enmv-dorado)', fontSize: '0.75rem' }}>
+              {NOMBRE_CORTO}&nbsp;
+              <span className="fw-normal" style={{ fontFamily: 'var(--font-public-sans), sans-serif', color: 'var(--asommmn-dorado)', fontSize: '0.75rem' }}>
                 · {rolLabel}
               </span>
             </span>
           </div>
         </Navbar.Brand>
 
-        <Navbar.Toggle aria-controls="enmv-nav" />
-        <Navbar.Collapse id="enmv-nav">
+        <Navbar.Toggle aria-controls="asommmn-nav" />
+        <Navbar.Collapse id="asommmn-nav">
           <Nav className="ms-auto align-items-lg-center gap-lg-1">
             {navItems.map((item) => (
               <Nav.Link key={item.href} as={Link} href={item.href}>
@@ -72,7 +73,7 @@ export default function NavbarENMV({
             )}
             <Button
               size="sm"
-              className="btn-logout-enmv ms-lg-3 mt-2 mt-lg-0"
+              className="btn-logout-asommmn ms-lg-3 mt-2 mt-lg-0"
               onClick={onLogout}
             >
               <i className="bi bi-box-arrow-right me-1" />

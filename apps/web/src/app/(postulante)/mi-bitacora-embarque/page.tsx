@@ -173,7 +173,7 @@ export default function MiBitacoraEmbarquePage() {
               Historial de embarques
             </h5>
             <Button
-              style={{ background: 'var(--enmv-azul)', borderColor: 'var(--enmv-azul)' }}
+              style={{ background: 'var(--asommmn-azul)', borderColor: 'var(--asommmn-azul)' }}
               onClick={abrirModalAgregar}
             >
               + Agregar embarque
@@ -183,7 +183,7 @@ export default function MiBitacoraEmbarquePage() {
 
         <Row>
           <Col>
-            <Card className="card-enmv card-enmv-top-dorado">
+            <Card className="card-asommmn card-asommmn-top-dorado">
               <Card.Body>
                 <EmbarqueTimeline
                   embarques={data?.embarques ?? []}

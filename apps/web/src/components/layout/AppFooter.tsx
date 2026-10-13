@@ -1,9 +1,11 @@
-export default function FooterENMV() {
+import { NOMBRE_LARGO } from '@/lib/branding';
+
+export default function AppFooter() {
   return (
-    <footer className="footer-enmv text-center">
+    <footer className="footer-asommmn text-center">
       <div className="container">
         <p className="mb-0 fw-semibold" style={{ color: '#fff', fontSize: '0.85rem' }}>
-          Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional
+          {NOMBRE_LARGO}
         </p>
       </div>
     </footer>

@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { ALT_ESCUDO, NOMBRE_LARGO } from '@/lib/branding';
 
 /**
  * Bloque de escudo + nombre de la Asociación Sindical, compartido por las
@@ -11,15 +12,13 @@ export default function EscudoAsociacionAuth() {
     <>
       <Image
         src="/escudo-ASOMMMN-transparente.png"
-        alt="Escudo de la Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional"
+        alt={ALT_ESCUDO}
         width={130}
         height={130}
         className="escudo-login mb-3"
         priority
       />
-      <p className="nombre-escuela mb-0">
-        Asociación Sindical de Oficiales de Máquinas de la Marina Mercante Nacional
-      </p>
+      <p className="nombre-escuela mb-0">{NOMBRE_LARGO}</p>
     </>
   );
 }

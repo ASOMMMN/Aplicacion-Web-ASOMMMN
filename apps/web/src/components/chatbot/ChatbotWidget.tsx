@@ -43,7 +43,7 @@ interface EliminarResponse {
 }
 
 const BIENVENIDA =
-  '¡Hola! Soy el asistente virtual de la ENMV. ¿En qué puedo ayudarte con tu postulación?';
+  '¡Hola! Soy el asistente virtual de ASOMMMN. ¿En qué puedo ayudarte con tu postulación?';
 
 const bienvenidaMsg = (): MensajeItem => ({
   rol: 'asistente',
@@ -290,8 +290,8 @@ export default function ChatbotWidget() {
           {/* Encabezado historial */}
           <div
             style={{
-              background: 'var(--enmv-azul)',
-              borderBottom: '3px solid var(--enmv-dorado)',
+              background: 'var(--asommmn-azul)',
+              borderBottom: '3px solid var(--asommmn-dorado)',
               padding: '10px 14px',
               display: 'flex',
               alignItems: 'center',
@@ -301,7 +301,7 @@ export default function ChatbotWidget() {
           >
             <i
               className="bi bi-clock-history"
-              style={{ color: 'var(--enmv-dorado)', fontSize: '1rem', flexShrink: 0 }}
+              style={{ color: 'var(--asommmn-dorado)', fontSize: '1rem', flexShrink: 0 }}
             />
             <span
               style={{
@@ -324,7 +324,7 @@ export default function ChatbotWidget() {
           </div>
 
           {/* Lista */}
-          <div style={{ flex: 1, overflowY: 'auto', background: 'var(--enmv-fondo)' }}>
+          <div style={{ flex: 1, overflowY: 'auto', background: 'var(--asommmn-fondo)' }}>
             {cargandoConvs && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
                 <Spinner animation="border" size="sm" />
@@ -334,7 +334,7 @@ export default function ChatbotWidget() {
             {!cargandoConvs && conversaciones.length === 0 && (
               <p
                 style={{
-                  color: 'var(--enmv-text-muted)',
+                  color: 'var(--asommmn-text-muted)',
                   fontSize: '0.8rem',
                   textAlign: 'center',
                   padding: '24px 16px',
@@ -391,8 +391,8 @@ export default function ChatbotWidget() {
                         <span
                           style={{
                             fontSize: '0.62rem',
-                            background: 'var(--enmv-dorado)',
-                            color: 'var(--enmv-azul)',
+                            background: 'var(--asommmn-dorado)',
+                            color: 'var(--asommmn-azul)',
                             borderRadius: 999,
                             padding: '1px 6px',
                             fontWeight: 700,
@@ -408,7 +408,7 @@ export default function ChatbotWidget() {
                     <span
                       style={{
                         fontSize: '0.7rem',
-                        color: 'var(--enmv-text-muted)',
+                        color: 'var(--asommmn-text-muted)',
                         display: 'block',
                       }}
                     >
@@ -470,8 +470,8 @@ export default function ChatbotWidget() {
           {/* Encabezado */}
           <div
             style={{
-              background: 'var(--enmv-azul)',
-              borderBottom: '3px solid var(--enmv-dorado)',
+              background: 'var(--asommmn-azul)',
+              borderBottom: '3px solid var(--asommmn-dorado)',
               padding: '10px 14px',
               display: 'flex',
               alignItems: 'center',
@@ -484,22 +484,22 @@ export default function ChatbotWidget() {
                 width: 34,
                 height: 34,
                 borderRadius: '50%',
-                background: 'var(--enmv-dorado)',
+                background: 'var(--asommmn-dorado)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
-              <i className="bi bi-robot" style={{ color: 'var(--enmv-azul)', fontSize: '1rem' }} />
+              <i className="bi bi-robot" style={{ color: 'var(--asommmn-azul)', fontSize: '1rem' }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
                 style={{ color: '#fff', fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2 }}
               >
-                Asistente ENMV
+                Asistente ASOMMMN
               </div>
-              <div style={{ color: 'var(--enmv-dorado)', fontSize: '0.7rem', lineHeight: 1.2 }}>
+              <div style={{ color: 'var(--asommmn-dorado)', fontSize: '0.7rem', lineHeight: 1.2 }}>
                 Portal del Postulante
               </div>
             </div>
@@ -514,7 +514,7 @@ export default function ChatbotWidget() {
               style={{
                 ...BTN_HDR,
                 background: panelHistorial ? 'rgba(201,162,75,.2)' : 'none',
-                color: panelHistorial ? 'var(--enmv-dorado)' : 'rgba(255,255,255,.75)',
+                color: panelHistorial ? 'var(--asommmn-dorado)' : 'rgba(255,255,255,.75)',
               }}
             >
               <i className="bi bi-clock-history" style={{ fontSize: '1rem' }} />
@@ -545,7 +545,7 @@ export default function ChatbotWidget() {
               display: 'flex',
               flexDirection: 'column',
               gap: 10,
-              background: 'var(--enmv-fondo)',
+              background: 'var(--asommmn-fondo)',
             }}
           >
             {cargando && mensajes.length === 0 && (
@@ -631,7 +631,7 @@ export default function ChatbotWidget() {
                       padding: '8px 12px',
                       borderRadius:
                         msg.rol === 'usuario' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                      background: msg.rol === 'usuario' ? 'var(--enmv-azul)' : '#fff',
+                      background: msg.rol === 'usuario' ? 'var(--asommmn-azul)' : '#fff',
                       color: msg.rol === 'usuario' ? '#fff' : '#1a2638',
                       fontSize: '0.84rem',
                       lineHeight: 1.55,
@@ -697,7 +697,7 @@ export default function ChatbotWidget() {
                 padding: '7px 14px',
                 fontSize: '0.84rem',
                 outline: 'none',
-                background: escribiendo || cargando ? '#f0f0f0' : 'var(--enmv-fondo)',
+                background: escribiendo || cargando ? '#f0f0f0' : 'var(--asommmn-fondo)',
                 color: '#1a2638',
                 transition: 'border-color .2s',
               }}
@@ -711,7 +711,7 @@ export default function ChatbotWidget() {
                 height: 36,
                 borderRadius: '50%',
                 background:
-                  input.trim() && !escribiendo ? 'var(--enmv-azul)' : 'rgba(10,34,64,.18)',
+                  input.trim() && !escribiendo ? 'var(--asommmn-azul)' : 'rgba(10,34,64,.18)',
                 border: 'none',
                 color: '#fff',
                 cursor: input.trim() && !escribiendo ? 'pointer' : 'not-allowed',
@@ -753,8 +753,8 @@ export default function ChatbotWidget() {
             <div
               style={{
                 position: 'relative',
-                background: 'var(--enmv-azul)',
-                border: '2px solid var(--enmv-dorado)',
+                background: 'var(--asommmn-azul)',
+                border: '2px solid var(--asommmn-dorado)',
                 borderRadius: 12,
                 padding: '10px 28px 10px 12px',
                 boxShadow: '0 4px 16px rgba(10,34,64,.35)',
@@ -789,7 +789,7 @@ export default function ChatbotWidget() {
               </button>
               <p
                 style={{
-                  color: 'var(--enmv-dorado)',
+                  color: 'var(--asommmn-dorado)',
                   fontWeight: 700,
                   fontSize: '0.8rem',
                   margin: '0 0 2px',
@@ -810,9 +810,9 @@ export default function ChatbotWidget() {
                   transform: 'translateY(-50%) rotate(45deg)',
                   width: 12,
                   height: 12,
-                  background: 'var(--enmv-azul)',
-                  borderTop: '2px solid var(--enmv-dorado)',
-                  borderRight: '2px solid var(--enmv-dorado)',
+                  background: 'var(--asommmn-azul)',
+                  borderTop: '2px solid var(--asommmn-dorado)',
+                  borderRight: '2px solid var(--asommmn-dorado)',
                 }}
               />
             </div>
@@ -825,13 +825,13 @@ export default function ChatbotWidget() {
               setAbierto((prev) => !prev);
             }}
             aria-label={abierto ? 'Cerrar asistente virtual' : 'Abrir asistente virtual'}
-            title="Asistente virtual ENMV"
+            title="Asistente virtual ASOMMMN"
             style={{
               width: 56,
               height: 56,
               borderRadius: '50%',
-              background: 'var(--enmv-azul)',
-              border: '3px solid var(--enmv-dorado)',
+              background: 'var(--asommmn-azul)',
+              border: '3px solid var(--asommmn-dorado)',
               color: '#fff',
               cursor: 'pointer',
               display: 'flex',

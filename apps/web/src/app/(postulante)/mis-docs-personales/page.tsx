@@ -227,7 +227,7 @@ function TarjetaTipo({
 
   return (
     <>
-    <Card className="card-enmv card-enmv-top-azul card-riveted h-100">
+    <Card className="card-asommmn card-asommmn-top-azul card-riveted h-100">
       <Card.Body>
         <div className="d-flex justify-content-between align-items-center mb-3">
           <div>
@@ -239,7 +239,7 @@ function TarjetaTipo({
               </span>
             )}
           </div>
-          <span className={`badge badge-pill-enmv ${info.cantidad > 0 ? 'badge-estado-aprobado' : 'bg-secondary text-white'}`}>
+          <span className={`badge badge-pill-asommmn ${info.cantidad > 0 ? 'badge-estado-aprobado' : 'bg-secondary text-white'}`}>
             {info.cantidad} archivo{info.cantidad !== 1 ? 's' : ''}
           </span>
         </div>
@@ -412,7 +412,7 @@ export default function MisDocsPersonalesPage() {
         </Row>
         <Row className="align-items-end mb-4 g-3">
           <Col>
-            <span className="badge badge-pill-enmv badge-estado-proceso mb-2">Documentos</span>
+            <span className="badge badge-pill-asommmn badge-estado-proceso mb-2">Documentos</span>
             <h1 className="section-title">
               <i className="bi bi-life-preserver nautical-icon" />
               Documentos personales
@@ -424,7 +424,7 @@ export default function MisDocsPersonalesPage() {
           {data && (
             <Col xs="auto">
               <span
-                className={`badge badge-pill-enmv ${tiposObligatoriosConArchivos === TIPOS_DOC_OBLIGATORIOS.length ? 'badge-estado-aprobado' : 'badge-estado-proceso'}`}
+                className={`badge badge-pill-asommmn ${tiposObligatoriosConArchivos === TIPOS_DOC_OBLIGATORIOS.length ? 'badge-estado-aprobado' : 'badge-estado-proceso'}`}
                 style={{ fontSize: '0.9rem', padding: '0.4em 1em' }}
               >
                 {tiposObligatoriosConArchivos} / {TIPOS_DOC_OBLIGATORIOS.length} tipos entregados

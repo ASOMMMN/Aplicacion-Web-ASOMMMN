@@ -5,7 +5,7 @@ import { formatTiempoTotal } from './formato';
 
 export function TiempoTotalCard({ tiempoTotal }: { tiempoTotal: TiempoTotalMar }) {
   return (
-    <Card className="card-enmv kpi-tiempo-mar">
+    <Card className="card-asommmn kpi-tiempo-mar">
       <Card.Body className="d-flex align-items-center gap-3">
         <IconAncla size={34} className="kpi-icono flex-shrink-0" />
         <div>

@@ -170,13 +170,13 @@ export default function RegistroPage() {
             </Button>
           </Form>
 
-          <hr className="my-3" style={{ borderColor: 'var(--enmv-dorado)', opacity: 0.4 }} />
-          <p className="text-center small mb-0" style={{ color: 'var(--enmv-text-muted)' }}>
+          <hr className="my-3" style={{ borderColor: 'var(--asommmn-dorado)', opacity: 0.4 }} />
+          <p className="text-center small mb-0" style={{ color: 'var(--asommmn-text-muted)' }}>
             ¿Ya tienes cuenta?{' '}
             <Link
               href="/login"
               className="text-decoration-none fw-semibold"
-              style={{ color: 'var(--enmv-azul)' }}
+              style={{ color: 'var(--asommmn-azul)' }}
             >
               Inicia sesión
             </Link>

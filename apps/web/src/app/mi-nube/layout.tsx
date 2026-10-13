@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cerrarSesion, refrescarSesion, tokenActual } from '@/lib/auth/refrescarSesion';
 import { avisarFalloSesion } from '@/lib/auth/avisarFalloSesion';
-import NavbarENMV from '@/components/layout/NavbarENMV';
-import type { NavItem } from '@/components/layout/NavbarENMV';
-import FooterENMV from '@/components/layout/FooterENMV';
+import AppNavbar from '@/components/layout/AppNavbar';
+import type { NavItem } from '@/components/layout/AppNavbar';
+import AppFooter from '@/components/layout/AppFooter';
 
 type RolConNube = 'evaluador' | 'administrador';
 
@@ -85,14 +85,14 @@ export default function MiNubeLayout({
 
   return (
     <div className="d-flex flex-column min-vh-100">
-      <NavbarENMV
+      <AppNavbar
         brandHref={brandHref}
         rolLabel={rolLabel}
         navItems={navItems}
         onLogout={cerrarSesion}
       />
       <main className="flex-grow-1">{children}</main>
-      <FooterENMV />
+      <AppFooter />
     </div>
   );
 }

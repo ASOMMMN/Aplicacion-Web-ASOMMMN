@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { cerrarSesion, refrescarSesion, tokenActual } from '@/lib/auth/refrescarSesion';
 import { avisarFalloSesion } from '@/lib/auth/avisarFalloSesion';
-import NavbarENMV from '@/components/layout/NavbarENMV';
-import FooterENMV from '@/components/layout/FooterENMV';
+import AppNavbar from '@/components/layout/AppNavbar';
+import AppFooter from '@/components/layout/AppFooter';
 import ChatbotWidget from '@/components/chatbot/ChatbotWidget';
 import { ROLE_HOME } from '@/lib/auth/roleHome';
 
@@ -39,14 +39,14 @@ export default function PostulanteLayout({
 
   return (
     <div className="d-flex flex-column min-vh-100">
-      <NavbarENMV
+      <AppNavbar
         brandHref="/dashboard"
         rolLabel="Postulante"
         navItems={NAV_ITEMS}
         onLogout={cerrarSesion}
       />
       <main className="flex-grow-1">{children}</main>
-      <FooterENMV />
+      <AppFooter />
       <ChatbotWidget />
     </div>
   );

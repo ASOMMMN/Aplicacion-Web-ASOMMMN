@@ -127,9 +127,9 @@ export default function EstadoPage() {
   } as const;
 
   const cardTopClass = {
-    en_proceso: 'card-enmv-top-dorado',
-    completado: 'card-enmv-top-verde',
-    rechazado: 'card-enmv-top-rojo',
+    en_proceso: 'card-asommmn-top-dorado',
+    completado: 'card-asommmn-top-verde',
+    rechazado: 'card-asommmn-top-rojo',
   } as const;
 
   return (
@@ -142,7 +142,7 @@ export default function EstadoPage() {
         </Row>
         <Row className="justify-content-center">
           <Col lg={8}>
-            <Card className={`card-enmv ${cardTopClass[perfil.estadoPostulacion]} card-riveted`}>
+            <Card className={`card-asommmn ${cardTopClass[perfil.estadoPostulacion]} card-riveted`}>
               <Card.Body className="p-4 text-center">
                 <div className="mb-3" style={{ fontSize: '48px' }}>
                   {info.icon}
@@ -151,7 +151,7 @@ export default function EstadoPage() {
                   <i className="bi bi-compass nautical-icon" />
                   Estado de Postulación
                 </h2>
-                <Badge bg={info.color} className="badge-pill-enmv mb-3">
+                <Badge bg={info.color} className="badge-pill-asommmn mb-3">
                   <i className={`bi ${estadoIconClass[perfil.estadoPostulacion]}`} />
                   {info.label}
                 </Badge>
@@ -180,7 +180,7 @@ export default function EstadoPage() {
             </Alert>
 
             {/* Comentarios (Fase 3) */}
-            <Card className="card-enmv card-enmv-top-azul">
+            <Card className="card-asommmn card-asommmn-top-azul">
               <Card.Body className="p-4">
                 <h5 className="section-title mb-3">Comentarios del Evaluador</h5>
                 {comentarios.length === 0 ? (
@@ -197,7 +197,7 @@ export default function EstadoPage() {
                             <div className="small text-muted">{formatDateTime(item.creadoEn)}</div>
                           </div>
                           <div className="text-end">
-                            <Badge bg={estadoColor[item.estadoSugerido]} className="badge-pill-enmv">
+                            <Badge bg={estadoColor[item.estadoSugerido]} className="badge-pill-asommmn">
                               <i className={`bi ${estadoIconClass[item.estadoSugerido]}`} />
                               {estadoLabel[item.estadoSugerido]}
                             </Badge>

@@ -273,7 +273,7 @@ export default function MiCVPage() {
           <Col lg={8}>
             {/* Card: CV Actual */}
             {cvActual && (
-              <Card className="card-enmv card-enmv-top-verde card-riveted mb-4">
+              <Card className="card-asommmn card-asommmn-top-verde card-riveted mb-4">
                 <Card.Body>
                   <h5 className="section-title mb-3">CV actual</h5>
                   <div className="bg-light p-3 rounded mb-3">
@@ -327,7 +327,7 @@ export default function MiCVPage() {
             )}
 
             {/* Card: Subir Nuevo CV */}
-            <Card className="card-enmv card-enmv-top-dorado mb-4">
+            <Card className="card-asommmn card-asommmn-top-dorado mb-4">
               <Card.Body>
                 <h5 className="section-title mb-3">Cargar CV en PDF</h5>
 
@@ -430,7 +430,7 @@ export default function MiCVPage() {
 
             {/* Card: Historial */}
             {historial.length > 0 && (
-              <Card className="card-enmv card-enmv-top-azul">
+              <Card className="card-asommmn card-asommmn-top-azul">
                 <Card.Body>
                   <h5 className="section-title mb-3">Historial de versiones</h5>
                   <div className="table-responsive">
@@ -450,7 +450,7 @@ export default function MiCVPage() {
                             <td>
                               <strong>v{doc.version}</strong>
                               {doc.esActual && (
-                                <span className="badge badge-pill-enmv badge-estado-aprobado ms-2">Actual</span>
+                                <span className="badge badge-pill-asommmn badge-estado-aprobado ms-2">Actual</span>
                               )}
                             </td>
                             <td className="small">{doc.nombreOriginal}</td>
@@ -494,7 +494,7 @@ export default function MiCVPage() {
               </Card>
             )}
 
-            <Card className="card-enmv card-enmv-top-azul mt-4">
+            <Card className="card-asommmn card-asommmn-top-azul mt-4">
               <Card.Body>
                 <h5 className="section-title mb-2">Certificados de cursos y certificaciones</h5>
                 <p className="text-muted small mb-3">

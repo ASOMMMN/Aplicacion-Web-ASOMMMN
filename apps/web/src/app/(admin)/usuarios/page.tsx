@@ -60,7 +60,7 @@ const roleClass: Record<UserRole, string> = {
 
 const roleStyle: Record<UserRole, React.CSSProperties> = {
   postulante: {},
-  evaluador: { background: 'var(--enmv-azul)', color: '#fff' },
+  evaluador: { background: 'var(--asommmn-azul)', color: '#fff' },
   administrador: { background: '#2c3e50', color: '#fff' },
 };
 
@@ -279,12 +279,12 @@ export default function UsuariosPage() {
   }
 
   return (
-    <div className="py-4" style={{ background: 'var(--enmv-fondo)', minHeight: '100vh' }}>
+    <div className="py-4" style={{ background: 'var(--asommmn-fondo)', minHeight: '100vh' }}>
       <Container fluid>
         <Row className="mb-4 align-items-end g-3">
           <Col lg={7}>
             <div className="d-flex flex-column gap-2">
-              <span className="badge badge-pill-enmv badge-estado-proceso align-self-start">
+              <span className="badge badge-pill-asommmn badge-estado-proceso align-self-start">
                 Administración
               </span>
               <h1 className="section-title" style={{ fontSize: '1.5rem' }}>Usuarios del sistema</h1>
@@ -310,34 +310,34 @@ export default function UsuariosPage() {
 
         <Row className="g-3 mb-4">
           <Col md={3}>
-            <Card className="card-enmv card-enmv-top-azul h-100">
+            <Card className="card-asommmn card-asommmn-top-azul h-100">
               <Card.Body>
                 <div className="text-muted small">Total</div>
-                <div className="fs-3 fw-bold" style={{ color: 'var(--enmv-azul)' }}>{stats.total}</div>
+                <div className="fs-3 fw-bold" style={{ color: 'var(--asommmn-azul)' }}>{stats.total}</div>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
-            <Card className="card-enmv card-enmv-top-dorado h-100">
+            <Card className="card-asommmn card-asommmn-top-dorado h-100">
               <Card.Body>
                 <div className="text-muted small">Evaluadores</div>
-                <div className="fs-3 fw-bold" style={{ color: 'var(--enmv-dorado)' }}>{stats.evaluadores}</div>
+                <div className="fs-3 fw-bold" style={{ color: 'var(--asommmn-dorado)' }}>{stats.evaluadores}</div>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
-            <Card className="card-enmv card-enmv-top-azul h-100">
+            <Card className="card-asommmn card-asommmn-top-azul h-100">
               <Card.Body>
                 <div className="text-muted small">Administradores</div>
-                <div className="fs-3 fw-bold" style={{ color: 'var(--enmv-azul)' }}>{stats.administradores}</div>
+                <div className="fs-3 fw-bold" style={{ color: 'var(--asommmn-azul)' }}>{stats.administradores}</div>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
-            <Card className="card-enmv card-enmv-top-verde h-100">
+            <Card className="card-asommmn card-asommmn-top-verde h-100">
               <Card.Body>
                 <div className="text-muted small">Activos</div>
-                <div className="fs-3 fw-bold" style={{ color: 'var(--enmv-verde)' }}>{stats.activos}</div>
+                <div className="fs-3 fw-bold" style={{ color: 'var(--asommmn-verde)' }}>{stats.activos}</div>
               </Card.Body>
             </Card>
           </Col>
@@ -345,7 +345,7 @@ export default function UsuariosPage() {
 
         <Row className="g-4">
           <Col xl={4}>
-            <Card className="card-enmv card-enmv-top-dorado mb-4">
+            <Card className="card-asommmn card-asommmn-top-dorado mb-4">
               <Card.Body>
                 <Card.Title className="section-title mb-1">Crear usuario</Card.Title>
                 <Card.Text className="text-muted small mb-3">
@@ -447,7 +447,7 @@ export default function UsuariosPage() {
               </Card.Body>
             </Card>
 
-            <Card className="card-enmv card-enmv-top-azul">
+            <Card className="card-asommmn card-asommmn-top-azul">
               <Card.Body>
                 <Card.Title className="section-title mb-3">Filtros</Card.Title>
                 <Row className="g-3">
@@ -485,7 +485,7 @@ export default function UsuariosPage() {
           </Col>
 
           <Col xl={8}>
-            <Card className="card-enmv card-enmv-top-azul">
+            <Card className="card-asommmn card-asommmn-top-azul">
               <Card.Body>
                 <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                   <div>
@@ -529,10 +529,10 @@ export default function UsuariosPage() {
                               <div className="small text-muted">{item.email}</div>
                             </td>
                             <td>
-                              <span className={`badge badge-pill-enmv ${roleClass[item.rol]}`} style={roleStyle[item.rol]}>{roleLabel[item.rol]}</span>
+                              <span className={`badge badge-pill-asommmn ${roleClass[item.rol]}`} style={roleStyle[item.rol]}>{roleLabel[item.rol]}</span>
                             </td>
                             <td>
-                              <span className={`badge badge-pill-enmv ${statusClass[item.estadoCuenta]}`}>
+                              <span className={`badge badge-pill-asommmn ${statusClass[item.estadoCuenta]}`}>
                                 {statusLabel[item.estadoCuenta]}
                               </span>
                             </td>
