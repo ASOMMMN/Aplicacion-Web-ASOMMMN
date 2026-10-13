@@ -6,6 +6,7 @@ import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { session } from '@/lib/auth/session';
+import { rutaRedirectSegura } from '@/lib/auth/safeRedirect';
 
 const ROLE_HOME: Record<string, string> = {
   postulante: '/dashboard',
@@ -76,9 +77,11 @@ export default function MfaLoginPage() {
     (window as Window & { __asommmn_token?: string | null }).__asommmn_token =
       payload.accessToken;
 
+    const redirect = rutaRedirectSegura(sessionStorage.getItem('mfa_redirect'));
     sessionStorage.removeItem('mfa_temp_session');
     sessionStorage.removeItem('mfa_setup_required');
     sessionStorage.removeItem('mfa_user_role');
+    sessionStorage.removeItem('mfa_redirect');
 
     if (recoveryCodes && recoveryCodes.length > 0) {
       void Swal.fire({
@@ -89,7 +92,7 @@ export default function MfaLoginPage() {
       });
     }
 
-    router.push(ROLE_HOME[payload.user.rol] ?? '/');
+    router.push(redirect ?? ROLE_HOME[payload.user.rol] ?? '/');
   };
 
   const onSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -133,7 +136,7 @@ export default function MfaLoginPage() {
         <div className="text-center mb-3">
           <i
             className="bi bi-shield-check mb-2 d-block"
-            style={{ fontSize: '2rem', color: 'var(--enmv-azul)' }}
+            style={{ fontSize: '2rem', color: 'var(--asommmn-azul)' }}
           />
           <p className="nombre-escuela mb-0">Verificación MFA</p>
           <p className="text-muted mt-1 mb-0" style={{ fontSize: '0.8rem' }}>
@@ -176,7 +179,7 @@ export default function MfaLoginPage() {
               <Button
                 variant="link"
                 className="p-0 small"
-                style={{ color: 'var(--enmv-azul)' }}
+                style={{ color: 'var(--asommmn-azul)' }}
                 onClick={() => {
                   setCodigo('');
                   setUsarCodigoRecuperacion((prev) => !prev);

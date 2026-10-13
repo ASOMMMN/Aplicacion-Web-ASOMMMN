@@ -13,6 +13,7 @@ import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
 import PasswordInput from '@/components/ui/PasswordInput';
 import { ROLE_HOME } from '@/lib/auth/roleHome';
+import { rutaRedirectSegura } from '@/lib/auth/safeRedirect';
 
 function toErrorMessage(msg: unknown): string {
   if (Array.isArray(msg)) return msg.map(String).join(', ');
@@ -72,6 +73,8 @@ export default function LoginPage() {
           res.data.requiresMfaSetup ? '1' : '0',
         );
         sessionStorage.setItem('mfa_user_role', res.data.user.rol);
+        const redirectParam = new URLSearchParams(window.location.search).get('redirect');
+        sessionStorage.setItem('mfa_redirect', rutaRedirectSegura(redirectParam) ?? '');
 
         router.push('/login/mfa');
         return;
@@ -86,7 +89,9 @@ export default function LoginPage() {
       // eslint-disable-next-line react-hooks/immutability
       document.cookie = `user_role=${res.data.user.rol}; path=/; SameSite=Strict`;
 
-      router.push(ROLE_HOME[res.data.user.rol] ?? '/');
+      const redirectParam = new URLSearchParams(window.location.search).get('redirect');
+      const destino = rutaRedirectSegura(redirectParam) ?? ROLE_HOME[res.data.user.rol] ?? '/';
+      router.push(destino);
     } catch (err: unknown) {
       const axiosErr = err as {
         response?: { status?: number; data?: { message?: unknown } };
@@ -159,7 +164,7 @@ export default function LoginPage() {
                 <Link
                   href="/recuperar-contrasena"
                   className="text-decoration-none small"
-                  style={{ color: 'var(--enmv-dorado)', fontSize: '0.8rem' }}
+                  style={{ color: 'var(--asommmn-dorado)', fontSize: '0.8rem' }}
                 >
                   ¿Olvidaste tu contraseña?
                 </Link>
@@ -195,13 +200,13 @@ export default function LoginPage() {
             </Button>
           </Form>
 
-          <hr className="my-3" style={{ borderColor: 'var(--enmv-dorado)', opacity: 0.4 }} />
-          <p className="text-center small mb-0" style={{ color: 'var(--enmv-text-muted)' }}>
+          <hr className="my-3" style={{ borderColor: 'var(--asommmn-dorado)', opacity: 0.4 }} />
+          <p className="text-center small mb-0" style={{ color: 'var(--asommmn-text-muted)' }}>
             ¿No tienes cuenta?{' '}
             <Link
               href="/registro"
               className="text-decoration-none fw-semibold"
-              style={{ color: 'var(--enmv-azul)' }}
+              style={{ color: 'var(--asommmn-azul)' }}
             >
               Regístrate
             </Link>
