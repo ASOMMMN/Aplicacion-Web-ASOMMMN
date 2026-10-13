@@ -29,10 +29,18 @@ import { DecidirCandidatoDto } from './dto/decidir-candidato.dto';
 import {
   CandidatoDetalleDto,
   CandidatoListaItemDto,
+  CandidatosPaginadosDto,
   EvaluacionDocumentoDto,
   EvaluacionGlobalItemDto,
   EvaluacionItemDto,
+  ResumenCandidatosDto,
 } from './dto/evaluaciones-response.dto';
+import {
+  EstadoCandidato,
+  ListarCandidatosQueryDto,
+  ResumenCandidatosQueryDto,
+} from './dto/listar-candidatos-query.dto';
+import { estadoGeneral } from './utils/estado-candidato.util';
 import { Evaluacion, EvaluacionDocument } from './schemas/evaluacion.schema';
 import {
   CLAVES_REQUISITO,
@@ -104,11 +112,58 @@ export class EvaluacionesService {
     });
   }
 
-  async listarCandidatos(): Promise<CandidatoListaItemDto[]> {
+  async listarCandidatos(
+    query: ListarCandidatosQueryDto = new ListarCandidatosQueryDto(),
+  ): Promise<CandidatosPaginadosDto> {
+    const { items, enviadoEnPorPostulante } = await this.construirCandidatos();
+
+    const filtrado = this.filtrarCandidatos(items, query);
+    const ordenado = this.ordenarCandidatos(
+      filtrado,
+      query,
+      enviadoEnPorPostulante,
+    );
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const inicio = (page - 1) * limit;
+
+    return {
+      data: ordenado.slice(inicio, inicio + limit),
+      total: ordenado.length,
+      page,
+      limit,
+      pages: Math.max(1, Math.ceil(ordenado.length / limit)),
+    };
+  }
+
+  async resumenCandidatos(
+    query: ResumenCandidatosQueryDto = new ResumenCandidatosQueryDto(),
+  ): Promise<ResumenCandidatosDto> {
+    const { items } = await this.construirCandidatos();
+    const filtrado = this.filtrarCandidatos(items, query);
+
+    const resumen: ResumenCandidatosDto = {
+      incompleto: 0,
+      en_proceso: 0,
+      completo: 0,
+      enviado: 0,
+      evaluado: 0,
+      total: filtrado.length,
+    };
+    for (const item of filtrado) {
+      resumen[estadoGeneral(item)] += 1;
+    }
+    return resumen;
+  }
+
+  private async construirCandidatos(): Promise<{
+    items: CandidatoListaItemDto[];
+    enviadoEnPorPostulante: Map<string, Date | undefined>;
+  }> {
     const postulantes = await this.postulanteModel
       .find()
       .populate('usuarioId', 'nombre apellidos email')
-      .sort({ actualizadoEn: -1 })
       .lean();
 
     const postulanteIds = postulantes.map((p) => p._id);
@@ -163,8 +218,12 @@ export class EvaluacionesService {
     }
 
     const idsACorregir: Types.ObjectId[] = [];
+    // Solo para el orden por defecto (enviados sin evaluar, por fecha de
+    // envío ascendente); no es parte del DTO público de CandidatoListaItemDto.
+    const enviadoEnPorPostulante = new Map<string, Date | undefined>();
 
     const resultado = postulantes.map((p: any) => {
+      enviadoEnPorPostulante.set(String(p._id), p.enviadoEn);
       const user = p.usuarioId;
       const cv = cvByPostulante.get(String(p._id));
       const tiposDP = dpByPostulante.get(String(p._id)) ?? new Set<string>();
@@ -205,6 +264,11 @@ export class EvaluacionesService {
         docsEvaluadosByPostulante.get(String(p._id))?.size ?? 0;
       const docsTotal = CLAVES_REQUISITO.length;
 
+      const estadoEvaluacion = calcularEstadoEvaluacion(
+        docsEvaluados,
+        docsTotal,
+      );
+
       return {
         postulanteId: String(p._id),
         nombreCompleto: `${user?.nombre ?? ''} ${user?.apellidos ?? ''}`.trim(),
@@ -217,6 +281,7 @@ export class EvaluacionesService {
         vacante: p.vacante,
         tieneCV,
         versionCV: cv?.version,
+        creadoEn: p.creadoEn,
         actualizadoEn: p.actualizadoEn,
         estadoExpediente,
         porcentajeExpediente,
@@ -229,7 +294,7 @@ export class EvaluacionesService {
         ),
         docsEvaluados,
         docsTotal,
-        estadoEvaluacion: calcularEstadoEvaluacion(docsEvaluados, docsTotal),
+        estadoEvaluacion,
       };
     });
 
@@ -240,7 +305,78 @@ export class EvaluacionesService {
       );
     }
 
-    return resultado;
+    return { items: resultado, enviadoEnPorPostulante };
+  }
+
+  private filtrarCandidatos(
+    items: CandidatoListaItemDto[],
+    query: { q?: string; vacante?: string; estado?: EstadoCandidato },
+  ): CandidatoListaItemDto[] {
+    const q = query.q?.trim().toLowerCase();
+    const vacante = query.vacante?.trim().toLowerCase();
+
+    return items.filter((item) => {
+      if (query.estado && estadoGeneral(item) !== query.estado) return false;
+      if (vacante && !(item.vacante ?? '').toLowerCase().includes(vacante)) {
+        return false;
+      }
+      if (q) {
+        const matches =
+          item.nombreCompleto.toLowerCase().includes(q) ||
+          item.email.toLowerCase().includes(q) ||
+          (item.vacante ?? '').toLowerCase().includes(q) ||
+          (item.ciudad ?? '').toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Sin `ordenarPor`: enviados sin evaluar primero, por fecha de envío
+   * ascendente (FIFO: el que lleva más tiempo esperando se evalúa primero);
+   * el resto, por última actividad descendente.
+   */
+  private ordenarCandidatos(
+    items: CandidatoListaItemDto[],
+    query: ListarCandidatosQueryDto,
+    enviadoEnPorPostulante: Map<string, Date | undefined>,
+  ): CandidatoListaItemDto[] {
+    const direccion = query.direccion === 'asc' ? 1 : -1;
+
+    if (query.ordenarPor) {
+      const campo = query.ordenarPor;
+      return [...items].sort((a, b) => {
+        const va = a[campo];
+        const vb = b[campo];
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        if (va < vb) return -1 * direccion;
+        if (va > vb) return 1 * direccion;
+        return 0;
+      });
+    }
+
+    const pendienteEnviado = (item: CandidatoListaItemDto) =>
+      estadoGeneral(item) === 'enviado';
+
+    return [...items].sort((a, b) => {
+      const aPendiente = pendienteEnviado(a);
+      const bPendiente = pendienteEnviado(b);
+      if (aPendiente !== bPendiente) return aPendiente ? -1 : 1;
+      if (aPendiente && bPendiente) {
+        const aEnviadoEn = enviadoEnPorPostulante.get(a.postulanteId);
+        const bEnviadoEn = enviadoEnPorPostulante.get(b.postulanteId);
+        return (
+          (aEnviadoEn ? new Date(aEnviadoEn).getTime() : 0) -
+          (bEnviadoEn ? new Date(bEnviadoEn).getTime() : 0)
+        );
+      }
+      const aAct = a.actualizadoEn ? new Date(a.actualizadoEn).getTime() : 0;
+      const bAct = b.actualizadoEn ? new Date(b.actualizadoEn).getTime() : 0;
+      return bAct - aAct;
+    });
   }
 
   async obtenerCandidato(postulanteId: string): Promise<CandidatoDetalleDto> {

@@ -2,9 +2,9 @@ import {
   Body,
   Controller,
   Get,
-  Logger,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -25,11 +25,16 @@ import { CrearEvaluacionDto } from './dto/crear-evaluacion.dto';
 import { DecidirCandidatoDto } from './dto/decidir-candidato.dto';
 import {
   CandidatoDetalleDto,
-  CandidatoListaItemDto,
+  CandidatosPaginadosDto,
   EvaluacionDocumentoDto,
   EvaluacionGlobalItemDto,
   EvaluacionItemDto,
+  ResumenCandidatosDto,
 } from './dto/evaluaciones-response.dto';
+import {
+  ListarCandidatosQueryDto,
+  ResumenCandidatosQueryDto,
+} from './dto/listar-candidatos-query.dto';
 import { EvaluacionesService } from './evaluaciones.service';
 
 @ApiTags('evaluaciones')
@@ -37,8 +42,6 @@ import { EvaluacionesService } from './evaluaciones.service';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('evaluaciones')
 export class EvaluacionesController {
-  private readonly logger = new Logger(EvaluacionesController.name);
-
   constructor(private readonly evaluacionesService: EvaluacionesService) {}
 
   @Get('todas')
@@ -52,23 +55,23 @@ export class EvaluacionesController {
   @Get('candidatos')
   @Roles('evaluador', 'administrador')
   @ApiOperation({ summary: 'Listar candidatos para evaluación' })
-  @ApiResponse({ status: 200, type: [CandidatoListaItemDto] })
-  async listarCandidatos(): Promise<CandidatoListaItemDto[]> {
-    const resultado = await this.evaluacionesService.listarCandidatos();
-    // TEMP debug — quitar una vez confirmado el fix de docsEvaluados/docsTotal.
-    this.logger.debug(
-      `[TEMP] listarCandidatos → ${resultado.length} candidatos, primero: ${JSON.stringify(
-        resultado[0]
-          ? {
-              postulanteId: resultado[0].postulanteId,
-              docsEvaluados: resultado[0].docsEvaluados,
-              docsTotal: resultado[0].docsTotal,
-              estadoEvaluacion: resultado[0].estadoEvaluacion,
-            }
-          : null,
-      )}`,
-    );
-    return resultado;
+  @ApiResponse({ status: 200, type: CandidatosPaginadosDto })
+  async listarCandidatos(
+    @Query() query: ListarCandidatosQueryDto,
+  ): Promise<CandidatosPaginadosDto> {
+    return this.evaluacionesService.listarCandidatos(query);
+  }
+
+  @Get('candidatos/resumen')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary: 'Conteos por estado para las tarjetas de resumen del panel',
+  })
+  @ApiResponse({ status: 200, type: ResumenCandidatosDto })
+  async resumenCandidatos(
+    @Query() query: ResumenCandidatosQueryDto,
+  ): Promise<ResumenCandidatosDto> {
+    return this.evaluacionesService.resumenCandidatos(query);
   }
 
   @Get('candidatos/:id')
@@ -78,19 +81,7 @@ export class EvaluacionesController {
   async obtenerCandidato(
     @Param('id') id: string,
   ): Promise<CandidatoDetalleDto> {
-    try {
-      const resultado = await this.evaluacionesService.obtenerCandidato(id);
-      // TEMP debug — quitar una vez confirmado el fix del bug "no encontrado".
-      this.logger.debug(
-        `[TEMP] obtenerCandidato(${id}) → ok, docsEvaluados=${resultado.docsEvaluados}/${resultado.docsTotal}`,
-      );
-      return resultado;
-    } catch (err) {
-      this.logger.warn(
-        `[TEMP] obtenerCandidato(${id}) → falló: ${(err as Error).message}`,
-      );
-      throw err;
-    }
+    return this.evaluacionesService.obtenerCandidato(id);
   }
 
   @Get('mis-comentarios')

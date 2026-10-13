@@ -36,6 +36,11 @@ export class CandidatoListaItemDto {
   @ApiPropertyOptional()
   versionCV?: number;
 
+  /** Fecha de postulación (alta del registro de postulante). */
+  @ApiProperty()
+  creadoEn: Date;
+
+  /** Última actividad (cualquier actualización del registro de postulante). */
   @ApiPropertyOptional()
   actualizadoEn?: Date;
 
@@ -60,6 +65,44 @@ export class CandidatoListaItemDto {
 
   @ApiProperty({ enum: ['pendiente', 'en_evaluacion', 'evaluado'] })
   estadoEvaluacion: 'pendiente' | 'en_evaluacion' | 'evaluado';
+}
+
+/** Conteos por estado general, sobre todos los candidatos que matchean q/vacante (sin paginar). */
+export class ResumenCandidatosDto {
+  @ApiProperty()
+  incompleto: number;
+
+  @ApiProperty()
+  en_proceso: number;
+
+  @ApiProperty()
+  completo: number;
+
+  @ApiProperty()
+  enviado: number;
+
+  @ApiProperty()
+  evaluado: number;
+
+  @ApiProperty()
+  total: number;
+}
+
+export class CandidatosPaginadosDto {
+  @ApiProperty({ type: [CandidatoListaItemDto] })
+  data: CandidatoListaItemDto[];
+
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty()
+  page: number;
+
+  @ApiProperty()
+  limit: number;
+
+  @ApiProperty()
+  pages: number;
 }
 
 export class EvaluacionItemDto {
