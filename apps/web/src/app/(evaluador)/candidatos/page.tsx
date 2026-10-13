@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Alert,
-  Badge,
   Card,
   Col,
   Container,
@@ -16,17 +15,23 @@ import {
 import api from '@/lib/api/client';
 import { IconAncla, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { PortholeAvatar } from '@/components/ui/PortholeAvatar';
+import {
+  estadoGeneral,
+  grupoAvance,
+  ESTADO_GENERAL_CONFIG,
+  type EstadoGeneral,
+  type GrupoAvance,
+} from '@/lib/estadoCandidato';
 
 type Estado = 'en_proceso' | 'completado' | 'rechazado';
-type Semaforo = 'verde' | 'amarillo' | 'rojo';
-type FiltroSemaforo = Semaforo | '';
 type EstadoExpediente = 'en_proceso' | 'enviado';
-
 type EstadoEvaluacion = 'pendiente' | 'en_evaluacion' | 'evaluado';
 
 interface CandidatoItem {
   postulanteId: string;
   nombreCompleto: string;
+  nombre: string;
+  apellidos: string;
   email: string;
   estadoPostulacion: Estado;
   ciudad?: string;
@@ -37,40 +42,17 @@ interface CandidatoItem {
   estadoExpediente: EstadoExpediente;
   porcentajeExpediente: number;
   requisitosFaltantes: string[];
-  semaforoClave: Semaforo;
   docsEvaluados: number;
   docsTotal: number;
   estadoEvaluacion: EstadoEvaluacion;
 }
 
-const semaforoConfig: Record<Semaforo, { color: string; label: string; bg: string }> = {
-  verde:    { color: '#1D9E75', label: 'Completo',   bg: 'rgba(29,158,117,.12)' },
-  amarillo: { color: '#C9A24B', label: 'En proceso', bg: 'rgba(201,162,75,.12)' },
-  rojo:     { color: '#C0392B', label: 'Incompleto', bg: 'rgba(192,57,43,.10)'  },
+/** Fondo tenue de fila según el grupo de avance, puramente decorativo. */
+const grupoBg: Record<GrupoAvance, string> = {
+  completo: 'rgba(29,158,117,.12)',
+  en_proceso: 'rgba(201,162,75,.12)',
+  incompleto: 'rgba(192,57,43,.10)',
 };
-
-const estadoPostulacionBadgeClass: Record<Semaforo, string> = {
-  verde: 'badge-estado-aprobado',
-  amarillo: 'badge-estado-proceso',
-  rojo: 'badge-estado-rechazado',
-};
-
-const estadoPostulacionIconClass: Record<Semaforo, string> = {
-  verde: 'bi-check-lg',
-  amarillo: 'bi-clock',
-  rojo: 'bi-x-lg',
-};
-
-function semaforoFromPorcentaje(porcentaje: number): Semaforo {
-  if (porcentaje >= 100) return 'verde';
-  if (porcentaje >= 34) return 'amarillo';
-  return 'rojo';
-}
-
-function estadoPostulacionLabel(item: CandidatoItem, clave: Semaforo): string {
-  if (item.estadoExpediente === 'enviado') return 'Enviado';
-  return semaforoConfig[clave].label;
-}
 
 const toErrorMessage = (msg: unknown): string => {
   if (Array.isArray(msg)) return msg.map(String).join(', ');
@@ -80,11 +62,12 @@ const toErrorMessage = (msg: unknown): string => {
   return String(msg ?? 'Error inesperado');
 };
 
-function SemaforoDot({ clave }: { clave: Semaforo }) {
-  const cfg = semaforoConfig[clave];
+/** Punto de color; decorativo únicamente — el badge de texto ya comunica el estado a lectores de pantalla. */
+function EstadoDot({ estado }: { estado: EstadoGeneral }) {
+  const cfg = ESTADO_GENERAL_CONFIG[estado];
   return (
     <span
-      title={cfg.label}
+      aria-hidden="true"
       style={{
         display: 'inline-block',
         width: 12,
@@ -103,8 +86,8 @@ export default function CandidatosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [filtroSemaforo, setFiltroSemaforo] = useState<FiltroSemaforo>('');
-  const [filtroExpediente, setFiltroExpediente] = useState<EstadoExpediente | ''>('');
+  const [filtroGrupo, setFiltroGrupo] = useState<GrupoAvance | ''>('');
+  const [filtroEstado, setFiltroEstado] = useState<EstadoGeneral | ''>('');
 
   useEffect(() => {
     const run = async () => {
@@ -139,21 +122,23 @@ export default function CandidatosPage() {
         item.email.toLowerCase().includes(q) ||
         (item.vacante ?? '').toLowerCase().includes(q) ||
         (item.ciudad ?? '').toLowerCase().includes(q);
-      const matchSemaforo = !filtroSemaforo || semaforoFromPorcentaje(item.porcentajeExpediente) === filtroSemaforo;
-      const matchExpediente = !filtroExpediente || item.estadoExpediente === filtroExpediente;
-      return matchQ && matchSemaforo && matchExpediente;
+      const estado = estadoGeneral(item);
+      const matchGrupo = !filtroGrupo || grupoAvance(estado) === filtroGrupo;
+      const matchEstado = !filtroEstado || estado === filtroEstado;
+      return matchQ && matchGrupo && matchEstado;
     });
-  }, [items, search, filtroSemaforo, filtroExpediente]);
+  }, [items, search, filtroGrupo, filtroEstado]);
 
-  const counts = useMemo(
-    () => ({
-      verde: items.filter((i) => semaforoFromPorcentaje(i.porcentajeExpediente) === 'verde').length,
-      amarillo: items.filter((i) => semaforoFromPorcentaje(i.porcentajeExpediente) === 'amarillo').length,
-      rojo: items.filter((i) => semaforoFromPorcentaje(i.porcentajeExpediente) === 'rojo').length,
-      enviados: items.filter((i) => i.estadoExpediente === 'enviado').length,
-    }),
-    [items]
-  );
+  const counts = useMemo(() => {
+    const porGrupo: Record<GrupoAvance, number> = { completo: 0, en_proceso: 0, incompleto: 0 };
+    let enviados = 0;
+    for (const item of items) {
+      const estado = estadoGeneral(item);
+      porGrupo[grupoAvance(estado)] += 1;
+      if (estado === 'enviado' || estado === 'evaluado') enviados += 1;
+    }
+    return { ...porGrupo, enviados };
+  }, [items]);
 
   if (loading) {
     return (
@@ -170,7 +155,7 @@ export default function CandidatosPage() {
         {/* Header */}
         <Row className="align-items-end g-3 mb-4">
           <Col lg={6}>
-            <span className="badge badge-pill-enmv badge-estado-proceso mb-2">Evaluación</span>
+            <span className="badge badge-pill-asommmn badge-estado-proceso mb-2">Evaluación</span>
             <h1 className="section-title">Panel de Evaluador</h1>
             <p className="text-muted mb-0">
               Revisa perfiles, CV y estado de postulación desde un solo lugar.
@@ -187,25 +172,28 @@ export default function CandidatosPage() {
               </Col>
               <Col xs="auto">
                 <Form.Select
-                  value={filtroSemaforo}
-                  onChange={(e) => setFiltroSemaforo(e.target.value as FiltroSemaforo)}
+                  aria-label="Filtrar por avance de carga de documentos"
+                  value={filtroGrupo}
+                  onChange={(e) => setFiltroGrupo(e.target.value as GrupoAvance | '')}
                   style={{ minWidth: 155 }}
                 >
-                  <option value="">Todos</option>
-                  <option value="verde">🟢 Completo</option>
-                  <option value="amarillo">🟡 En proceso</option>
-                  <option value="rojo">🔴 Incompleto</option>
+                  <option value="">Avance: todos</option>
+                  <option value="completo">🟢 Completo</option>
+                  <option value="en_proceso">🟡 En proceso</option>
+                  <option value="incompleto">🔴 Incompleto</option>
                 </Form.Select>
               </Col>
               <Col xs="auto">
                 <Form.Select
-                  value={filtroExpediente}
-                  onChange={(e) => setFiltroExpediente(e.target.value as EstadoExpediente | '')}
-                  style={{ minWidth: 145 }}
+                  aria-label="Filtrar por estado de la postulación"
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value as EstadoGeneral | '')}
+                  style={{ minWidth: 155 }}
                 >
-                  <option value="">Expediente</option>
-                  <option value="enviado">Enviado</option>
-                  <option value="en_proceso">En proceso</option>
+                  <option value="">Estado: todos</option>
+                  {Object.entries(ESTADO_GENERAL_CONFIG).map(([clave, cfg]) => (
+                    <option key={clave} value={clave}>{cfg.label}</option>
+                  ))}
                 </Form.Select>
               </Col>
             </Row>
@@ -219,57 +207,57 @@ export default function CandidatosPage() {
         {/* KPIs semáforo */}
         <Row className="g-4 mb-4">
           <Col md={3}>
-            <Card className="card-enmv card-enmv-top-azul card-riveted h-100">
+            <Card className="card-asommmn card-asommmn-top-azul card-riveted h-100">
               <Card.Body>
                 <div className="text-muted small">Candidatos visibles</div>
-                <div className="fs-3 fw-bold" style={{ color: 'var(--enmv-azul)' }}>{filtered.length}</div>
+                <div className="fs-3 fw-bold" style={{ color: 'var(--asommmn-azul)' }}>{filtered.length}</div>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
             <Card
-              className="card-enmv card-enmv-top-verde card-riveted h-100"
+              className="card-asommmn card-asommmn-top-verde card-riveted h-100"
               style={{ cursor: 'pointer' }}
-              onClick={() => setFiltroSemaforo(filtroSemaforo === 'verde' ? '' : 'verde')}
+              onClick={() => setFiltroGrupo(filtroGrupo === 'completo' ? '' : 'completo')}
             >
               <Card.Body>
                 <div className="d-flex align-items-center gap-2 mb-1">
-                  <SemaforoDot clave="verde" />
+                  <EstadoDot estado="completo" />
                   <span className="text-muted small">Completos / Enviados</span>
                 </div>
                 <div className="fs-3 fw-bold" style={{ color: '#1D9E75' }}>
-                  {counts.verde} <span className="fs-6 fw-normal text-muted">({counts.enviados} enviados)</span>
+                  {counts.completo} <span className="fs-6 fw-normal text-muted">({counts.enviados} enviados)</span>
                 </div>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
             <Card
-              className="card-enmv card-enmv-top-dorado card-riveted h-100"
+              className="card-asommmn card-asommmn-top-dorado card-riveted h-100"
               style={{ cursor: 'pointer' }}
-              onClick={() => setFiltroSemaforo(filtroSemaforo === 'amarillo' ? '' : 'amarillo')}
+              onClick={() => setFiltroGrupo(filtroGrupo === 'en_proceso' ? '' : 'en_proceso')}
             >
               <Card.Body>
                 <div className="d-flex align-items-center gap-2 mb-1">
-                  <SemaforoDot clave="amarillo" />
+                  <EstadoDot estado="en_proceso" />
                   <span className="text-muted small">En proceso</span>
                 </div>
-                <div className="fs-3 fw-bold" style={{ color: 'var(--enmv-dorado)' }}>{counts.amarillo}</div>
+                <div className="fs-3 fw-bold" style={{ color: 'var(--asommmn-dorado)' }}>{counts.en_proceso}</div>
               </Card.Body>
             </Card>
           </Col>
           <Col md={3}>
             <Card
-              className="card-enmv card-enmv-top-rojo card-riveted h-100"
+              className="card-asommmn card-asommmn-top-rojo card-riveted h-100"
               style={{ cursor: 'pointer' }}
-              onClick={() => setFiltroSemaforo(filtroSemaforo === 'rojo' ? '' : 'rojo')}
+              onClick={() => setFiltroGrupo(filtroGrupo === 'incompleto' ? '' : 'incompleto')}
             >
               <Card.Body>
                 <div className="d-flex align-items-center gap-2 mb-1">
-                  <SemaforoDot clave="rojo" />
+                  <EstadoDot estado="incompleto" />
                   <span className="text-muted small">Incompletos (sin CV/vacante)</span>
                 </div>
-                <div className="fs-3 fw-bold" style={{ color: '#C0392B' }}>{counts.rojo}</div>
+                <div className="fs-3 fw-bold" style={{ color: '#C0392B' }}>{counts.incompleto}</div>
               </Card.Body>
             </Card>
           </Col>
@@ -278,7 +266,7 @@ export default function CandidatosPage() {
         <div className="horizonte-divider" />
 
         {/* Tabla */}
-        <Card className="card-enmv card-enmv-top-azul">
+        <Card className="card-asommmn card-asommmn-top-azul">
           <Card.Body>
             <div className="table-responsive">
               <Table hover className="align-middle mb-0">
@@ -288,8 +276,8 @@ export default function CandidatosPage() {
                     <th>Candidato</th>
                     <th>Vacante</th>
                     <th>Estado postulación</th>
-                    <th style={{ minWidth: 160 }}>Avance expediente</th>
-                    <th>Expediente</th>
+                    <th style={{ minWidth: 160 }}>Avance de carga de documentos</th>
+                    <th>Documentos evaluados</th>
                     <th className="text-end">Acción</th>
                   </tr>
                 </thead>
@@ -305,16 +293,15 @@ export default function CandidatosPage() {
                     </tr>
                   ) : (
                     filtered.map((item) => {
-                      const clave = semaforoFromPorcentaje(item.porcentajeExpediente);
-                      const sem = semaforoConfig[clave];
+                      const estado = estadoGeneral(item);
                       return (
-                        <tr key={item.postulanteId} style={{ background: sem.bg }}>
+                        <tr key={item.postulanteId} style={{ background: grupoBg[grupoAvance(estado)] }}>
                           <td className="ps-3">
-                            <SemaforoDot clave={clave} />
+                            <EstadoDot estado={estado} />
                           </td>
                           <td>
                             <div className="d-flex align-items-center gap-2">
-                              <PortholeAvatar nombre={item.nombreCompleto} size={38} />
+                              <PortholeAvatar nombre={item.nombre} apellidos={item.apellidos} size={38} />
                               <div>
                                 <div className="fw-semibold">{item.nombreCompleto}</div>
                                 <div className="text-muted small">{item.email}</div>
@@ -330,13 +317,16 @@ export default function CandidatosPage() {
                             {item.vacante ? (
                               <span className="pennant-vacante">{item.vacante}</span>
                             ) : (
-                              <span className="small text-muted">—</span>
+                              <span className="small text-danger d-inline-flex align-items-center gap-1" title="Sin vacante seleccionada: no podrá completar ni enviar su expediente.">
+                                <i className="bi bi-exclamation-triangle-fill" />
+                                Sin vacante
+                              </span>
                             )}
                           </td>
                           <td>
-                            <span className={`badge badge-pill-enmv ${estadoPostulacionBadgeClass[clave]}`}>
-                              <i className={`bi ${estadoPostulacionIconClass[clave]}`} />
-                              {estadoPostulacionLabel(item, clave)}
+                            <span className={`badge badge-pill-asommmn ${ESTADO_GENERAL_CONFIG[estado].badgeClass}`}>
+                              <i className={`bi ${ESTADO_GENERAL_CONFIG[estado].icon}`} />
+                              {ESTADO_GENERAL_CONFIG[estado].label}
                             </span>
                           </td>
                           <td style={{ minWidth: 160 }}>
@@ -365,17 +355,11 @@ export default function CandidatosPage() {
                               {item.estadoEvaluacion === 'en_evaluacion' && (
                                 <i className="bi bi-hourglass-split text-warning me-1" />
                               )}
-                              {item.docsEvaluados ?? 0}/{item.docsTotal ?? 0} docs evaluados
+                              {item.docsEvaluados ?? 0}/{item.docsTotal ?? 0} evaluados
                             </div>
-                            {item.estadoEvaluacion === 'pendiente' &&
-                              (item.estadoExpediente === 'enviado' ? (
-                                <Badge bg="success" className="badge-pill-enmv">
-                                  <i className="bi bi-check-lg" />
-                                  Enviado
-                                </Badge>
-                              ) : (
-                                <span className="small text-muted">Pendiente</span>
-                              ))}
+                            {item.estadoEvaluacion === 'pendiente' && estado === 'enviado' && (
+                              <span className="small text-muted">Pendiente de evaluación</span>
+                            )}
                           </td>
                           <td className="text-end">
                             <Link
