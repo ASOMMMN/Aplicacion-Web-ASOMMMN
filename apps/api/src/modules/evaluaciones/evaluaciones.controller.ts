@@ -6,6 +6,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -14,7 +15,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -32,6 +33,7 @@ import {
   ResumenCandidatosDto,
 } from './dto/evaluaciones-response.dto';
 import {
+  ExportarCandidatosQueryDto,
   ListarCandidatosQueryDto,
   ResumenCandidatosQueryDto,
 } from './dto/listar-candidatos-query.dto';
@@ -72,6 +74,26 @@ export class EvaluacionesController {
     @Query() query: ResumenCandidatosQueryDto,
   ): Promise<ResumenCandidatosDto> {
     return this.evaluacionesService.resumenCandidatos(query);
+  }
+
+  @Get('candidatos/exportar')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary: 'Exportar a CSV los candidatos que coinciden con los filtros',
+  })
+  async exportarCandidatosCSV(
+    @Query() query: ExportarCandidatosQueryDto,
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
+    const { filename, csv } =
+      await this.evaluacionesService.exportarCandidatosCSV(query, user, ip);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 
   @Get('candidatos/:id')

@@ -67,7 +67,6 @@ interface ResumenCandidatos {
 }
 
 const LIMIT = 20;
-const LIMIT_EXPORT = 200;
 
 function parseQueryFromLocation(): {
   page: number;
@@ -97,11 +96,6 @@ function parseQueryFromLocation(): {
 function formatFecha(iso?: string): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
 }
 
 const toErrorMessage = (msg: unknown): string => {
@@ -415,42 +409,18 @@ export default function CandidatosPage() {
     setExportando(true);
     setError('');
     try {
-      const encabezados = [
-        'Nombre', 'Email', 'Vacante', 'Ciudad', 'País', 'Estado',
-        '% Avance', 'Docs evaluados', 'Docs totales', 'Fecha de postulación', 'Última actividad',
-      ];
-      const filas: string[][] = [];
-      let paginaActual = 1;
-      let totalPaginas = 1;
-      do {
-        const params: Record<string, string | number> = { page: paginaActual, limit: LIMIT_EXPORT };
-        if (filtroEstado) params.estado = filtroEstado;
-        if (vacanteFiltro) params.vacante = vacanteFiltro;
-        if (searchDebounced) params.q = searchDebounced;
-        const res = await api.get<CandidatosPaginados>('/evaluaciones/candidatos', { params });
-        totalPaginas = res.data.pages;
-        for (const item of res.data.data) {
-          const estado = estadoGeneral(item);
-          filas.push([
-            item.nombreCompleto,
-            item.email,
-            item.vacante ?? '',
-            item.ciudad ?? '',
-            item.pais ?? '',
-            ESTADO_GENERAL_CONFIG[estado].label,
-            String(item.porcentajeExpediente),
-            String(item.docsEvaluados ?? 0),
-            String(item.docsTotal ?? 0),
-            formatFecha(item.creadoEn),
-            formatFecha(item.actualizadoEn),
-          ]);
-        }
-        paginaActual += 1;
-      } while (paginaActual <= totalPaginas);
+      // El CSV se genera en el servidor (mismos filtros, sin paginar) y
+      // queda auditado ahí: quién exportó, con qué filtros y cuántas filas.
+      const params: Record<string, string> = {};
+      if (filtroEstado) params.estado = filtroEstado;
+      if (vacanteFiltro) params.vacante = vacanteFiltro;
+      if (searchDebounced) params.q = searchDebounced;
 
-      const csv = [encabezados, ...filas].map((fila) => fila.map(csvEscape).join(',')).join('\r\n');
-      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
+      const res = await api.get<Blob>('/evaluaciones/candidatos/exportar', {
+        params,
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
       const link = document.createElement('a');
       link.href = url;
       link.download = `candidatos_${new Date().toISOString().slice(0, 10)}.csv`;

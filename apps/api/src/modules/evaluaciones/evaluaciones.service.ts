@@ -37,10 +37,16 @@ import {
 } from './dto/evaluaciones-response.dto';
 import {
   EstadoCandidato,
+  ExportarCandidatosQueryDto,
   ListarCandidatosQueryDto,
   ResumenCandidatosQueryDto,
 } from './dto/listar-candidatos-query.dto';
-import { estadoGeneral } from './utils/estado-candidato.util';
+import {
+  estadoGeneral,
+  ESTADO_GENERAL_LABEL,
+} from './utils/estado-candidato.util';
+import { filaCsvSegura } from '../../common/utils/csv.util';
+import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { Evaluacion, EvaluacionDocument } from './schemas/evaluacion.schema';
 import {
   CLAVES_REQUISITO,
@@ -155,6 +161,76 @@ export class EvaluacionesService {
       resumen[estadoGeneral(item)] += 1;
     }
     return resumen;
+  }
+
+  /** Máximo de filas por exportación, por abuso/tamaño de respuesta razonable. */
+  private static readonly MAX_FILAS_EXPORT = 5000;
+
+  async exportarCandidatosCSV(
+    query: ExportarCandidatosQueryDto,
+    actor: AuthUser,
+    ip?: string,
+  ): Promise<{ filename: string; csv: string }> {
+    const { items } = await this.construirCandidatos();
+    const filtrado = this.filtrarCandidatos(items, query).slice(
+      0,
+      EvaluacionesService.MAX_FILAS_EXPORT,
+    );
+
+    const encabezados = [
+      'Nombre',
+      'Email',
+      'Vacante',
+      'Ciudad',
+      'País',
+      'Estado',
+      '% Avance',
+      'Docs evaluados',
+      'Docs totales',
+      'Fecha de postulación',
+      'Última actividad',
+    ];
+    const filas = filtrado.map((item) => {
+      const estado = estadoGeneral(item);
+      return filaCsvSegura([
+        item.nombreCompleto,
+        item.email,
+        item.vacante ?? '',
+        item.ciudad ?? '',
+        item.pais ?? '',
+        ESTADO_GENERAL_LABEL[estado],
+        String(item.porcentajeExpediente),
+        String(item.docsEvaluados ?? 0),
+        String(item.docsTotal ?? 0),
+        item.creadoEn ? new Date(item.creadoEn).toISOString().slice(0, 10) : '',
+        item.actualizadoEn
+          ? new Date(item.actualizadoEn).toISOString().slice(0, 10)
+          : '',
+      ]);
+    });
+
+    const csv = [filaCsvSegura(encabezados), ...filas].join('\r\n');
+    const fecha = new Date().toISOString().slice(0, 10);
+    const filename = `candidatos_${fecha}.csv`;
+
+    await this.auditoria.registrar({
+      actorId: actor.userId,
+      actorEmail: actor.email,
+      accion: 'candidatos_exportar_csv',
+      recurso: 'Postulante',
+      ipAddress: ip,
+      metadata: {
+        filtros: {
+          estado: query.estado,
+          vacante: query.vacante,
+          q: query.q,
+        },
+        cantidadExportada: filtrado.length,
+      },
+    });
+
+    const BOM = String.fromCharCode(0xfeff);
+    return { filename, csv: `${BOM}${csv}` };
   }
 
   private async construirCandidatos(): Promise<{

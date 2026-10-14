@@ -21,6 +21,8 @@ import {
   HistorialDocumentosResponseDto,
 } from './dto/documento-response.dto';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.util';
+import { AuthUser } from '../auth/strategies/jwt.strategy';
 
 const CV_CATEGORY = 'cvs';
 const MAX_VERSIONS = 10;
@@ -48,7 +50,9 @@ export class DocumentosService {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Usuario autenticado inválido');
     }
-    if (file.mimetype !== 'application/pdf') {
+    // No basta con file.mimetype: lo manda el cliente y es falsificable. Se
+    // valida el contenido real por su firma de bytes.
+    if (detectarTipoArchivo(file.buffer) !== 'application/pdf') {
       throw new BadRequestException('Solo se aceptan archivos PDF');
     }
 
@@ -88,8 +92,7 @@ export class DocumentosService {
       .select('nombre apellidos')
       .lean();
     const carpeta =
-      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
-      userId;
+      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ?? userId;
     const key = `${carpeta}/postulante-${userId}-v${newVersion}.pdf`;
 
     try {
@@ -258,12 +261,17 @@ export class DocumentosService {
 
   async descargarDocumento(
     documentoId: string,
-    userId: string,
+    actor: AuthUser,
   ): Promise<DocumentoActualResponseDto> {
     const documento = await this.documentoModel.findById(documentoId);
     if (!documento) throw new NotFoundException('Documento no encontrado');
 
-    if (documento.usuarioId.toString() !== userId) {
+    // Un postulante solo puede descargar su propio CV; evaluador/administrador
+    // pueden descargar el de cualquiera (ya filtrado por @Roles en el controller).
+    if (
+      actor.rol === 'postulante' &&
+      documento.usuarioId.toString() !== actor.userId
+    ) {
       throw new BadRequestException('No tienes acceso a este documento');
     }
 

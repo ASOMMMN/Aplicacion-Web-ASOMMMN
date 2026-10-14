@@ -60,8 +60,7 @@ import {
 } from './dto/doc-personal.dto';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
-
-const ACCEPTED_MIMES = ['application/pdf', 'image/jpeg', 'image/png'];
+import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.util';
 
 /** Carpeta Cloudinary: asommmn/documentos */
 const STORAGE_CATEGORY = 'documentos';
@@ -802,7 +801,10 @@ export class DocsPersonalesService {
       throw new BadRequestException('No se recibió ningún archivo.');
     }
 
-    if (!ACCEPTED_MIMES.includes(file.mimetype)) {
+    // No basta con file.mimetype: lo manda el cliente y es falsificable. Se
+    // valida el contenido real por su firma de bytes.
+    const tipoReal = detectarTipoArchivo(file.buffer);
+    if (!tipoReal) {
       throw new BadRequestException(
         'Tipo de archivo no permitido. Sube un PDF, JPG o PNG.',
       );
@@ -838,7 +840,7 @@ export class DocsPersonalesService {
       usuarioId: new Types.ObjectId(actor.userId),
       tipo,
       nombreOriginal: file.originalname,
-      tipoMime: file.mimetype,
+      tipoMime: tipoReal,
       tamanio: file.size,
       storagePath: `${STORAGE_CATEGORY}/${key}`,
       cloudinaryUrl: url,

@@ -81,3 +81,20 @@ export class ResumenCandidatosQueryDto {
   @MaxLength(200)
   q?: string;
 }
+
+/** Filtros de GET /evaluaciones/candidatos/exportar (sin paginación ni orden: exporta todo lo filtrado). */
+export class ExportarCandidatosQueryDto {
+  @IsOptional()
+  @IsIn(ESTADOS_CANDIDATO)
+  estado?: EstadoCandidato;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  vacante?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
+}

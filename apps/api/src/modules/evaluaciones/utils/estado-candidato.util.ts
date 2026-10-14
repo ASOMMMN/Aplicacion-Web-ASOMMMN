@@ -19,3 +19,12 @@ export function estadoGeneral(input: CandidatoEstadoInput): EstadoCandidato {
   if (input.porcentajeExpediente > 0) return 'en_proceso';
   return 'incompleto';
 }
+
+/** Espejo de ESTADO_GENERAL_CONFIG[...].label en el frontend, para el export CSV. */
+export const ESTADO_GENERAL_LABEL: Record<EstadoCandidato, string> = {
+  incompleto: 'Incompleto',
+  en_proceso: 'En proceso',
+  completo: 'Completo',
+  enviado: 'Enviado',
+  evaluado: 'Evaluado',
+};

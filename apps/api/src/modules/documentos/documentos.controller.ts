@@ -43,7 +43,12 @@ export class DocumentosController {
 
   @Post('subir')
   @Roles('postulante')
-  @UseInterceptors(FileInterceptor('archivo', { storage: memoryStorage() }))
+  @UseInterceptors(
+    FileInterceptor('archivo', {
+      storage: memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024 },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Subir un nuevo CV en PDF' })
   @ApiResponse({
@@ -102,7 +107,7 @@ export class DocumentosController {
     @Param('id') id: string,
     @CurrentUser() user: AuthUser,
   ): Promise<DocumentoActualResponseDto> {
-    return this.documentosService.descargarDocumento(id, user.userId);
+    return this.documentosService.descargarDocumento(id, user);
   }
 
   @Delete(':id')
