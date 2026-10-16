@@ -98,6 +98,11 @@ function formatFecha(iso?: string): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/** Email del candidato, o un ID corto cuando no hay (usuario eliminado). */
+function emailOId(item: { email: string; postulanteId: string }): string {
+  return item.email || `ID: ${item.postulanteId.slice(-8)}`;
+}
+
 const toErrorMessage = (msg: unknown): string => {
   if (Array.isArray(msg)) return msg.map(String).join(', ');
   if (msg && typeof msg === 'object' && 'message' in msg)
@@ -155,10 +160,10 @@ function AvanceBar({ porcentaje, faltantes }: { porcentaje: number; faltantes: s
     <div className="d-flex align-items-center gap-2">
       <ProgressBar
         now={porcentaje}
-        style={{ height: 6, flex: 1 }}
+        style={{ height: 6, flex: '1 1 auto', maxWidth: 90, minWidth: 40 }}
         variant={porcentaje === 100 ? 'success' : 'warning'}
       />
-      <span className="small fw-semibold" style={{ minWidth: 34 }}>
+      <span className="small fw-semibold text-nowrap" style={{ minWidth: 30 }}>
         {porcentaje}%
       </span>
     </div>
@@ -207,20 +212,26 @@ function AvanceBar({ porcentaje, faltantes }: { porcentaje: number; faltantes: s
 }
 
 function DocsEvaluadosInfo({ item, estado }: { item: CandidatoItem; estado: EstadoGeneral }) {
+  const estadoTexto =
+    item.estadoEvaluacion === 'pendiente' && estado === 'enviado'
+      ? 'Pendiente'
+      : item.estadoEvaluacion === 'evaluado'
+        ? 'Evaluado'
+        : item.estadoEvaluacion === 'en_evaluacion'
+          ? 'En evaluación'
+          : 'Evaluados';
   return (
     <>
-      <div className="small fw-semibold">
+      <div className="small fw-semibold text-nowrap">
         {item.estadoEvaluacion === 'evaluado' && (
           <i className="bi bi-check-circle-fill text-success me-1" />
         )}
         {item.estadoEvaluacion === 'en_evaluacion' && (
           <i className="bi bi-hourglass-split text-warning me-1" />
         )}
-        {item.docsEvaluados ?? 0}/{item.docsTotal ?? 0} evaluados
+        {item.docsEvaluados ?? 0}/{item.docsTotal ?? 0}
       </div>
-      {item.estadoEvaluacion === 'pendiente' && estado === 'enviado' && (
-        <span className="small text-muted">Pendiente de evaluación</span>
-      )}
+      <div className="small text-muted text-truncate">{estadoTexto}</div>
     </>
   );
 }
@@ -245,6 +256,7 @@ function ThOrdenable({
   direccion,
   onOrdenar,
   style,
+  className,
 }: {
   campo: CampoOrden;
   label: string;
@@ -252,11 +264,13 @@ function ThOrdenable({
   direccion: Direccion;
   onOrdenar: (campo: CampoOrden) => void;
   style?: React.CSSProperties;
+  className?: string;
 }) {
   const activo = ordenarPor === campo;
   return (
     <th
-      style={{ ...style, cursor: 'pointer', whiteSpace: 'nowrap' }}
+      className={className}
+      style={{ ...style, cursor: 'pointer' }}
       aria-sort={activo ? (direccion === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <button
@@ -620,17 +634,35 @@ export default function CandidatosPage() {
         <Card className="card-asommmn card-asommmn-top-azul d-none d-md-block">
           <Card.Body>
             <div className="table-responsive">
-              <Table hover className="align-middle mb-0">
+              <Table hover className="align-middle mb-0 tabla-candidatos">
+                <colgroup>
+                  <col style={{ width: '2%' }} />
+                  <col style={{ width: '23%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '8%' }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th style={{ width: 16 }}></th>
+                    <th></th>
                     <ThOrdenable campo="nombreCompleto" label="Candidato" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                     <th>Vacante</th>
                     <ThOrdenable campo="creadoEn" label="Fecha de postulación" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
-                    <ThOrdenable campo="actualizadoEn" label="Última actividad" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
+                    <ThOrdenable
+                      campo="actualizadoEn"
+                      label="Última actividad"
+                      ordenarPor={ordenarPor}
+                      direccion={direccion}
+                      onOrdenar={toggleOrden}
+                      className="d-none d-xxl-table-cell"
+                    />
                     <th>Estado postulación</th>
-                    <ThOrdenable campo="porcentajeExpediente" label="Avance de carga de documentos" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} style={{ minWidth: 180 }} />
-                    <th>Documentos evaluados</th>
+                    <ThOrdenable campo="porcentajeExpediente" label="Avance de carga" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
+                    <th>Docs. evaluados</th>
                     <th className="text-end">Acción</th>
                   </tr>
                 </thead>
@@ -659,7 +691,7 @@ export default function CandidatosPage() {
                               <PortholeAvatar nombre={item.nombre} apellidos={item.apellidos} size={38} />
                               <div>
                                 <div className="fw-semibold">{item.nombreCompleto}</div>
-                                <div className="text-muted small">{item.email}</div>
+                                <div className="text-muted small">{emailOId(item)}</div>
                                 {item.ciudad || item.pais ? (
                                   <div className="text-muted small">
                                     {[item.ciudad, item.pais].filter(Boolean).join(', ')}
@@ -669,10 +701,15 @@ export default function CandidatosPage() {
                             </div>
                           </td>
                           <td><VacanteCell vacante={item.vacante} /></td>
-                          <td className="small">{formatFecha(item.creadoEn)}</td>
-                          <td className="small">{formatFecha(item.actualizadoEn)}</td>
+                          <td className="small">
+                            {formatFecha(item.creadoEn)}
+                            <div className="text-muted d-xxl-none" style={{ fontSize: '0.68rem' }}>
+                              Actividad: {formatFecha(item.actualizadoEn)}
+                            </div>
+                          </td>
+                          <td className="small d-none d-xxl-table-cell">{formatFecha(item.actualizadoEn)}</td>
                           <td><EstadoBadge estado={estado} /></td>
-                          <td style={{ minWidth: 160 }}>
+                          <td>
                             <AvanceBar porcentaje={item.porcentajeExpediente} faltantes={item.requisitosFaltantes} />
                           </td>
                           <td>
@@ -712,7 +749,7 @@ export default function CandidatosPage() {
                       <PortholeAvatar nombre={item.nombre} apellidos={item.apellidos} size={40} />
                       <div className="flex-grow-1" style={{ minWidth: 0 }}>
                         <div className="fw-semibold">{item.nombreCompleto}</div>
-                        <div className="text-muted small">{item.email}</div>
+                        <div className="text-muted small">{emailOId(item)}</div>
                       </div>
                       <EstadoDot estado={estado} />
                     </div>

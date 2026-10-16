@@ -632,6 +632,28 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   background-color: rgba(10, 34, 64, .015);
 }
 
+/* Tabla de candidatos: ancho fijo por columna (colgroup) para que quepa sin
+   scroll horizontal a 1366/1536/1920px, con "Acción" siempre visible. */
+.tabla-candidatos {
+  table-layout: fixed;
+  width: 100%;
+}
+.tabla-candidatos thead th {
+  font-size: .64rem;
+  padding-left: .5rem;
+  padding-right: .5rem;
+  white-space: normal;
+  line-height: 1.25;
+}
+.tabla-candidatos > tbody > tr > td {
+  padding-left: .5rem;
+  padding-right: .5rem;
+  padding-top: .5rem;
+  padding-bottom: .5rem;
+  font-size: .82rem;
+  overflow: hidden;
+}
+
 /* ---------- 5. Badges / píldoras ---------- */
 .nautical-panel .badge-pill-asommmn,
 .asommmn-modal .badge-pill-asommmn,
