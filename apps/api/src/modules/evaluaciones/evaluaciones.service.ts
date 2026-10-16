@@ -194,7 +194,7 @@ export class EvaluacionesService {
       const estado = estadoGeneral(item);
       return filaCsvSegura([
         item.nombreCompleto,
-        item.email,
+        item.email || `ID: ${item.postulanteId.slice(-8)}`,
         item.vacante ?? '',
         item.ciudad ?? '',
         item.pais ?? '',
@@ -345,9 +345,17 @@ export class EvaluacionesService {
         docsTotal,
       );
 
+      // populate() deja usuarioId en null cuando el usuario referenciado ya
+      // no existe (p.ej. un admin lo borró sin que exista cascade delete
+      // hacia Postulante). No hay que ocultar la fila: se muestra con un
+      // nombre de respaldo para que el evaluador sepa qué pasó.
+      const nombreCompleto = user
+        ? `${user.nombre ?? ''} ${user.apellidos ?? ''}`.trim()
+        : 'Usuario eliminado';
+
       return {
         postulanteId: String(p._id),
-        nombreCompleto: `${user?.nombre ?? ''} ${user?.apellidos ?? ''}`.trim(),
+        nombreCompleto,
         nombre: user?.nombre ?? '',
         apellidos: user?.apellidos ?? '',
         email: user?.email ?? '',
