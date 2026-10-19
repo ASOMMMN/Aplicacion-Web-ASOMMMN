@@ -107,6 +107,10 @@ export class ResumenCandidatosDto {
 
   @ApiProperty()
   total: number;
+
+  /** Candidatos eliminados que matchean q/vacante (para el contador del botón Papelera). Solo ADMIN. */
+  @ApiPropertyOptional()
+  eliminados?: number;
 }
 
 export class CandidatosPaginadosDto {

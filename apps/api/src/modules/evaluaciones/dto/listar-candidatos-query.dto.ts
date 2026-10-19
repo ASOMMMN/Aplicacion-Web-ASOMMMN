@@ -31,8 +31,14 @@ export const CAMPOS_ORDENABLES_CANDIDATO = [
 export type CampoOrdenableCandidato =
   (typeof CAMPOS_ORDENABLES_CANDIDATO)[number];
 
-export const ESTADOS_ELIMINACION = ['todos', 'activos', 'eliminados'] as const;
-export type EstadoEliminacionCandidato = (typeof ESTADOS_ELIMINACION)[number];
+/**
+ * 'activos' (default): excluye candidatos eliminados — se aplica del lado
+ * del servidor, no es solo un filtro de UI. 'papelera': solo candidatos
+ * eliminados; requiere rol administrador (ver
+ * EvaluacionesService#resolverVista, lanza ForbiddenException si no).
+ */
+export const VISTAS_CANDIDATOS = ['activos', 'papelera'] as const;
+export type VistaCandidatos = (typeof VISTAS_CANDIDATOS)[number];
 
 export const ORIGENES_ELIMINACION = ['admin', 'self', 'desconocido'] as const;
 export type OrigenEliminacionCandidato = (typeof ORIGENES_ELIMINACION)[number];
@@ -69,8 +75,8 @@ export class ListarCandidatosQueryDto {
   estado?: EstadoCandidato;
 
   @IsOptional()
-  @IsIn(ESTADOS_ELIMINACION)
-  estadoEliminacion?: EstadoEliminacionCandidato;
+  @IsIn(VISTAS_CANDIDATOS)
+  vista?: VistaCandidatos;
 
   @IsOptional()
   @IsIn(ORIGENES_ELIMINACION)
@@ -90,8 +96,8 @@ export class ListarCandidatosQueryDto {
 /** Filtros de GET /evaluaciones/candidatos/resumen (sin paginación ni orden). */
 export class ResumenCandidatosQueryDto {
   @IsOptional()
-  @IsIn(ESTADOS_ELIMINACION)
-  estadoEliminacion?: EstadoEliminacionCandidato;
+  @IsIn(VISTAS_CANDIDATOS)
+  vista?: VistaCandidatos;
 
   @IsOptional()
   @IsIn(ORIGENES_ELIMINACION)
@@ -115,8 +121,8 @@ export class ExportarCandidatosQueryDto {
   estado?: EstadoCandidato;
 
   @IsOptional()
-  @IsIn(ESTADOS_ELIMINACION)
-  estadoEliminacion?: EstadoEliminacionCandidato;
+  @IsIn(VISTAS_CANDIDATOS)
+  vista?: VistaCandidatos;
 
   @IsOptional()
   @IsIn(ORIGENES_ELIMINACION)

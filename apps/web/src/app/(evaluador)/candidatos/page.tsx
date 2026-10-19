@@ -38,7 +38,7 @@ type CampoOrden =
   | 'docsEvaluados'
   | 'eliminadoEn';
 type Direccion = 'asc' | 'desc';
-type EstadoEliminacion = 'todos' | 'activos' | 'eliminados';
+type Vista = 'activos' | 'papelera';
 type OrigenEliminacion = 'admin' | 'self' | 'desconocido';
 
 const CAMPOS_ORDEN_VALIDOS: CampoOrden[] = [
@@ -104,6 +104,8 @@ interface ResumenCandidatos {
   enviado: number;
   evaluado: number;
   total: number;
+  /** Solo viene del backend si quien pide el resumen es ADMIN. */
+  eliminados?: number;
 }
 
 const LIMIT = 20;
@@ -115,7 +117,7 @@ function parseQueryFromLocation(): {
   q: string;
   ordenarPor: CampoOrden | '';
   direccion: Direccion;
-  estadoEliminacion: EstadoEliminacion;
+  vista: Vista;
   origenEliminacion: OrigenEliminacion | '';
 } {
   if (typeof window === 'undefined') {
@@ -126,14 +128,14 @@ function parseQueryFromLocation(): {
       q: '',
       ordenarPor: '',
       direccion: 'desc',
-      estadoEliminacion: 'todos',
+      vista: 'activos',
       origenEliminacion: '',
     };
   }
   const sp = new URLSearchParams(window.location.search);
   const page = Number(sp.get('page') ?? '1');
   const [ordenarPor, direccion] = (sp.get('sort') ?? '').split(':');
-  const estadoEliminacion = sp.get('eliminacion');
+  const vista = sp.get('vista');
   const origenEliminacion = sp.get('origen');
   return {
     page: Number.isFinite(page) && page > 0 ? page : 1,
@@ -142,10 +144,7 @@ function parseQueryFromLocation(): {
     q: sp.get('q') ?? '',
     ordenarPor: CAMPOS_ORDEN_VALIDOS.includes(ordenarPor as CampoOrden) ? (ordenarPor as CampoOrden) : '',
     direccion: direccion === 'asc' ? 'asc' : 'desc',
-    estadoEliminacion:
-      estadoEliminacion === 'activos' || estadoEliminacion === 'eliminados'
-        ? estadoEliminacion
-        : 'todos',
+    vista: vista === 'papelera' ? 'papelera' : 'activos',
     origenEliminacion:
       origenEliminacion === 'admin' || origenEliminacion === 'self' || origenEliminacion === 'desconocido'
         ? origenEliminacion
@@ -429,7 +428,7 @@ export default function CandidatosPage() {
   const [searchDebounced, setSearchDebounced] = useState(initial.q);
   const [ordenarPor, setOrdenarPor] = useState<CampoOrden | ''>(initial.ordenarPor);
   const [direccion, setDireccion] = useState<Direccion>(initial.direccion);
-  const [estadoEliminacion, setEstadoEliminacion] = useState<EstadoEliminacion>(initial.estadoEliminacion);
+  const [vista, setVista] = useState<Vista>(initial.vista);
   const [origenEliminacion, setOrigenEliminacion] = useState<OrigenEliminacion | ''>(initial.origenEliminacion);
 
   // Para el panel admin, la tabla por defecto ordena por fecha de postulación
@@ -445,6 +444,14 @@ export default function CandidatosPage() {
       setDireccion('desc');
     }
   }, [user, esAdmin, initial.ordenarPor]);
+
+  // La Papelera es solo para admin: si un evaluador llega a ?vista=papelera
+  // (link viejo, URL escrita a mano), lo regresamos a activos. El backend
+  // también lo rechaza (403) si de alguna forma llega la petición.
+  useEffect(() => {
+    if (!user) return;
+    if (vista === 'papelera' && !esAdmin) setVista('activos');
+  }, [user, esAdmin, vista]);
 
   const [paginado, setPaginado] = useState<CandidatosPaginados | null>(null);
   const [resumen, setResumen] = useState<ResumenCandidatos | null>(null);
@@ -466,11 +473,11 @@ export default function CandidatosPage() {
     if (vacanteFiltro) params.set('vacante', vacanteFiltro);
     if (searchDebounced) params.set('q', searchDebounced);
     if (ordenarPor) params.set('sort', `${ordenarPor}:${direccion}`);
-    if (estadoEliminacion !== 'todos') params.set('eliminacion', estadoEliminacion);
-    if (estadoEliminacion === 'eliminados' && origenEliminacion) params.set('origen', origenEliminacion);
+    if (vista === 'papelera') params.set('vista', 'papelera');
+    if (vista === 'papelera' && origenEliminacion) params.set('origen', origenEliminacion);
     const qs = params.toString();
     router.replace(qs ? `/candidatos?${qs}` : '/candidatos', { scroll: false });
-  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, estadoEliminacion, origenEliminacion, router]);
+  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, vista, origenEliminacion, router]);
 
   // Vuelve a la página 1 cuando cambian filtros/orden (pero no en el montaje inicial).
   const montado = useRef(false);
@@ -480,7 +487,7 @@ export default function CandidatosPage() {
       return;
     }
     setPage(1);
-  }, [filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, estadoEliminacion, origenEliminacion]);
+  }, [filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, vista, origenEliminacion]);
 
   const cargar = useCallback(async () => {
     try {
@@ -494,16 +501,16 @@ export default function CandidatosPage() {
         paramsLista.ordenarPor = ordenarPor;
         paramsLista.direccion = direccion;
       }
-      if (estadoEliminacion !== 'todos') paramsLista.estadoEliminacion = estadoEliminacion;
-      if (estadoEliminacion === 'eliminados' && origenEliminacion) {
-        paramsLista.origenEliminacion = origenEliminacion;
+      if (vista === 'papelera') {
+        paramsLista.vista = vista;
+        if (origenEliminacion) paramsLista.origenEliminacion = origenEliminacion;
       }
       const paramsResumen: Record<string, string> = {};
       if (vacanteFiltro) paramsResumen.vacante = vacanteFiltro;
       if (searchDebounced) paramsResumen.q = searchDebounced;
-      if (estadoEliminacion !== 'todos') paramsResumen.estadoEliminacion = estadoEliminacion;
-      if (estadoEliminacion === 'eliminados' && origenEliminacion) {
-        paramsResumen.origenEliminacion = origenEliminacion;
+      if (vista === 'papelera') {
+        paramsResumen.vista = vista;
+        if (origenEliminacion) paramsResumen.origenEliminacion = origenEliminacion;
       }
 
       const [listaRes, resumenRes] = await Promise.all([
@@ -520,7 +527,7 @@ export default function CandidatosPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, estadoEliminacion, origenEliminacion]);
+  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, vista, origenEliminacion]);
 
   useEffect(() => {
     const ejecutar = async () => {
@@ -554,9 +561,9 @@ export default function CandidatosPage() {
       if (filtroEstado) params.estado = filtroEstado;
       if (vacanteFiltro) params.vacante = vacanteFiltro;
       if (searchDebounced) params.q = searchDebounced;
-      if (estadoEliminacion !== 'todos') params.estadoEliminacion = estadoEliminacion;
-      if (estadoEliminacion === 'eliminados' && origenEliminacion) {
-        params.origenEliminacion = origenEliminacion;
+      if (vista === 'papelera') {
+        params.vista = vista;
+        if (origenEliminacion) params.origenEliminacion = origenEliminacion;
       }
 
       const res = await api.get<Blob>('/evaluaciones/candidatos/exportar', {
@@ -647,25 +654,23 @@ export default function CandidatosPage() {
           </Col>
         </Row>
 
-        {/* Filtro de cuentas eliminadas + selector de orden explícito */}
-        <Row className="g-2 mb-3">
-          <Col xs="auto">
-            <Form.Select
-              aria-label="Filtrar por estado de la cuenta (activa/eliminada)"
-              value={estadoEliminacion}
-              onChange={(e) => {
-                const valor = e.target.value as EstadoEliminacion;
-                setEstadoEliminacion(valor);
-                if (valor !== 'eliminados') setOrigenEliminacion('');
-              }}
-              style={{ minWidth: 150 }}
-            >
-              <option value="todos">Cuentas: todas</option>
-              <option value="activos">Solo activos</option>
-              <option value="eliminados">Solo eliminados</option>
-            </Form.Select>
-          </Col>
-          {estadoEliminacion === 'eliminados' && (
+        {/* Papelera (solo admin) + selector de orden explícito */}
+        <Row className="g-2 mb-3 align-items-center">
+          {esAdmin && resumen?.eliminados !== undefined && (
+            <Col xs="auto">
+              <button
+                type="button"
+                className={`btn btn-sm d-inline-flex align-items-center gap-2 ${vista === 'papelera' ? 'btn-danger' : 'btn-outline-danger'}`}
+                onClick={() => setVista((v) => (v === 'papelera' ? 'activos' : 'papelera'))}
+                aria-pressed={vista === 'papelera'}
+              >
+                <i className="bi bi-trash3-fill" />
+                Papelera
+                <span className="badge bg-light text-dark">{resumen.eliminados}</span>
+              </button>
+            </Col>
+          )}
+          {vista === 'papelera' && (
             <Col xs="auto">
               <Form.Select
                 aria-label="Filtrar por origen de la eliminación"
@@ -728,7 +733,7 @@ export default function CandidatosPage() {
           <Col md={4} lg={2}>
             <Card className="card-asommmn card-asommmn-top-azul card-riveted h-100">
               <Card.Body>
-                <div className="text-muted small">Visibles</div>
+                <div className="text-muted small">{vista === 'papelera' ? 'En la papelera' : 'Visibles'}</div>
                 <div className="fs-3 fw-bold" style={{ color: 'var(--asommmn-azul)' }}>
                   {resumen ? resumen.total : <Placeholder xs={6} />}
                 </div>

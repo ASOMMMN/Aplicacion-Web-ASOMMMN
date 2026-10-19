@@ -35,11 +35,38 @@ export class ReportesService {
   async getEstadisticas(): Promise<EstadisticasResponseDto> {
     const treintaDiasAtras = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
+    // IDs de usuarios con soft-delete, para excluirlos de los totales de
+    // "usuarios" y para poder identificar postulantes cuyo usuario fue
+    // eliminado (ver postulanteFiltroEliminado más abajo).
+    const deletedUserIds = await this.usuarioModel.distinct('_id', {
+      isDeleted: true,
+    });
+
+    // Un postulante cuenta como "eliminado" si su propio Usuario tiene
+    // soft-delete, o si es un huérfano legado reconstruido desde Auditoría
+    // (ver EvaluacionesService#construirCandidatos, misma definición de
+    // "eliminado" que usa el panel de candidatos/papelera).
+    const postulanteFiltroEliminado: Record<string, unknown> = {
+      $or: [
+        { 'legacyEliminacion.detectado': true },
+        { usuarioId: { $in: deletedUserIds } },
+      ],
+    };
+    const postulanteFiltroActivo: Record<string, unknown> = {
+      $and: [
+        { 'legacyEliminacion.detectado': { $ne: true } },
+        { usuarioId: { $nin: deletedUserIds } },
+      ],
+    };
+
     const [
       totalUsuarios,
+      usuariosEliminados,
       usuariosPorRol,
       usuariosActivos,
       totalPostulantes,
+      postulantesEliminados,
+      postulanteActivoIds,
       postulantesEstado,
       totalDocumentos,
       docsUltimoMes,
@@ -48,13 +75,21 @@ export class ReportesService {
       postulanteIdsConCV,
       evalPorEvaluador,
     ] = await Promise.all([
-      this.usuarioModel.countDocuments(),
+      this.usuarioModel.countDocuments({ isDeleted: { $ne: true } }),
+      this.usuarioModel.countDocuments({ isDeleted: true }),
       this.usuarioModel.aggregate<{ _id: string; count: number }>([
+        { $match: { isDeleted: { $ne: true } } },
         { $group: { _id: '$rol', count: { $sum: 1 } } },
       ]),
-      this.usuarioModel.countDocuments({ estadoCuenta: 'activa' }),
-      this.postulanteModel.countDocuments(),
+      this.usuarioModel.countDocuments({
+        estadoCuenta: 'activa',
+        isDeleted: { $ne: true },
+      }),
+      this.postulanteModel.countDocuments(postulanteFiltroActivo),
+      this.postulanteModel.countDocuments(postulanteFiltroEliminado),
+      this.postulanteModel.distinct('_id', postulanteFiltroActivo),
       this.postulanteModel.aggregate<{ _id: string; count: number }>([
+        { $match: postulanteFiltroActivo },
         { $group: { _id: '$estadoPostulacion', count: { $sum: 1 } } },
       ]),
       this.documentoModel.countDocuments({ esActual: true }),
@@ -106,7 +141,10 @@ export class ReportesService {
       postulantesEstado.map((e) => [e._id, e.count]),
     );
 
-    const conCV = postulanteIdsConCV.length;
+    const idsActivosSet = new Set(postulanteActivoIds.map((id) => String(id)));
+    const conCV = postulanteIdsConCV.filter((id) =>
+      idsActivosSet.has(String(id)),
+    ).length;
     const sinCV = Math.max(0, totalPostulantes - conCV);
 
     const porEvaluador: EvaluadorStatsDto[] = evalPorEvaluador.map((item) => ({
@@ -123,6 +161,7 @@ export class ReportesService {
         evaluadores: rolMap.get('evaluador') ?? 0,
         administradores: rolMap.get('administrador') ?? 0,
         activos: usuariosActivos,
+        eliminados: usuariosEliminados,
       },
       postulantes: {
         total: totalPostulantes,
@@ -131,6 +170,7 @@ export class ReportesService {
         rechazados: estadoMap.get('rechazado') ?? 0,
         conCV,
         sinCV,
+        eliminados: postulantesEliminados,
       },
       evaluaciones: {
         total: totalEvaluaciones,

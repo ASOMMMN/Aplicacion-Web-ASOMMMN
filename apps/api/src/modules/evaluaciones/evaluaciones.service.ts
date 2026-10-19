@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -37,11 +38,11 @@ import {
 } from './dto/evaluaciones-response.dto';
 import {
   EstadoCandidato,
-  EstadoEliminacionCandidato,
   ExportarCandidatosQueryDto,
   ListarCandidatosQueryDto,
   OrigenEliminacionCandidato,
   ResumenCandidatosQueryDto,
+  VistaCandidatos,
 } from './dto/listar-candidatos-query.dto';
 import {
   estadoGeneral,
@@ -127,13 +128,38 @@ export class EvaluacionesService {
     });
   }
 
+  /**
+   * 'activos' (default) excluye eliminados; 'papelera' muestra solo
+   * eliminados y requiere rol administrador — valida del lado del servidor,
+   * no es solo un filtro de UI (un evaluador no debe poder ver la papelera
+   * ni mandando el query param a mano).
+   */
+  private resolverVista(
+    vistaSolicitada: VistaCandidatos | undefined,
+    actor?: AuthUser,
+  ): VistaCandidatos {
+    const vista = vistaSolicitada ?? 'activos';
+    if (vista === 'papelera' && actor?.rol !== 'administrador') {
+      throw new ForbiddenException(
+        'Solo un administrador puede ver la papelera.',
+      );
+    }
+    return vista;
+  }
+
   async listarCandidatos(
     query: ListarCandidatosQueryDto = new ListarCandidatosQueryDto(),
     actor?: AuthUser,
   ): Promise<CandidatosPaginadosDto> {
+    const vista = this.resolverVista(query.vista, actor);
     const { items, enviadoEnPorPostulante } = await this.construirCandidatos();
 
-    const filtrado = this.filtrarCandidatos(items, query);
+    const filtrado = this.filtrarCandidatos(
+      items,
+      query,
+      vista,
+      query.origenEliminacion,
+    );
     const ordenado = this.ordenarCandidatos(
       filtrado,
       query,
@@ -167,9 +193,16 @@ export class EvaluacionesService {
 
   async resumenCandidatos(
     query: ResumenCandidatosQueryDto = new ResumenCandidatosQueryDto(),
+    actor?: AuthUser,
   ): Promise<ResumenCandidatosDto> {
+    const vista = this.resolverVista(query.vista, actor);
     const { items } = await this.construirCandidatos();
-    const filtrado = this.filtrarCandidatos(items, query);
+    const filtrado = this.filtrarCandidatos(
+      items,
+      query,
+      vista,
+      query.origenEliminacion,
+    );
 
     const resumen: ResumenCandidatosDto = {
       incompleto: 0,
@@ -182,6 +215,17 @@ export class EvaluacionesService {
     for (const item of filtrado) {
       resumen[estadoGeneral(item)] += 1;
     }
+
+    // Contador del botón Papelera: total de eliminados que matchean q/vacante,
+    // sin importar la vista actual. Solo se calcula (y expone) para admin.
+    if (actor?.rol === 'administrador') {
+      resumen.eliminados = this.filtrarCandidatos(
+        items,
+        { q: query.q, vacante: query.vacante },
+        'papelera',
+      ).length;
+    }
+
     return resumen;
   }
 
@@ -193,11 +237,14 @@ export class EvaluacionesService {
     actor: AuthUser,
     ip?: string,
   ): Promise<{ filename: string; csv: string }> {
+    const vista = this.resolverVista(query.vista, actor);
     const { items } = await this.construirCandidatos();
-    const filtrado = this.filtrarCandidatos(items, query).slice(
-      0,
-      EvaluacionesService.MAX_FILAS_EXPORT,
-    );
+    const filtrado = this.filtrarCandidatos(
+      items,
+      query,
+      vista,
+      query.origenEliminacion,
+    ).slice(0, EvaluacionesService.MAX_FILAS_EXPORT);
     const esAdmin = actor.rol === 'administrador';
 
     const encabezados = [
@@ -266,6 +313,8 @@ export class EvaluacionesService {
           estado: query.estado,
           vacante: query.vacante,
           q: query.q,
+          vista,
+          origenEliminacion: query.origenEliminacion,
         },
         cantidadExportada: filtrado.length,
       },
@@ -496,22 +545,18 @@ export class EvaluacionesService {
       q?: string;
       vacante?: string;
       estado?: EstadoCandidato;
-      estadoEliminacion?: EstadoEliminacionCandidato;
-      origenEliminacion?: OrigenEliminacionCandidato;
     },
+    vista: VistaCandidatos = 'activos',
+    origenEliminacion?: OrigenEliminacionCandidato,
   ): CandidatoListaItemDto[] {
     const q = query.q?.trim().toLowerCase();
     const vacante = query.vacante?.trim().toLowerCase();
 
     return items.filter((item) => {
-      if (query.estadoEliminacion === 'activos' && item.eliminado) return false;
-      if (query.estadoEliminacion === 'eliminados' && !item.eliminado) {
-        return false;
-      }
-      if (query.origenEliminacion) {
-        if (!item.eliminado || item.eliminadoOrigen !== query.origenEliminacion) {
-          return false;
-        }
+      if (vista === 'activos' && item.eliminado) return false;
+      if (vista === 'papelera' && !item.eliminado) return false;
+      if (vista === 'papelera' && origenEliminacion) {
+        if (item.eliminadoOrigen !== origenEliminacion) return false;
       }
       if (query.estado && estadoGeneral(item) !== query.estado) return false;
       if (vacante && !(item.vacante ?? '').toLowerCase().includes(vacante)) {

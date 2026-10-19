@@ -28,6 +28,7 @@ interface Estadisticas {
     evaluadores: number;
     administradores: number;
     activos: number;
+    eliminados: number;
   };
   postulantes: {
     total: number;
@@ -36,6 +37,7 @@ interface Estadisticas {
     rechazados: number;
     conCV: number;
     sinCV: number;
+    eliminados: number;
   };
   evaluaciones: {
     total: number;
@@ -213,6 +215,14 @@ export default function AdminReportesPage() {
               sub={`de ${stats.usuarios.total} totales`}
             />
           </Col>
+          <Col md={3}>
+            <StatCard
+              label="Eliminados"
+              value={stats.usuarios.eliminados}
+              variant="secondary"
+              sub="no incluidos en el total"
+            />
+          </Col>
         </Row>
 
         {/* Postulantes */}
@@ -255,6 +265,14 @@ export default function AdminReportesPage() {
               label="Sin CV"
               value={stats.postulantes.sinCV}
               variant="secondary"
+            />
+          </Col>
+          <Col md={2}>
+            <StatCard
+              label="Eliminados"
+              value={stats.postulantes.eliminados}
+              variant="secondary"
+              sub="no incluidos en el total"
             />
           </Col>
         </Row>

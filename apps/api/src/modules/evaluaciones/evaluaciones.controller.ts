@@ -73,8 +73,9 @@ export class EvaluacionesController {
   @ApiResponse({ status: 200, type: ResumenCandidatosDto })
   async resumenCandidatos(
     @Query() query: ResumenCandidatosQueryDto,
+    @CurrentUser() user: AuthUser,
   ): Promise<ResumenCandidatosDto> {
-    return this.evaluacionesService.resumenCandidatos(query);
+    return this.evaluacionesService.resumenCandidatos(query, user);
   }
 
   @Get('candidatos/exportar')
