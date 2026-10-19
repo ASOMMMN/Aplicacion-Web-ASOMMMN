@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   DeleteObjectCommand,
@@ -7,6 +12,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { Readable } from 'node:stream';
 
 export interface S3UploadResult {
   url: string;
@@ -98,5 +104,31 @@ export class S3Service {
       ...(contentType ? { ResponseContentType: contentType } : {}),
     });
     return getSignedUrl(this.client, command, { expiresIn: ttlSeconds });
+  }
+
+  /**
+   * Stream del objeto, directo de S3 (sin pasar por una URL firmada ni
+   * cargar el archivo completo en memoria). Quien lo consume es responsable
+   * de destruirlo si corta la transmisión a medio camino.
+   */
+  async getObjectStream(key: string): Promise<Readable> {
+    let body: Readable | undefined;
+    try {
+      const respuesta = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      body = respuesta.Body as Readable | undefined;
+    } catch (err) {
+      this.logger.warn(`No se pudo leer ${key} de S3: ${(err as Error).message}`);
+      throw new NotFoundException(
+        'El archivo no está disponible en el almacenamiento.',
+      );
+    }
+    if (!body) {
+      throw new NotFoundException(
+        'El archivo no está disponible en el almacenamiento.',
+      );
+    }
+    return body;
   }
 }

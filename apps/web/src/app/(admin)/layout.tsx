@@ -10,6 +10,7 @@ import { ROLE_HOME } from "@/lib/auth/roleHome";
 
 const NAV_ITEMS = [
   { href: "/usuarios", label: "Usuarios" },
+  { href: "/candidatos", label: "Candidatos" },
   { href: "/evaluaciones", label: "Evaluaciones" },
   { href: "/mi-nube", label: "Mi nube" },
   { href: "/reportes", label: "Reportes" },

@@ -74,6 +74,33 @@ describe('resumenDocumentosPersonales', () => {
     expect(r.map((d) => d.aplicaVencimiento)).toEqual([false, false, false]);
   });
 
+  it('CURP: sin vencimiento, nunca calculado a +5 años (fechaVencimientoEstimada en false)', () => {
+    const [r] = resumenDocumentosPersonales([
+      { tipo: 'CURP', nombreOriginal: 'curp.pdf', subidasEn: '2025-01-01' },
+    ]);
+    expect(r.aplicaVencimiento).toBe(false);
+    expect(r.fechaVencimiento).toBeNull();
+    expect(r.fechaVencimientoEstimada).toBe(false);
+  });
+
+  it('INE, pasaporte y visa sin vigencia detectada por la IA: nunca se calcula +5 años (regla solo aplica a cursos)', () => {
+    const tipos = ['INE', 'pasaporte', 'visa'] as const;
+    const r = resumenDocumentosPersonales(
+      tipos.map((tipo) => ({
+        tipo,
+        nombreOriginal: `${tipo}.pdf`,
+        subidasEn: '2025-01-01',
+        fechaEmision: '2020-01-01', // aunque haya emisión, no se estima vencimiento
+      })),
+    );
+    expect(r).toHaveLength(tipos.length);
+    for (const item of r) {
+      expect(item.aplicaVencimiento).toBe(true);
+      expect(item.fechaVencimiento).toBeNull();
+      expect(item.fechaVencimientoEstimada).toBe(false);
+    }
+  });
+
   it('los tipos que sí vencen quedan con aplicaVencimiento aunque no tengan fecha', () => {
     const tipos = [
       'INE',
@@ -93,6 +120,7 @@ describe('resumenDocumentosPersonales', () => {
     );
     expect(r).toHaveLength(tipos.length);
     expect(r.every((d) => d.aplicaVencimiento)).toBe(true);
+    expect(r.every((d) => d.fechaVencimientoEstimada === false)).toBe(true);
   });
 
   it('sin documentos → sin filas', () => {

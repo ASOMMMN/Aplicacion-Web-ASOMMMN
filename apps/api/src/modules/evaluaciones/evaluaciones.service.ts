@@ -37,8 +37,10 @@ import {
 } from './dto/evaluaciones-response.dto';
 import {
   EstadoCandidato,
+  EstadoEliminacionCandidato,
   ExportarCandidatosQueryDto,
   ListarCandidatosQueryDto,
+  OrigenEliminacionCandidato,
   ResumenCandidatosQueryDto,
 } from './dto/listar-candidatos-query.dto';
 import {
@@ -56,6 +58,13 @@ import {
 } from '../postulantes/constants/expediente.constants';
 
 const DOCUMENTO_CLAVE_LEGADO = 'general';
+
+const MAPA_ORIGEN_ELIMINACION: Record<string, OrigenEliminacionCandidato> = {
+  ADMIN: 'admin',
+  EVALUADOR: 'admin',
+  SELF: 'self',
+  SYSTEM: 'desconocido',
+};
 
 function calcularEstadoEvaluacion(
   docsEvaluados: number,
@@ -120,6 +129,7 @@ export class EvaluacionesService {
 
   async listarCandidatos(
     query: ListarCandidatosQueryDto = new ListarCandidatosQueryDto(),
+    actor?: AuthUser,
   ): Promise<CandidatosPaginadosDto> {
     const { items, enviadoEnPorPostulante } = await this.construirCandidatos();
 
@@ -133,14 +143,26 @@ export class EvaluacionesService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const inicio = (page - 1) * limit;
+    const esAdmin = actor?.rol === 'administrador';
+    const data = ordenado
+      .slice(inicio, inicio + limit)
+      .map((item) => (esAdmin ? item : this.ocultarEliminadoPor(item)));
 
     return {
-      data: ordenado.slice(inicio, inicio + limit),
+      data,
       total: ordenado.length,
       page,
       limit,
       pages: Math.max(1, Math.ceil(ordenado.length / limit)),
     };
+  }
+
+  /** Solo ADMIN puede ver quién eliminó a un usuario (nombre/email del actor). */
+  private ocultarEliminadoPor(
+    item: CandidatoListaItemDto,
+  ): CandidatoListaItemDto {
+    const { eliminadoPorNombre, eliminadoPorEmail, ...resto } = item;
+    return resto as CandidatoListaItemDto;
   }
 
   async resumenCandidatos(
@@ -176,6 +198,7 @@ export class EvaluacionesService {
       0,
       EvaluacionesService.MAX_FILAS_EXPORT,
     );
+    const esAdmin = actor.rol === 'administrador';
 
     const encabezados = [
       'Nombre',
@@ -189,9 +212,18 @@ export class EvaluacionesService {
       'Docs totales',
       'Fecha de postulación',
       'Última actividad',
+      'Eliminado',
+      'Origen eliminación',
+      'Fecha de eliminación',
+      ...(esAdmin ? ['Eliminado por'] : []),
     ];
     const filas = filtrado.map((item) => {
       const estado = estadoGeneral(item);
+      const ORIGEN_LABEL: Record<string, string> = {
+        admin: 'Admin',
+        self: 'El propio usuario',
+        desconocido: 'Desconocido',
+      };
       return filaCsvSegura([
         item.nombreCompleto,
         item.email || `ID: ${item.postulanteId.slice(-8)}`,
@@ -206,6 +238,16 @@ export class EvaluacionesService {
         item.actualizadoEn
           ? new Date(item.actualizadoEn).toISOString().slice(0, 10)
           : '',
+        item.eliminado ? 'Sí' : 'No',
+        item.eliminado && item.eliminadoOrigen
+          ? (ORIGEN_LABEL[item.eliminadoOrigen] ?? item.eliminadoOrigen)
+          : '',
+        item.eliminadoEn
+          ? new Date(item.eliminadoEn).toISOString().slice(0, 10)
+          : '',
+        ...(esAdmin
+          ? [item.eliminadoPorNombre || item.eliminadoPorEmail || '']
+          : []),
       ]);
     });
 
@@ -239,7 +281,12 @@ export class EvaluacionesService {
   }> {
     const postulantes = await this.postulanteModel
       .find()
-      .populate('usuarioId', 'nombre apellidos email')
+      .populate({
+        path: 'usuarioId',
+        select:
+          'nombre apellidos email isDeleted deletedAt deletedByRole deletionReason deletedSnapshot deletedBy',
+        populate: { path: 'deletedBy', select: 'nombre apellidos email' },
+      })
       .lean();
 
     const postulanteIds = postulantes.map((p) => p._id);
@@ -346,19 +393,70 @@ export class EvaluacionesService {
       );
 
       // populate() deja usuarioId en null cuando el usuario referenciado ya
-      // no existe (p.ej. un admin lo borró sin que exista cascade delete
-      // hacia Postulante). No hay que ocultar la fila: se muestra con un
-      // nombre de respaldo para que el evaluador sepa qué pasó.
-      const nombreCompleto = user
-        ? `${user.nombre ?? ''} ${user.apellidos ?? ''}`.trim()
-        : 'Usuario eliminado';
+      // no existe. Desde que existe soft-delete esto solo pasa con cuentas
+      // borradas físicamente ANTES de esta función (ver legacyEliminacion,
+      // reconstruido por scripts/reconstruir-eliminaciones-legacy.ts); de aquí
+      // en adelante una cuenta eliminada sigue existiendo con isDeleted=true.
+      let nombre = user?.nombre ?? '';
+      let apellidos = user?.apellidos ?? '';
+      let email = user?.email ?? '';
+      let eliminado = false;
+      let eliminadoOrigen: OrigenEliminacionCandidato | undefined;
+      let eliminadoEn: Date | undefined;
+      let eliminadoMotivo: string | undefined;
+      let eliminadoPorNombre: string | undefined;
+      let eliminadoPorEmail: string | undefined;
+
+      if (user?.isDeleted) {
+        eliminado = true;
+        const snap = user.deletedSnapshot;
+        if (snap) {
+          nombre = snap.nombre ?? nombre;
+          apellidos = snap.apellidos ?? apellidos;
+          email = snap.email ?? email;
+        }
+        eliminadoEn = user.deletedAt;
+        eliminadoMotivo = user.deletionReason;
+        eliminadoOrigen =
+          MAPA_ORIGEN_ELIMINACION[user.deletedByRole as string] ?? 'desconocido';
+        const deletedByUser = user.deletedBy;
+        if (deletedByUser) {
+          eliminadoPorNombre =
+            `${deletedByUser.nombre ?? ''} ${deletedByUser.apellidos ?? ''}`.trim();
+          eliminadoPorEmail = deletedByUser.email;
+        }
+      } else if (!user) {
+        eliminado = true;
+        const legacy = p.legacyEliminacion;
+        if (legacy?.detectado) {
+          nombre = legacy.nombre ?? '';
+          apellidos = legacy.apellidos ?? '';
+          email = legacy.email ?? '';
+          eliminadoEn = legacy.deletedAt;
+          eliminadoMotivo = legacy.motivo;
+          eliminadoOrigen = legacy.origen;
+          eliminadoPorNombre = legacy.deletedByNombre;
+          eliminadoPorEmail = legacy.deletedByEmail;
+        } else {
+          eliminadoOrigen = 'desconocido';
+        }
+      }
+
+      const nombreCompleto =
+        nombre || apellidos ? `${nombre} ${apellidos}`.trim() : 'Usuario eliminado';
 
       return {
         postulanteId: String(p._id),
         nombreCompleto,
-        nombre: user?.nombre ?? '',
-        apellidos: user?.apellidos ?? '',
-        email: user?.email ?? '',
+        nombre,
+        apellidos,
+        email,
+        eliminado,
+        eliminadoOrigen,
+        eliminadoEn,
+        eliminadoMotivo,
+        eliminadoPorNombre,
+        eliminadoPorEmail,
         estadoPostulacion: p.estadoPostulacion,
         ciudad: p.ciudad,
         pais: p.pais,
@@ -394,12 +492,27 @@ export class EvaluacionesService {
 
   private filtrarCandidatos(
     items: CandidatoListaItemDto[],
-    query: { q?: string; vacante?: string; estado?: EstadoCandidato },
+    query: {
+      q?: string;
+      vacante?: string;
+      estado?: EstadoCandidato;
+      estadoEliminacion?: EstadoEliminacionCandidato;
+      origenEliminacion?: OrigenEliminacionCandidato;
+    },
   ): CandidatoListaItemDto[] {
     const q = query.q?.trim().toLowerCase();
     const vacante = query.vacante?.trim().toLowerCase();
 
     return items.filter((item) => {
+      if (query.estadoEliminacion === 'activos' && item.eliminado) return false;
+      if (query.estadoEliminacion === 'eliminados' && !item.eliminado) {
+        return false;
+      }
+      if (query.origenEliminacion) {
+        if (!item.eliminado || item.eliminadoOrigen !== query.origenEliminacion) {
+          return false;
+        }
+      }
       if (query.estado && estadoGeneral(item) !== query.estado) return false;
       if (vacante && !(item.vacante ?? '').toLowerCase().includes(vacante)) {
         return false;

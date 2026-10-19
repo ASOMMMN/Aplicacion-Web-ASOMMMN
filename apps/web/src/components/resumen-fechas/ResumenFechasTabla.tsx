@@ -31,8 +31,9 @@ const ESTADOS: Record<
   vencido: { label: 'Vencido', plural: 'vencidos', className: 'bg-danger', icon: 'bi-x-circle-fill' },
   por_vencer: { label: 'Por vencer', plural: 'por vencer', className: 'bg-warning text-dark', icon: 'bi-exclamation-triangle-fill' },
   vigente: { label: 'Vigente', plural: 'vigentes', className: 'bg-success', icon: 'bi-check-circle-fill' },
-  sin_fecha: { label: 'Sin fecha', plural: 'sin fecha', className: 'bg-secondary', icon: 'bi-dash-circle' },
-  no_aplica: { label: 'No aplica', plural: 'no vencen', className: 'bg-light text-secondary border', icon: 'bi-infinity' },
+  // Neutro a propósito: no es un error, es un dato que falta por detectar.
+  sin_fecha: { label: 'Sin fecha, revisar manualmente', plural: 'sin fecha (revisar)', className: 'bg-secondary', icon: 'bi-question-circle-fill' },
+  no_aplica: { label: 'Sin vencimiento', plural: 'sin vencimiento', className: 'bg-light text-secondary border', icon: 'bi-infinity' },
 };
 
 const ORIGENES: Record<OrigenResumen, { label: string; className: string }> = {
@@ -265,7 +266,9 @@ function badgeSinFechaDoc(item: ResumenFechaItem): { label: string; className: s
 function tituloVigencia(item: ResumenFechaItem): string | undefined {
   if (item.estadoVigencia === 'no_aplica') return 'Este tipo de documento no vence';
   const dias = item.diasParaVencer;
-  if (dias === null) return 'No se detectó fecha de vencimiento';
+  if (dias === null) {
+    return 'La IA no detectó una fecha de vencimiento en el documento. No se calcula a 5 años: revísalo manualmente.';
+  }
   if (dias < 0) return `Venció hace ${-dias} día(s)`;
   if (dias === 0) return 'Vence hoy';
   return `Vence en ${dias} día(s)`;
@@ -445,6 +448,15 @@ export function ResumenFechasTabla({
       {avisoAccion && (
         <Alert variant="danger" className="small py-2" dismissible onClose={() => setAvisoAccion('')}>
           {avisoAccion}
+        </Alert>
+      )}
+      {conteo.sin_fecha > 0 && (
+        <Alert variant="secondary" className="small py-2 d-flex align-items-center gap-2 mb-2">
+          <i className="bi bi-question-circle-fill flex-shrink-0" aria-hidden="true" />
+          <span>
+            {conteo.sin_fecha} {conteo.sin_fecha === 1 ? 'registro' : 'registros'} sin fecha de
+            vencimiento detectada: revisa manualmente, no se calculó a 5 años.
+          </span>
         </Alert>
       )}
       <div className="small text-muted mb-2 d-flex flex-wrap gap-2 align-items-center">

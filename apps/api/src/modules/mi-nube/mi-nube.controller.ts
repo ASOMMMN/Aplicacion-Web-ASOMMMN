@@ -6,6 +6,7 @@ import {
   Header,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Patch,
   Post,
@@ -18,6 +19,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
+import type { Readable } from 'node:stream';
 
 import { MiNubeService } from './mi-nube.service';
 import {
@@ -37,6 +39,8 @@ import { construirContentDisposition } from '../../common/utils/content-disposit
 @Roles('administrador', 'evaluador')
 @Controller('mi-nube')
 export class MiNubeController {
+  private readonly logger = new Logger(MiNubeController.name);
+
   constructor(private readonly service: MiNubeService) {}
 
   @Get()
@@ -88,7 +92,7 @@ export class MiNubeController {
     );
     res.setHeader('Content-Type', archivo.mimeType);
     res.setHeader('Content-Length', archivo.size);
-    res.send(archivo.buffer);
+    this.transmitir(archivo.stream, res);
   }
 
   @Get('view/:id')
@@ -105,7 +109,25 @@ export class MiNubeController {
       construirContentDisposition('inline', archivo.nombre),
     );
     res.setHeader('Content-Length', archivo.size);
-    res.send(archivo.buffer);
+    this.transmitir(archivo.stream, res);
+  }
+
+  /**
+   * Streaming directo de S3 a la respuesta: nunca carga el archivo completo
+   * en memoria del servidor. Si el stream de S3 falla a medio camino, o el
+   * cliente cancela la descarga, se destruye el stream en vez de dejarlo
+   * colgado.
+   */
+  private transmitir(stream: Readable, res: Response): void {
+    stream.on('error', (err) => {
+      this.logger.error(`Error al transmitir archivo de Mi Nube: ${err.message}`);
+      if (!res.headersSent) res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+      else res.destroy();
+    });
+    res.on('close', () => {
+      if (!stream.destroyed) stream.destroy();
+    });
+    stream.pipe(res);
   }
 
   @Patch(':id/rename')

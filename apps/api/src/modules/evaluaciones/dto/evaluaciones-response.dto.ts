@@ -65,6 +65,27 @@ export class CandidatoListaItemDto {
 
   @ApiProperty({ enum: ['pendiente', 'en_evaluacion', 'evaluado'] })
   estadoEvaluacion: 'pendiente' | 'en_evaluacion' | 'evaluado';
+
+  // ─── Eliminación (soft-delete / legado) ────────────────────────────────────
+
+  @ApiProperty()
+  eliminado: boolean;
+
+  @ApiPropertyOptional({ enum: ['admin', 'self', 'desconocido'] })
+  eliminadoOrigen?: 'admin' | 'self' | 'desconocido';
+
+  @ApiPropertyOptional()
+  eliminadoEn?: Date;
+
+  @ApiPropertyOptional()
+  eliminadoMotivo?: string;
+
+  /** Solo se llena para ADMIN (ver EvaluacionesService#construirCandidatos). */
+  @ApiPropertyOptional()
+  eliminadoPorNombre?: string;
+
+  @ApiPropertyOptional()
+  eliminadoPorEmail?: string;
 }
 
 /** Conteos por estado general, sobre todos los candidatos que matchean q/vacante (sin paginar). */

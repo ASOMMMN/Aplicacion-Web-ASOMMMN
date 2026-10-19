@@ -3,6 +3,26 @@ import { Document, Types } from 'mongoose';
 
 export type EstadoPostulacion = 'en_proceso' | 'completado' | 'rechazado';
 
+/**
+ * Reconstrucción, a partir de Auditoría, de la eliminación de un usuario que
+ * ya era HARD DELETE antes de que existiera soft-delete en `Usuario` — ese
+ * documento ya no existe y no se puede recuperar. Se guarda aquí (en el
+ * Postulante, que sí sobrevive) porque es el único lugar donde aún queda
+ * rastro. Ver script reconstruir-eliminaciones-legacy.ts.
+ */
+export interface LegacyEliminacionUsuario {
+  detectado: true;
+  origen: 'admin' | 'desconocido';
+  email?: string;
+  nombre?: string;
+  apellidos?: string;
+  deletedAt?: Date;
+  deletedByEmail?: string;
+  deletedByNombre?: string;
+  motivo?: string;
+  reconstruidoEn: Date;
+}
+
 @Schema({
   collection: 'postulantes',
   timestamps: { createdAt: 'creadoEn', updatedAt: 'actualizadoEn' },
@@ -61,6 +81,9 @@ export class Postulante {
 
   @Prop()
   actualizadoEn: Date;
+
+  @Prop({ type: Object })
+  legacyEliminacion?: LegacyEliminacionUsuario;
 }
 
 export const PostulanteSchema = SchemaFactory.createForClass(Postulante);

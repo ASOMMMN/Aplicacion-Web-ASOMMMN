@@ -23,9 +23,19 @@ export const CAMPOS_ORDENABLES_CANDIDATO = [
   'creadoEn',
   'nombreCompleto',
   'porcentajeExpediente',
+  'vacante',
+  'estadoPostulacion',
+  'docsEvaluados',
+  'eliminadoEn',
 ] as const;
 export type CampoOrdenableCandidato =
   (typeof CAMPOS_ORDENABLES_CANDIDATO)[number];
+
+export const ESTADOS_ELIMINACION = ['todos', 'activos', 'eliminados'] as const;
+export type EstadoEliminacionCandidato = (typeof ESTADOS_ELIMINACION)[number];
+
+export const ORIGENES_ELIMINACION = ['admin', 'self', 'desconocido'] as const;
+export type OrigenEliminacionCandidato = (typeof ORIGENES_ELIMINACION)[number];
 
 /**
  * Filtros/paginación opcionales de GET /evaluaciones/candidatos. Sin
@@ -59,6 +69,14 @@ export class ListarCandidatosQueryDto {
   estado?: EstadoCandidato;
 
   @IsOptional()
+  @IsIn(ESTADOS_ELIMINACION)
+  estadoEliminacion?: EstadoEliminacionCandidato;
+
+  @IsOptional()
+  @IsIn(ORIGENES_ELIMINACION)
+  origenEliminacion?: OrigenEliminacionCandidato;
+
+  @IsOptional()
   @IsString()
   @MaxLength(200)
   vacante?: string;
@@ -71,6 +89,14 @@ export class ListarCandidatosQueryDto {
 
 /** Filtros de GET /evaluaciones/candidatos/resumen (sin paginación ni orden). */
 export class ResumenCandidatosQueryDto {
+  @IsOptional()
+  @IsIn(ESTADOS_ELIMINACION)
+  estadoEliminacion?: EstadoEliminacionCandidato;
+
+  @IsOptional()
+  @IsIn(ORIGENES_ELIMINACION)
+  origenEliminacion?: OrigenEliminacionCandidato;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -87,6 +113,14 @@ export class ExportarCandidatosQueryDto {
   @IsOptional()
   @IsIn(ESTADOS_CANDIDATO)
   estado?: EstadoCandidato;
+
+  @IsOptional()
+  @IsIn(ESTADOS_ELIMINACION)
+  estadoEliminacion?: EstadoEliminacionCandidato;
+
+  @IsOptional()
+  @IsIn(ORIGENES_ELIMINACION)
+  origenEliminacion?: OrigenEliminacionCandidato;
 
   @IsOptional()
   @IsString()

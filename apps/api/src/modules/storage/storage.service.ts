@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Readable } from 'node:stream';
 import { S3Service, S3UploadResult } from '../s3/s3.service';
 
 @Injectable()
@@ -82,6 +83,15 @@ export class StorageService {
       nombreArchivo: filename,
       contentType: mime,
     });
+  }
+
+  /**
+   * Stream del objeto, directo de S3 (sin signed URL ni buffer completo en
+   * memoria). `url` es la URL canónica guardada en BD, igual que en
+   * getSecureDownloadUrl/getPreviewUrl.
+   */
+  async getObjectStream(url: string): Promise<Readable> {
+    return this.s3.getObjectStream(this.extractKeyFromUrl(url));
   }
 
   private extractKeyFromUrl(url: string): string {

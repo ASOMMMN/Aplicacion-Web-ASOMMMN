@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cerrarSesion, refrescarSesion, tokenActual } from '@/lib/auth/refrescarSesion';
 import { avisarFalloSesion } from '@/lib/auth/avisarFalloSesion';
@@ -14,12 +14,17 @@ const NAV_ITEMS = [
   { href: '/mi-nube',    label: 'Mi nube' },
 ];
 
+// El backend ya permite administrador en GET /evaluaciones/candidatos (ve
+// además quién eliminó a cada usuario); solo faltaba no bloquearlo aquí.
+const ROLES_PERMITIDOS = ['evaluador', 'administrador'];
+
 export default function EvaluadorLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const [rolLabel, setRolLabel] = useState('Evaluador');
 
   // Tras recargar no hay token en memoria: se renueva con la cookie (la
   // misma petición que usa el interceptor). Si expiró, refrescarSesion ya
@@ -28,7 +33,11 @@ export default function EvaluadorLayout({
     if (tokenActual()) return;
     refrescarSesion()
       .then(({ rol }) => {
-        if (rol !== 'evaluador') router.replace(ROLE_HOME[rol] ?? '/login');
+        if (!ROLES_PERMITIDOS.includes(rol)) {
+          router.replace(ROLE_HOME[rol] ?? '/login');
+          return;
+        }
+        if (rol === 'administrador') setRolLabel('Administrador');
       })
       .catch(avisarFalloSesion);
   }, [router]);
@@ -37,7 +46,7 @@ export default function EvaluadorLayout({
     <div className="d-flex flex-column min-vh-100">
       <AppNavbar
         brandHref="/candidatos"
-        rolLabel="Evaluador"
+        rolLabel={rolLabel}
         navItems={NAV_ITEMS}
         onLogout={cerrarSesion}
         rightContent={<NotificacionesBell />}

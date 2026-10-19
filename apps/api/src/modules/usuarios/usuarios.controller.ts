@@ -23,6 +23,7 @@ import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateEstadoDto } from './dto/update-estado.dto';
 import { FindAllUsuariosQueryDto } from './dto/find-all-usuarios-query.dto';
+import { EliminarUsuarioDto } from './dto/eliminar-usuario.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -99,13 +100,14 @@ export class UsuariosController {
 
   @Delete(':id')
   @Roles('administrador')
-  @ApiOperation({ summary: 'Eliminar usuario (solo admin)' })
+  @ApiOperation({ summary: 'Eliminar usuario (soft-delete, solo admin)' })
   eliminar(
     @Param('id') id: string,
+    @Body() dto: EliminarUsuarioDto,
     @CurrentUser() admin: AuthUser,
     @Req() req: Request,
   ) {
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
-    return this.usuariosService.eliminarUsuario(id, admin, ip);
+    return this.usuariosService.eliminarUsuario(id, admin, ip, dto.motivo);
   }
 }

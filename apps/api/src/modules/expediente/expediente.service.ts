@@ -34,9 +34,13 @@ const VIGENCIA_TEXTO: Record<EstadoVigencia, string> = {
   vencido: 'Vencido',
   por_vencer: 'Por vencer',
   vigente: 'Vigente',
-  sin_fecha: 'Sin fecha',
-  no_aplica: 'No vence',
+  sin_fecha: 'Sin fecha (revisar)',
+  no_aplica: 'Sin vencimiento',
 };
+
+/** Aviso cuando hay filas "Sin fecha": mismo texto en Word y PDF. */
+const AVISO_SIN_FECHA = (n: number) =>
+  `⚠ ${n} ${n === 1 ? 'registro' : 'registros'} sin fecha de vencimiento detectada: revisar manualmente.`;
 
 const ENCABEZADOS_DOCS = [
   '#',
@@ -339,7 +343,7 @@ export class ExpedienteService {
           }),
         ],
       }),
-      this.construirTablaVigenciaDOCX(
+      ...this.construirTablaVigenciaDOCX(
         docsPersonales,
         ENCABEZADOS_DOCS,
         'Sin documentos personales registrados.',
@@ -520,7 +524,7 @@ export class ExpedienteService {
     items: ResumenFechaItem[],
     encabezados: string[],
     mensajeVacio: string,
-  ): Table {
+  ): (Table | Paragraph)[] {
     const celda = (texto: string, encabezado = false) =>
       new TableCell({
         borders: CELL_BORDERS,
@@ -538,7 +542,7 @@ export class ExpedienteService {
         ],
       });
     const filas = this.filasDocsPersonales(items);
-    return new Table({
+    const tabla = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
         new TableRow({
@@ -562,6 +566,18 @@ export class ExpedienteService {
             )),
       ],
     });
+
+    const sinFecha = items.filter((i) => i.estadoVigencia === 'sin_fecha').length;
+    if (sinFecha === 0) return [tabla];
+    return [
+      tabla,
+      new Paragraph({
+        spacing: { before: 80 },
+        children: [
+          new TextRun({ text: AVISO_SIN_FECHA(sinFecha), italics: true, size: 18, color: '6C757D' }),
+        ],
+      }),
+    ];
   }
 
   /** "Descargar bitácora": mismo membrete, cursos y documentos con las mismas 5 columnas. */
@@ -584,7 +600,7 @@ export class ExpedienteService {
           }),
         ],
       }),
-      this.construirTablaVigenciaDOCX(
+      ...this.construirTablaVigenciaDOCX(
         cursos,
         ENCABEZADOS_VIGENCIA,
         'Sin cursos registrados.',
@@ -600,7 +616,7 @@ export class ExpedienteService {
           }),
         ],
       }),
-      this.construirTablaVigenciaDOCX(
+      ...this.construirTablaVigenciaDOCX(
         docsPersonales,
         ENCABEZADOS_VIGENCIA,
         'Sin documentos personales registrados.',
@@ -874,6 +890,17 @@ export class ExpedienteService {
       if (doc.y > bottomLimit()) doc.addPage();
       dibujarFila(f, i % 2 === 1 ? { bg: '#EEF1F6' } : {});
     });
+
+    const sinFecha = items.filter((i) => i.estadoVigencia === 'sin_fecha').length;
+    if (sinFecha > 0) {
+      if (doc.y > bottomLimit()) doc.addPage();
+      doc.font('Helvetica-Oblique').fontSize(8).fillColor('#6C757D');
+      doc.text(AVISO_SIN_FECHA(sinFecha), startX, doc.y + 4, {
+        width: colWidths.reduce((a, b) => a + b, 0),
+      });
+      doc.fillColor('#000000');
+      doc.y += 14;
+    }
   }
 
   /** "Descargar bitácora": mismo membrete, cursos y documentos con las mismas 5 columnas. */
@@ -1065,7 +1092,7 @@ export class ExpedienteService {
       fecha(item, 'fechaEmision') || fecha(item, 'fechaInicio') || '-',
       item.aplicaVencimiento
         ? fecha(item, 'fechaVencimiento') || 'No especificada'
-        : 'No aplica',
+        : 'Sin vencimiento',
       VIGENCIA_TEXTO[item.estadoVigencia],
     ]);
   }

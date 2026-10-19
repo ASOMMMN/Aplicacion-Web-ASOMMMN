@@ -132,6 +132,7 @@ export class AuthService implements OnModuleInit {
   async registrar(dto: RegisterDto): Promise<void> {
     const exists = await this.usuarioModel.findOne({
       email: dto.email.toLowerCase(),
+      isDeleted: { $ne: true },
     });
     if (exists) throw new ConflictException('El correo ya está registrado');
 
@@ -156,7 +157,10 @@ export class AuthService implements OnModuleInit {
   ): Promise<void> {
     try {
       const evaluadores = await this.usuarioModel
-        .find({ rol: { $in: ['evaluador', 'administrador'] } })
+        .find({
+          rol: { $in: ['evaluador', 'administrador'] },
+          isDeleted: { $ne: true },
+        })
         .select('email nombre')
         .lean();
       const frontendUrl = this.config.get(
@@ -267,7 +271,8 @@ export class AuthService implements OnModuleInit {
       email: dto.email.toLowerCase(),
     });
 
-    if (!user) throw new UnauthorizedException('Credenciales incorrectas');
+    if (!user || user.isDeleted)
+      throw new UnauthorizedException('Credenciales incorrectas');
 
     if (user.estadoCuenta === 'bloqueada')
       throw new ForbiddenException(
@@ -393,7 +398,7 @@ export class AuthService implements OnModuleInit {
       );
 
     const user = await this.usuarioModel.findById(doc.userId);
-    if (!user || user.estadoCuenta === 'bloqueada')
+    if (!user || user.estadoCuenta === 'bloqueada' || user.isDeleted)
       throw new UnauthorizedException('Acceso denegado.');
 
     const accessToken = this.firmarAccessToken(user);

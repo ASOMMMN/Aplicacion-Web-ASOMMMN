@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  UnauthorizedException,
   Logger,
   OnModuleInit,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
   UsuarioDocument,
   UserRole,
   AccountStatus,
+  DeletedByRole,
 } from './schemas/usuario.schema';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
@@ -26,6 +28,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import {
   generarContrasenaTemporal,
   hashPassword,
+  verificarPasswordCompatible,
 } from '../../common/utils/password.util';
 
 @Injectable()
@@ -72,7 +75,8 @@ export class UsuariosService implements OnModuleInit {
 
   async findAll(options: { page: number; limit: number; rol?: UserRole }) {
     const { page, limit, rol } = options;
-    const filter: Record<string, unknown> = rol ? { rol } : {};
+    const filter: Record<string, unknown> = { isDeleted: { $ne: true } };
+    if (rol) filter.rol = rol;
     const skip = (page - 1) * limit;
 
     const [data, total] = await Promise.all([
@@ -101,6 +105,7 @@ export class UsuariosService implements OnModuleInit {
   async crearUsuario(dto: CreateUsuarioDto, createdById: string) {
     const existe = await this.usuarioModel.findOne({
       email: dto.email.toLowerCase(),
+      isDeleted: { $ne: true },
     });
     if (existe) throw new ConflictException('El correo ya está registrado');
 
@@ -129,10 +134,14 @@ export class UsuariosService implements OnModuleInit {
   }
 
   async cambiarEstado(id: string, estado: AccountStatus, actor?: AuthUser, ipAddress?: string) {
-    const user = await this.usuarioModel
-      .findByIdAndUpdate(id, { estadoCuenta: estado }, { new: true })
-      .select('-passwordHash');
+    const user = await this.usuarioModel.findOne({
+      _id: id,
+      isDeleted: { $ne: true },
+    });
     if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    user.estadoCuenta = estado;
+    await user.save();
 
     if (actor) {
       await this.auditoria.registrar({
@@ -146,17 +155,50 @@ export class UsuariosService implements OnModuleInit {
       });
     }
 
-    return user;
+    const { passwordHash: _omit, ...result } = user.toObject();
+    return result;
   }
 
-  async eliminarUsuario(id: string, actor: AuthUser, ipAddress?: string) {
-    const user = await this.usuarioModel
-      .findByIdAndDelete(id)
-      .select('-passwordHash');
+  /** Marca el documento como eliminado (soft-delete) e invalida sus sesiones. */
+  private async aplicarEliminacion(
+    user: UsuarioDocument,
+    params: {
+      deletedByUserId: string;
+      deletedByRole: DeletedByRole;
+      motivo?: string;
+    },
+  ): Promise<void> {
+    user.isDeleted = true;
+    user.deletedAt = new Date();
+    user.deletedBy = new Types.ObjectId(params.deletedByUserId);
+    user.deletedByRole = params.deletedByRole;
+    user.deletionReason = params.motivo;
+    user.deletedSnapshot = {
+      nombre: user.nombre,
+      apellidos: user.apellidos,
+      email: user.email,
+    };
+    await user.save();
+
+    await this.refreshTokenModel.deleteMany({ userId: user._id });
+  }
+
+  async eliminarUsuario(
+    id: string,
+    actor: AuthUser,
+    ipAddress?: string,
+    motivo?: string,
+  ) {
+    const user = await this.usuarioModel.findOne({
+      _id: id,
+      isDeleted: { $ne: true },
+    });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    await this.refreshTokenModel.deleteMany({
-      userId: new Types.ObjectId(id),
+    await this.aplicarEliminacion(user, {
+      deletedByUserId: actor.userId,
+      deletedByRole: 'ADMIN',
+      motivo,
     });
 
     await this.auditoria.registrar({
@@ -166,10 +208,54 @@ export class UsuariosService implements OnModuleInit {
       recurso: 'usuario',
       recursoId: id,
       ipAddress,
-      metadata: { objetivoEmail: user.email, objetivoRol: user.rol },
+      metadata: { objetivoEmail: user.email, objetivoRol: user.rol, motivo },
     });
 
-    return user;
+    const { passwordHash: _omit, ...result } = user.toObject();
+    return result;
+  }
+
+  /** Autoeliminación de cuenta por el propio postulante. Requiere su contraseña actual. */
+  async autoeliminarCuenta(
+    userId: string,
+    dto: { contrasenaActual: string; motivo?: string },
+    ipAddress?: string,
+  ): Promise<{ message: string }> {
+    const user = await this.usuarioModel.findOne({
+      _id: userId,
+      isDeleted: { $ne: true },
+    });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+
+    const passwordValida = await verificarPasswordCompatible(
+      dto.contrasenaActual,
+      user.passwordHash,
+    );
+    if (!passwordValida) {
+      throw new UnauthorizedException('Contraseña incorrecta');
+    }
+
+    await this.aplicarEliminacion(user, {
+      deletedByUserId: userId,
+      deletedByRole: 'SELF',
+      motivo: dto.motivo,
+    });
+
+    await this.auditoria.registrar({
+      actorId: userId,
+      actorEmail: user.email,
+      accion: 'usuarios.autoeliminar',
+      recurso: 'usuario',
+      recursoId: userId,
+      ipAddress,
+      metadata: {
+        objetivoEmail: user.email,
+        objetivoRol: user.rol,
+        motivo: dto.motivo,
+      },
+    });
+
+    return { message: 'Tu cuenta fue eliminada correctamente.' };
   }
 
   async restablecerContrasenaPorAdmin(
@@ -177,7 +263,10 @@ export class UsuariosService implements OnModuleInit {
     admin: AuthUser,
     ipAddress?: string,
   ) {
-    const user = await this.usuarioModel.findById(targetUserId);
+    const user = await this.usuarioModel.findOne({
+      _id: targetUserId,
+      isDeleted: { $ne: true },
+    });
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
     const passwordTemporal = generarContrasenaTemporal(12);

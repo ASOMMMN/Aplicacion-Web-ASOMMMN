@@ -17,6 +17,7 @@ import {
   Table,
 } from 'react-bootstrap';
 import api from '@/lib/api/client';
+import { useAuth } from '@/hooks/useAuth';
 import { IconAncla, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { PortholeAvatar } from '@/components/ui/PortholeAvatar';
 import {
@@ -27,8 +28,40 @@ import {
 
 type EstadoExpediente = 'en_proceso' | 'enviado';
 type EstadoEvaluacion = 'pendiente' | 'en_evaluacion' | 'evaluado';
-type CampoOrden = 'actualizadoEn' | 'creadoEn' | 'nombreCompleto' | 'porcentajeExpediente';
+type CampoOrden =
+  | 'actualizadoEn'
+  | 'creadoEn'
+  | 'nombreCompleto'
+  | 'porcentajeExpediente'
+  | 'vacante'
+  | 'estadoPostulacion'
+  | 'docsEvaluados'
+  | 'eliminadoEn';
 type Direccion = 'asc' | 'desc';
+type EstadoEliminacion = 'todos' | 'activos' | 'eliminados';
+type OrigenEliminacion = 'admin' | 'self' | 'desconocido';
+
+const CAMPOS_ORDEN_VALIDOS: CampoOrden[] = [
+  'actualizadoEn',
+  'creadoEn',
+  'nombreCompleto',
+  'porcentajeExpediente',
+  'vacante',
+  'estadoPostulacion',
+  'docsEvaluados',
+  'eliminadoEn',
+];
+
+const OPCIONES_ORDEN: { campo: CampoOrden; label: string }[] = [
+  { campo: 'creadoEn', label: 'Fecha de postulación' },
+  { campo: 'actualizadoEn', label: 'Última actividad' },
+  { campo: 'nombreCompleto', label: 'Candidato (A-Z)' },
+  { campo: 'vacante', label: 'Vacante' },
+  { campo: 'estadoPostulacion', label: 'Estado de postulación' },
+  { campo: 'porcentajeExpediente', label: 'Avance de carga' },
+  { campo: 'docsEvaluados', label: 'Docs. evaluados' },
+  { campo: 'eliminadoEn', label: 'Fecha de eliminación' },
+];
 
 interface CandidatoItem {
   postulanteId: string;
@@ -47,6 +80,13 @@ interface CandidatoItem {
   docsEvaluados: number;
   docsTotal: number;
   estadoEvaluacion: EstadoEvaluacion;
+  eliminado: boolean;
+  eliminadoOrigen?: OrigenEliminacion;
+  eliminadoEn?: string;
+  eliminadoMotivo?: string;
+  /** Solo viene del backend si quien pide el listado es ADMIN. */
+  eliminadoPorNombre?: string;
+  eliminadoPorEmail?: string;
 }
 
 interface CandidatosPaginados {
@@ -75,21 +115,41 @@ function parseQueryFromLocation(): {
   q: string;
   ordenarPor: CampoOrden | '';
   direccion: Direccion;
+  estadoEliminacion: EstadoEliminacion;
+  origenEliminacion: OrigenEliminacion | '';
 } {
   if (typeof window === 'undefined') {
-    return { page: 1, estado: '', vacante: '', q: '', ordenarPor: '', direccion: 'desc' };
+    return {
+      page: 1,
+      estado: '',
+      vacante: '',
+      q: '',
+      ordenarPor: '',
+      direccion: 'desc',
+      estadoEliminacion: 'todos',
+      origenEliminacion: '',
+    };
   }
   const sp = new URLSearchParams(window.location.search);
   const page = Number(sp.get('page') ?? '1');
   const [ordenarPor, direccion] = (sp.get('sort') ?? '').split(':');
-  const camposValidos: CampoOrden[] = ['actualizadoEn', 'creadoEn', 'nombreCompleto', 'porcentajeExpediente'];
+  const estadoEliminacion = sp.get('eliminacion');
+  const origenEliminacion = sp.get('origen');
   return {
     page: Number.isFinite(page) && page > 0 ? page : 1,
     estado: (sp.get('estado') as EstadoGeneral | null) ?? '',
     vacante: sp.get('vacante') ?? '',
     q: sp.get('q') ?? '',
-    ordenarPor: camposValidos.includes(ordenarPor as CampoOrden) ? (ordenarPor as CampoOrden) : '',
+    ordenarPor: CAMPOS_ORDEN_VALIDOS.includes(ordenarPor as CampoOrden) ? (ordenarPor as CampoOrden) : '',
     direccion: direccion === 'asc' ? 'asc' : 'desc',
+    estadoEliminacion:
+      estadoEliminacion === 'activos' || estadoEliminacion === 'eliminados'
+        ? estadoEliminacion
+        : 'todos',
+    origenEliminacion:
+      origenEliminacion === 'admin' || origenEliminacion === 'self' || origenEliminacion === 'desconocido'
+        ? origenEliminacion
+        : '',
   };
 }
 
@@ -101,6 +161,43 @@ function formatFecha(iso?: string): string {
 /** Email del candidato, o un ID corto cuando no hay (usuario eliminado). */
 function emailOId(item: { email: string; postulanteId: string }): string {
   return item.email || `ID: ${item.postulanteId.slice(-8)}`;
+}
+
+function origenEliminacionTexto(item: CandidatoItem): string {
+  if (item.eliminadoPorNombre || item.eliminadoPorEmail) {
+    return `Eliminado por ${item.eliminadoPorNombre || item.eliminadoPorEmail}`;
+  }
+  if (item.eliminadoOrigen === 'admin') return 'Eliminado por un administrador';
+  if (item.eliminadoOrigen === 'self') return 'El usuario eliminó su cuenta';
+  return 'Origen desconocido (anterior al registro de auditoría)';
+}
+
+/** Badge + línea secundaria para candidatos de cuenta eliminada (admin/self/desconocido). */
+function EliminadoInfo({ item }: { item: CandidatoItem }) {
+  const fecha = item.eliminadoEn ? formatFecha(item.eliminadoEn) : null;
+  const texto = origenEliminacionTexto(item);
+  const tooltip = (
+    <Popover>
+      <Popover.Body className="small">
+        {texto}
+        {fecha && <div className="text-muted">Eliminado el {fecha}</div>}
+        {item.eliminadoMotivo && <div className="text-muted">Motivo: {item.eliminadoMotivo}</div>}
+      </Popover.Body>
+    </Popover>
+  );
+  return (
+    <div className="d-flex align-items-center gap-1 flex-wrap">
+      <span className="badge badge-pill-asommmn bg-secondary-subtle text-dark border">
+        <i className="bi bi-person-x-fill me-1" />
+        Eliminado
+      </span>
+      <OverlayTrigger trigger={['hover', 'focus', 'click']} placement="top" overlay={tooltip}>
+        <span className="text-muted small text-truncate" style={{ cursor: 'help', maxWidth: 220 }}>
+          {texto}{fecha ? ` · ${fecha}` : ''}
+        </span>
+      </OverlayTrigger>
+    </div>
+  );
 }
 
 const toErrorMessage = (msg: unknown): string => {
@@ -321,6 +418,8 @@ function SkeletonCards({ cantidad = 4 }: { cantidad?: number }) {
 
 export default function CandidatosPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const esAdmin = user?.rol === 'administrador';
   const initial = useMemo(() => parseQueryFromLocation(), []);
 
   const [page, setPage] = useState(initial.page);
@@ -330,6 +429,22 @@ export default function CandidatosPage() {
   const [searchDebounced, setSearchDebounced] = useState(initial.q);
   const [ordenarPor, setOrdenarPor] = useState<CampoOrden | ''>(initial.ordenarPor);
   const [direccion, setDireccion] = useState<Direccion>(initial.direccion);
+  const [estadoEliminacion, setEstadoEliminacion] = useState<EstadoEliminacion>(initial.estadoEliminacion);
+  const [origenEliminacion, setOrigenEliminacion] = useState<OrigenEliminacion | ''>(initial.origenEliminacion);
+
+  // Para el panel admin, la tabla por defecto ordena por fecha de postulación
+  // (recientes primero) en vez de la cola FIFO que usa evaluador por defecto;
+  // solo aplica si la URL no trae ya un `sort` explícito.
+  const defaultAdminAplicado = useRef(false);
+  useEffect(() => {
+    if (defaultAdminAplicado.current || !user) return;
+    defaultAdminAplicado.current = true;
+    if (initial.ordenarPor) return;
+    if (esAdmin) {
+      setOrdenarPor('creadoEn');
+      setDireccion('desc');
+    }
+  }, [user, esAdmin, initial.ordenarPor]);
 
   const [paginado, setPaginado] = useState<CandidatosPaginados | null>(null);
   const [resumen, setResumen] = useState<ResumenCandidatos | null>(null);
@@ -351,9 +466,11 @@ export default function CandidatosPage() {
     if (vacanteFiltro) params.set('vacante', vacanteFiltro);
     if (searchDebounced) params.set('q', searchDebounced);
     if (ordenarPor) params.set('sort', `${ordenarPor}:${direccion}`);
+    if (estadoEliminacion !== 'todos') params.set('eliminacion', estadoEliminacion);
+    if (estadoEliminacion === 'eliminados' && origenEliminacion) params.set('origen', origenEliminacion);
     const qs = params.toString();
     router.replace(qs ? `/candidatos?${qs}` : '/candidatos', { scroll: false });
-  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, router]);
+  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, estadoEliminacion, origenEliminacion, router]);
 
   // Vuelve a la página 1 cuando cambian filtros/orden (pero no en el montaje inicial).
   const montado = useRef(false);
@@ -363,7 +480,7 @@ export default function CandidatosPage() {
       return;
     }
     setPage(1);
-  }, [filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion]);
+  }, [filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, estadoEliminacion, origenEliminacion]);
 
   const cargar = useCallback(async () => {
     try {
@@ -377,9 +494,17 @@ export default function CandidatosPage() {
         paramsLista.ordenarPor = ordenarPor;
         paramsLista.direccion = direccion;
       }
+      if (estadoEliminacion !== 'todos') paramsLista.estadoEliminacion = estadoEliminacion;
+      if (estadoEliminacion === 'eliminados' && origenEliminacion) {
+        paramsLista.origenEliminacion = origenEliminacion;
+      }
       const paramsResumen: Record<string, string> = {};
       if (vacanteFiltro) paramsResumen.vacante = vacanteFiltro;
       if (searchDebounced) paramsResumen.q = searchDebounced;
+      if (estadoEliminacion !== 'todos') paramsResumen.estadoEliminacion = estadoEliminacion;
+      if (estadoEliminacion === 'eliminados' && origenEliminacion) {
+        paramsResumen.origenEliminacion = origenEliminacion;
+      }
 
       const [listaRes, resumenRes] = await Promise.all([
         api.get<CandidatosPaginados>('/evaluaciones/candidatos', { params: paramsLista }),
@@ -395,7 +520,7 @@ export default function CandidatosPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion]);
+  }, [page, filtroEstado, vacanteFiltro, searchDebounced, ordenarPor, direccion, estadoEliminacion, origenEliminacion]);
 
   useEffect(() => {
     const ejecutar = async () => {
@@ -429,6 +554,10 @@ export default function CandidatosPage() {
       if (filtroEstado) params.estado = filtroEstado;
       if (vacanteFiltro) params.vacante = vacanteFiltro;
       if (searchDebounced) params.q = searchDebounced;
+      if (estadoEliminacion !== 'todos') params.estadoEliminacion = estadoEliminacion;
+      if (estadoEliminacion === 'eliminados' && origenEliminacion) {
+        params.origenEliminacion = origenEliminacion;
+      }
 
       const res = await api.get<Blob>('/evaluaciones/candidatos/exportar', {
         params,
@@ -516,6 +645,71 @@ export default function CandidatosPage() {
               </Col>
             </Row>
           </Col>
+        </Row>
+
+        {/* Filtro de cuentas eliminadas + selector de orden explícito */}
+        <Row className="g-2 mb-3">
+          <Col xs="auto">
+            <Form.Select
+              aria-label="Filtrar por estado de la cuenta (activa/eliminada)"
+              value={estadoEliminacion}
+              onChange={(e) => {
+                const valor = e.target.value as EstadoEliminacion;
+                setEstadoEliminacion(valor);
+                if (valor !== 'eliminados') setOrigenEliminacion('');
+              }}
+              style={{ minWidth: 150 }}
+            >
+              <option value="todos">Cuentas: todas</option>
+              <option value="activos">Solo activos</option>
+              <option value="eliminados">Solo eliminados</option>
+            </Form.Select>
+          </Col>
+          {estadoEliminacion === 'eliminados' && (
+            <Col xs="auto">
+              <Form.Select
+                aria-label="Filtrar por origen de la eliminación"
+                value={origenEliminacion}
+                onChange={(e) => setOrigenEliminacion(e.target.value as OrigenEliminacion | '')}
+                style={{ minWidth: 170 }}
+              >
+                <option value="">Origen: todos</option>
+                <option value="admin">Eliminado por admin</option>
+                <option value="self">Autoeliminados</option>
+                <option value="desconocido">Origen desconocido</option>
+              </Form.Select>
+            </Col>
+          )}
+          <Col xs="auto">
+            <Form.Select
+              aria-label="Ordenar por"
+              value={ordenarPor}
+              onChange={(e) => {
+                const campo = e.target.value as CampoOrden | '';
+                setOrdenarPor(campo);
+                if (campo) setDireccion('asc');
+              }}
+              style={{ minWidth: 190 }}
+            >
+              <option value="">Ordenar por…</option>
+              {OPCIONES_ORDEN.map((o) => (
+                <option key={o.campo} value={o.campo}>{o.label}</option>
+              ))}
+            </Form.Select>
+          </Col>
+          {ordenarPor && (
+            <Col xs="auto">
+              <Form.Select
+                aria-label="Dirección del orden"
+                value={direccion}
+                onChange={(e) => setDireccion(e.target.value as Direccion)}
+                style={{ minWidth: 120 }}
+              >
+                <option value="asc">Ascendente</option>
+                <option value="desc">Descendente</option>
+              </Form.Select>
+            </Col>
+          )}
         </Row>
 
         {error && (
@@ -650,7 +844,7 @@ export default function CandidatosPage() {
                   <tr>
                     <th></th>
                     <ThOrdenable campo="nombreCompleto" label="Candidato" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
-                    <th>Vacante</th>
+                    <ThOrdenable campo="vacante" label="Vacante" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                     <ThOrdenable campo="creadoEn" label="Fecha de postulación" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                     <ThOrdenable
                       campo="actualizadoEn"
@@ -660,9 +854,9 @@ export default function CandidatosPage() {
                       onOrdenar={toggleOrden}
                       className="d-none d-xxl-table-cell"
                     />
-                    <th>Estado postulación</th>
+                    <ThOrdenable campo="estadoPostulacion" label="Estado postulación" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                     <ThOrdenable campo="porcentajeExpediente" label="Avance de carga" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
-                    <th>Docs. evaluados</th>
+                    <ThOrdenable campo="docsEvaluados" label="Docs. evaluados" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                     <th className="text-end">Acción</th>
                   </tr>
                 </thead>
@@ -691,7 +885,11 @@ export default function CandidatosPage() {
                               <PortholeAvatar nombre={item.nombre} apellidos={item.apellidos} size={38} />
                               <div>
                                 <div className="fw-semibold">{item.nombreCompleto}</div>
-                                <div className="text-muted small">{emailOId(item)}</div>
+                                {item.eliminado ? (
+                                  <EliminadoInfo item={item} />
+                                ) : (
+                                  <div className="text-muted small">{emailOId(item)}</div>
+                                )}
                                 {item.ciudad || item.pais ? (
                                   <div className="text-muted small">
                                     {[item.ciudad, item.pais].filter(Boolean).join(', ')}
@@ -749,7 +947,11 @@ export default function CandidatosPage() {
                       <PortholeAvatar nombre={item.nombre} apellidos={item.apellidos} size={40} />
                       <div className="flex-grow-1" style={{ minWidth: 0 }}>
                         <div className="fw-semibold">{item.nombreCompleto}</div>
-                        <div className="text-muted small">{emailOId(item)}</div>
+                        {item.eliminado ? (
+                          <EliminadoInfo item={item} />
+                        ) : (
+                          <div className="text-muted small">{emailOId(item)}</div>
+                        )}
                       </div>
                       <EstadoDot estado={estado} />
                     </div>

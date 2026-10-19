@@ -30,7 +30,9 @@ import {
 } from '../documentos/schemas/documento.schema';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { UsuariosService } from '../usuarios/usuarios.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
+import { AutoeliminarCuentaDto } from './dto/autoeliminar-cuenta.dto';
 import { capitalizarTitulo } from '../../common/utils/normalizar-texto.util';
 import {
   CrearCarpetaDto,
@@ -68,7 +70,16 @@ export class PostulantesService {
     private readonly notificaciones: NotificacionesService,
     private readonly config: ConfigService,
     private readonly storage: StorageService,
+    private readonly usuariosService: UsuariosService,
   ) {}
+
+  async eliminarMiCuenta(
+    userId: string,
+    dto: AutoeliminarCuentaDto,
+    ipAddress?: string,
+  ): Promise<{ message: string }> {
+    return this.usuariosService.autoeliminarCuenta(userId, dto, ipAddress);
+  }
 
   /**
    * Obtener o crear perfil del postulante autenticado
@@ -711,7 +722,10 @@ export class PostulantesService {
 
     try {
       const evaluadores = await this.usuarioModel
-        .find({ rol: { $in: ['evaluador', 'administrador'] } })
+        .find({
+          rol: { $in: ['evaluador', 'administrador'] },
+          isDeleted: { $ne: true },
+        })
         .select('email nombre')
         .lean();
       const frontendUrl = this.config.get(
@@ -751,7 +765,11 @@ export class PostulantesService {
 
   async enviarRecordatoriosSemanales(): Promise<{ enviados: number }> {
     const usuarios = await this.usuarioModel
-      .find({ rol: 'postulante', estadoCuenta: 'activa' })
+      .find({
+        rol: 'postulante',
+        estadoCuenta: 'activa',
+        isDeleted: { $ne: true },
+      })
       .select('_id nombre email')
       .lean();
 

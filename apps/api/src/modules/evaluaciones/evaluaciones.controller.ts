@@ -60,8 +60,9 @@ export class EvaluacionesController {
   @ApiResponse({ status: 200, type: CandidatosPaginadosDto })
   async listarCandidatos(
     @Query() query: ListarCandidatosQueryDto,
+    @CurrentUser() user: AuthUser,
   ): Promise<CandidatosPaginadosDto> {
-    return this.evaluacionesService.listarCandidatos(query);
+    return this.evaluacionesService.listarCandidatos(query, user);
   }
 
   @Get('candidatos/resumen')

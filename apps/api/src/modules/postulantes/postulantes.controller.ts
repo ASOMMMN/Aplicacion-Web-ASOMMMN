@@ -8,13 +8,14 @@ import {
   Post,
   Delete,
   Query,
+  Req,
   UseInterceptors,
   UploadedFile,
   Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -37,6 +38,7 @@ import {
   RenombrarNubeItemDto,
   SubirDocumentoNubeDto,
 } from './dto/nube.dto';
+import { AutoeliminarCuentaDto } from './dto/autoeliminar-cuenta.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -102,6 +104,21 @@ export class PostulantesController {
     @CurrentUser() user: AuthUser,
   ): Promise<ExpedienteProgressDto> {
     return this.postulantesService.finalizarPostulacion(user.userId, user);
+  }
+
+  @Delete('mi-cuenta')
+  @Roles('postulante')
+  @ApiOperation({
+    summary: 'Eliminar mi cuenta (autoeliminación, requiere contraseña)',
+  })
+  @ApiResponse({ status: 200, description: 'Cuenta eliminada' })
+  async eliminarMiCuenta(
+    @Body() dto: AutoeliminarCuentaDto,
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+  ): Promise<{ message: string }> {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
+    return this.postulantesService.eliminarMiCuenta(user.userId, dto, ip);
   }
 
   @Post('recordatorios-semanales/forzar')

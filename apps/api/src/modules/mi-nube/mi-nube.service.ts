@@ -183,14 +183,8 @@ export class MiNubeService {
       );
     }
 
-    const signedUrl = await this.storage.getSecureDownloadUrl(
-      doc.cloudinaryUrl,
-      doc.nombre,
-      doc.mimeType ?? 'application/octet-stream',
-    );
-
     return {
-      buffer: await this.storage.getObjectBuffer(signedUrl),
+      stream: await this.storage.getObjectStream(doc.cloudinaryUrl),
       nombre: doc.nombre,
       mimeType: doc.mimeType ?? 'application/octet-stream',
       size: doc.size,

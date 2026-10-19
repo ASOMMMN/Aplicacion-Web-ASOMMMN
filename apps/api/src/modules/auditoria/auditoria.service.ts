@@ -26,6 +26,8 @@ export class AuditoriaService {
   async listar(options: {
     actorEmail?: string;
     accion?: string;
+    recurso?: string;
+    recursoId?: string;
     desde?: string;
     hasta?: string;
     page?: number;
@@ -36,12 +38,23 @@ export class AuditoriaService {
     page: number;
     pages: number;
   }> {
-    const { actorEmail, accion, desde, hasta, page = 1, limit = 50 } = options;
+    const {
+      actorEmail,
+      accion,
+      recurso,
+      recursoId,
+      desde,
+      hasta,
+      page = 1,
+      limit = 50,
+    } = options;
 
     const filter: Record<string, unknown> = {};
     if (actorEmail)
       filter.actorEmail = { $regex: escapeRegex(actorEmail), $options: 'i' };
     if (accion) filter.accion = { $regex: escapeRegex(accion), $options: 'i' };
+    if (recurso) filter.recurso = recurso;
+    if (recursoId) filter.recursoId = recursoId;
     if (desde || hasta) {
       const dateFilter: Record<string, Date> = {};
       if (desde) dateFilter.$gte = new Date(desde);

@@ -34,6 +34,16 @@ export class ListarAuditoriaQueryDto {
   accion?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  recurso?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  recursoId?: string;
+
+  @IsOptional()
   @IsDateString()
   desde?: string;
 
