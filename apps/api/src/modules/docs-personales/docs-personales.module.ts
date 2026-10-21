@@ -15,6 +15,10 @@ import {
   PostulanteSchema,
 } from '../postulantes/schemas/postulante.schema';
 import { Usuario, UsuarioSchema } from '../usuarios/schemas/usuario.schema';
+import {
+  Documento,
+  DocumentoSchema,
+} from '../documentos/schemas/documento.schema';
 import { StorageModule } from '../storage/storage.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
 
@@ -25,6 +29,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
       { name: CacheExtraccionIa.name, schema: CacheExtraccionIaSchema },
       { name: Postulante.name, schema: PostulanteSchema },
       { name: Usuario.name, schema: UsuarioSchema },
+      { name: Documento.name, schema: DocumentoSchema },
     ]),
     StorageModule,
     AuditoriaModule,

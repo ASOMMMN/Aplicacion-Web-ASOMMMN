@@ -46,6 +46,11 @@ import {
   DocPersonalDocument,
 } from './schemas/doc-personal.schema';
 import {
+  Documento,
+  DocumentoDocument,
+} from '../documentos/schemas/documento.schema';
+import { sincronizarEstadoExpediente } from '../postulantes/utils/sincronizar-estado-expediente.util';
+import {
   TIPOS_DOC_PERSONAL,
   LABEL_TIPO_DOC,
   TIPOS_DOC_SIN_VENCIMIENTO,
@@ -95,6 +100,9 @@ export class DocsPersonalesService {
 
     @InjectModel(Usuario.name)
     private readonly usuarioModel: Model<UsuarioDocument>,
+
+    @InjectModel(Documento.name)
+    private readonly documentoModel: Model<DocumentoDocument>,
 
     private readonly storage: StorageService,
 
@@ -917,6 +925,17 @@ export class DocsPersonalesService {
     }
 
     await this.docModel.findByIdAndDelete(docId);
+
+    // Si este documento era requisito de un expediente ya enviado, lo
+    // demueve a en_proceso (ver sincronizar-estado-expediente.util.ts).
+    await sincronizarEstadoExpediente(
+      {
+        postulanteModel: this.postulanteModel,
+        documentoModel: this.documentoModel,
+        docPersonalModel: this.docModel,
+      },
+      doc.postulanteId,
+    );
 
     await this.auditoria.registrar({
       actorId: actor.userId,

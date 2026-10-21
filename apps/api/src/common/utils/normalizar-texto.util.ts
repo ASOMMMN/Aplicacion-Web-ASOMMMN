@@ -32,3 +32,16 @@ export function capitalizarTitulo(texto: string): string {
     })
     .join(' ');
 }
+
+/**
+ * Minúsculas + sin acentos/diacríticos, para comparar texto de forma
+ * insensible a mayúsculas y acentos (ej. búsqueda `q` de candidatos:
+ * "Jose" debe encontrar "José").
+ */
+export function normalizarBusqueda(texto: string): string {
+  return texto
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}

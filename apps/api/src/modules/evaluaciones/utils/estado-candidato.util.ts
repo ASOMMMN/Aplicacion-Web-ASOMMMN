@@ -28,3 +28,12 @@ export const ESTADO_GENERAL_LABEL: Record<EstadoCandidato, string> = {
   enviado: 'Enviado',
   evaluado: 'Evaluado',
 };
+
+/** Orden lógico del flujo, para `ordenarPor=estadoGeneral` (no alfabético). */
+export const ESTADO_GENERAL_RANGO: Record<EstadoCandidato, number> = {
+  incompleto: 0,
+  en_proceso: 1,
+  completo: 2,
+  enviado: 3,
+  evaluado: 4,
+};

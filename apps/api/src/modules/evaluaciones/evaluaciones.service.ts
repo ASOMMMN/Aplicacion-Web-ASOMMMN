@@ -37,8 +37,8 @@ import {
   ResumenCandidatosDto,
 } from './dto/evaluaciones-response.dto';
 import {
-  EstadoCandidato,
   ExportarCandidatosQueryDto,
+  FiltrosCandidatosDto,
   ListarCandidatosQueryDto,
   OrigenEliminacionCandidato,
   ResumenCandidatosQueryDto,
@@ -48,6 +48,10 @@ import {
   estadoGeneral,
   ESTADO_GENERAL_LABEL,
 } from './utils/estado-candidato.util';
+import {
+  filtrarOrdenarCandidatos,
+  FiltrosCandidatosNormalizados,
+} from './utils/filtrar-ordenar-candidatos.util';
 import { filaCsvSegura } from '../../common/utils/csv.util';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { Evaluacion, EvaluacionDocument } from './schemas/evaluacion.schema';
@@ -57,6 +61,7 @@ import {
   calcularSemaforo,
   resolverEstadoExpediente,
 } from '../postulantes/constants/expediente.constants';
+import { demoverSiExpedienteIncompleto } from '../postulantes/utils/sincronizar-estado-expediente.util';
 
 const DOCUMENTO_CLAVE_LEGADO = 'general';
 
@@ -147,22 +152,44 @@ export class EvaluacionesService {
     return vista;
   }
 
+  /** Mapea los filtros compartidos del DTO a la forma que espera la función pura. */
+  private baseFiltros(
+    query: FiltrosCandidatosDto,
+  ): Omit<FiltrosCandidatosNormalizados, 'ordenarPor' | 'direccion'> {
+    return {
+      q: query.q,
+      vacante: query.vacante,
+      estado: query.estado,
+      fechaDesde: query.fechaDesde,
+      fechaHasta: query.fechaHasta,
+      actividadAntesDe: query.actividadAntesDe,
+      avance: query.avance,
+      docs: query.docs,
+    };
+  }
+
   async listarCandidatos(
     query: ListarCandidatosQueryDto = new ListarCandidatosQueryDto(),
     actor?: AuthUser,
   ): Promise<CandidatosPaginadosDto> {
     const vista = this.resolverVista(query.vista, actor);
+    if (query.ordenarPor === 'eliminadoEn' && vista !== 'papelera') {
+      throw new BadRequestException(
+        'ordenarPor=eliminadoEn solo es válido con vista=papelera.',
+      );
+    }
+
     const { items, enviadoEnPorPostulante } = await this.construirCandidatos();
 
-    const filtrado = this.filtrarCandidatos(
+    const { data: ordenado, total, conteos } = filtrarOrdenarCandidatos(
       items,
-      query,
+      {
+        ...this.baseFiltros(query),
+        ordenarPor: query.ordenarPor,
+        direccion: query.direccion,
+      },
       vista,
       query.origenEliminacion,
-    );
-    const ordenado = this.ordenarCandidatos(
-      filtrado,
-      query,
       enviadoEnPorPostulante,
     );
 
@@ -176,10 +203,11 @@ export class EvaluacionesService {
 
     return {
       data,
-      total: ordenado.length,
+      total,
       page,
       limit,
-      pages: Math.max(1, Math.ceil(ordenado.length / limit)),
+      pages: Math.max(1, Math.ceil(total / limit)),
+      conteos,
     };
   }
 
@@ -196,37 +224,42 @@ export class EvaluacionesService {
     actor?: AuthUser,
   ): Promise<ResumenCandidatosDto> {
     const vista = this.resolverVista(query.vista, actor);
-    const { items } = await this.construirCandidatos();
-    const filtrado = this.filtrarCandidatos(
+    const { items, enviadoEnPorPostulante } = await this.construirCandidatos();
+
+    // El desglose por estado ignora `estado` a propósito — igual que hoy,
+    // /resumen siempre refleja la distribución completa (vista + resto de
+    // filtros), nunca colapsa a un solo bucket cuando se filtra por estado.
+    const { total, conteos } = filtrarOrdenarCandidatos(
       items,
-      query,
+      { ...this.baseFiltros(query), estado: undefined },
       vista,
       query.origenEliminacion,
+      enviadoEnPorPostulante,
     );
 
-    const resumen: ResumenCandidatosDto = {
-      incompleto: 0,
-      en_proceso: 0,
-      completo: 0,
-      enviado: 0,
-      evaluado: 0,
-      total: filtrado.length,
-    };
-    for (const item of filtrado) {
-      resumen[estadoGeneral(item)] += 1;
-    }
+    const resumen: ResumenCandidatosDto = { ...conteos, total };
 
     // Contador del botón Papelera: total de eliminados que matchean q/vacante,
     // sin importar la vista actual. Solo se calcula (y expone) para admin.
     if (actor?.rol === 'administrador') {
-      resumen.eliminados = this.filtrarCandidatos(
+      resumen.eliminados = filtrarOrdenarCandidatos(
         items,
         { q: query.q, vacante: query.vacante },
         'papelera',
-      ).length;
+        undefined,
+        enviadoEnPorPostulante,
+      ).total;
     }
 
     return resumen;
+  }
+
+  /** Catálogo de vacantes distintas (no vacías) para el multiselect del frontend. */
+  async listarVacantesDistintas(): Promise<string[]> {
+    const valores = await this.postulanteModel.distinct('vacante', {
+      vacante: { $exists: true, $nin: [null, ''] },
+    });
+    return (valores as string[]).sort((a, b) => a.localeCompare(b, 'es'));
   }
 
   /** Máximo de filas por exportación, por abuso/tamaño de respuesta razonable. */
@@ -238,13 +271,15 @@ export class EvaluacionesService {
     ip?: string,
   ): Promise<{ filename: string; csv: string }> {
     const vista = this.resolverVista(query.vista, actor);
-    const { items } = await this.construirCandidatos();
-    const filtrado = this.filtrarCandidatos(
+    const { items, enviadoEnPorPostulante } = await this.construirCandidatos();
+    const { data } = filtrarOrdenarCandidatos(
       items,
-      query,
+      this.baseFiltros(query),
       vista,
       query.origenEliminacion,
-    ).slice(0, EvaluacionesService.MAX_FILAS_EXPORT);
+      enviadoEnPorPostulante,
+    );
+    const filtrado = data.slice(0, EvaluacionesService.MAX_FILAS_EXPORT);
     const esAdmin = actor.rol === 'administrador';
 
     const encabezados = [
@@ -265,7 +300,7 @@ export class EvaluacionesService {
       ...(esAdmin ? ['Eliminado por'] : []),
     ];
     const filas = filtrado.map((item) => {
-      const estado = estadoGeneral(item);
+      const estado = item.estadoGeneral;
       const ORIGEN_LABEL: Record<string, string> = {
         admin: 'Admin',
         self: 'El propio usuario',
@@ -389,7 +424,6 @@ export class EvaluacionesService {
       docsEvaluadosByPostulante.get(key)!.add(ev.documentoClave);
     }
 
-    const idsACorregir: Types.ObjectId[] = [];
     // Solo para el orden por defecto (enviados sin evaluar, por fecha de
     // envío ascendente); no es parte del DTO público de CandidatoListaItemDto.
     const enviadoEnPorPostulante = new Map<string, Date | undefined>();
@@ -422,15 +456,17 @@ export class EvaluacionesService {
           100,
       );
 
+      // Nota de solo-lectura: si el % de avance ya no sostiene un
+      // estadoExpediente='enviado' guardado, aquí se refleja ya corregido
+      // para la respuesta, pero la persistencia de esa corrección ocurre en
+      // los puntos de escritura que pueden invalidarla (ver
+      // sincronizar-estado-expediente.util.ts), no en esta lectura.
       const estadoGuardado: 'en_proceso' | 'enviado' =
         p.estadoExpediente ?? 'en_proceso';
       const estadoExpediente = resolverEstadoExpediente(
         porcentajeExpediente,
         estadoGuardado,
       );
-      if (estadoExpediente !== estadoGuardado) {
-        idsACorregir.push((p as { _id: Types.ObjectId })._id);
-      }
 
       const docsEvaluados =
         docsEvaluadosByPostulante.get(String(p._id))?.size ?? 0;
@@ -494,6 +530,12 @@ export class EvaluacionesService {
       const nombreCompleto =
         nombre || apellidos ? `${nombre} ${apellidos}`.trim() : 'Usuario eliminado';
 
+      const estadoGeneralItem = estadoGeneral({
+        porcentajeExpediente,
+        estadoExpediente,
+        estadoEvaluacion,
+      });
+
       return {
         postulanteId: String(p._id),
         nombreCompleto,
@@ -526,99 +568,11 @@ export class EvaluacionesService {
         docsEvaluados,
         docsTotal,
         estadoEvaluacion,
+        estadoGeneral: estadoGeneralItem,
       };
     });
 
-    if (idsACorregir.length > 0) {
-      await this.postulanteModel.updateMany(
-        { _id: { $in: idsACorregir } },
-        { $set: { estadoExpediente: 'en_proceso' }, $unset: { enviadoEn: '' } },
-      );
-    }
-
     return { items: resultado, enviadoEnPorPostulante };
-  }
-
-  private filtrarCandidatos(
-    items: CandidatoListaItemDto[],
-    query: {
-      q?: string;
-      vacante?: string;
-      estado?: EstadoCandidato;
-    },
-    vista: VistaCandidatos = 'activos',
-    origenEliminacion?: OrigenEliminacionCandidato,
-  ): CandidatoListaItemDto[] {
-    const q = query.q?.trim().toLowerCase();
-    const vacante = query.vacante?.trim().toLowerCase();
-
-    return items.filter((item) => {
-      if (vista === 'activos' && item.eliminado) return false;
-      if (vista === 'papelera' && !item.eliminado) return false;
-      if (vista === 'papelera' && origenEliminacion) {
-        if (item.eliminadoOrigen !== origenEliminacion) return false;
-      }
-      if (query.estado && estadoGeneral(item) !== query.estado) return false;
-      if (vacante && !(item.vacante ?? '').toLowerCase().includes(vacante)) {
-        return false;
-      }
-      if (q) {
-        const matches =
-          item.nombreCompleto.toLowerCase().includes(q) ||
-          item.email.toLowerCase().includes(q) ||
-          (item.vacante ?? '').toLowerCase().includes(q) ||
-          (item.ciudad ?? '').toLowerCase().includes(q);
-        if (!matches) return false;
-      }
-      return true;
-    });
-  }
-
-  /**
-   * Sin `ordenarPor`: enviados sin evaluar primero, por fecha de envío
-   * ascendente (FIFO: el que lleva más tiempo esperando se evalúa primero);
-   * el resto, por última actividad descendente.
-   */
-  private ordenarCandidatos(
-    items: CandidatoListaItemDto[],
-    query: ListarCandidatosQueryDto,
-    enviadoEnPorPostulante: Map<string, Date | undefined>,
-  ): CandidatoListaItemDto[] {
-    const direccion = query.direccion === 'asc' ? 1 : -1;
-
-    if (query.ordenarPor) {
-      const campo = query.ordenarPor;
-      return [...items].sort((a, b) => {
-        const va = a[campo];
-        const vb = b[campo];
-        if (va == null && vb == null) return 0;
-        if (va == null) return 1;
-        if (vb == null) return -1;
-        if (va < vb) return -1 * direccion;
-        if (va > vb) return 1 * direccion;
-        return 0;
-      });
-    }
-
-    const pendienteEnviado = (item: CandidatoListaItemDto) =>
-      estadoGeneral(item) === 'enviado';
-
-    return [...items].sort((a, b) => {
-      const aPendiente = pendienteEnviado(a);
-      const bPendiente = pendienteEnviado(b);
-      if (aPendiente !== bPendiente) return aPendiente ? -1 : 1;
-      if (aPendiente && bPendiente) {
-        const aEnviadoEn = enviadoEnPorPostulante.get(a.postulanteId);
-        const bEnviadoEn = enviadoEnPorPostulante.get(b.postulanteId);
-        return (
-          (aEnviadoEn ? new Date(aEnviadoEn).getTime() : 0) -
-          (bEnviadoEn ? new Date(bEnviadoEn).getTime() : 0)
-        );
-      }
-      const aAct = a.actualizadoEn ? new Date(a.actualizadoEn).getTime() : 0;
-      const bAct = b.actualizadoEn ? new Date(b.actualizadoEn).getTime() : 0;
-      return bAct - aAct;
-    });
   }
 
   async obtenerCandidato(postulanteId: string): Promise<CandidatoDetalleDto> {
@@ -667,19 +621,15 @@ export class EvaluacionesService {
 
     const estadoGuardado: 'en_proceso' | 'enviado' =
       postulante.estadoExpediente ?? 'en_proceso';
-    const estadoExpediente = resolverEstadoExpediente(
+    const estadoExpediente = await demoverSiExpedienteIncompleto(
+      this.postulanteModel,
+      postulante._id,
       porcentajeExpediente,
       estadoGuardado,
     );
 
-    let enviadoEn = postulante.enviadoEn;
-    if (estadoExpediente !== estadoGuardado) {
-      enviadoEn = undefined;
-      await this.postulanteModel.updateOne(
-        { _id: postulante._id },
-        { $set: { estadoExpediente: 'en_proceso' }, $unset: { enviadoEn: '' } },
-      );
-    }
+    const enviadoEn =
+      estadoExpediente === estadoGuardado ? postulante.enviadoEn : undefined;
 
     const evaluacionesDocs = await this.evaluacionModel
       .find({

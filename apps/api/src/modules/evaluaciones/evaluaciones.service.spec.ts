@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { EvaluacionesService } from './evaluaciones.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
@@ -176,5 +176,108 @@ describe('EvaluacionesService.resumenCandidatos — contador de la Papelera', ()
 
     const comoEvaluador = await service.resumenCandidatos(undefined, EVALUADOR);
     expect(comoEvaluador.eliminados).toBeUndefined();
+  });
+});
+
+describe('EvaluacionesService — contrato compartido (listar/resumir/exportar) y nuevos filtros', () => {
+  it('listarCandidatos, resumenCandidatos y exportarCandidatosCSV coinciden para el mismo filtro de vacante', async () => {
+    const service = crear([
+      postulante({
+        usuarioId: { nombre: 'Ana', apellidos: 'Soto', email: 'ana2@x.com' },
+        vacante: 'Capitán',
+      }),
+      postulante({
+        usuarioId: { nombre: 'Beto', apellidos: 'Cruz', email: 'beto@x.com' },
+        vacante: 'Oficial de Máquinas',
+      }),
+    ]);
+
+    const filtros = { vacante: ['Oficial de Máquinas'] } as any;
+
+    const listado = await service.listarCandidatos(
+      { ...filtros, page: 1, limit: 20 } as any,
+      ADMIN,
+    );
+    const resumen = await service.resumenCandidatos(filtros, ADMIN);
+    const { csv } = await service.exportarCandidatosCSV(filtros, ADMIN);
+
+    expect(listado.data).toHaveLength(1);
+    expect(listado.data[0].email).toBe('beto@x.com');
+    expect(resumen.total).toBe(1);
+    expect(csv).toContain('beto@x.com');
+    expect(csv).not.toContain('ana2@x.com');
+  });
+
+  it('estado como multiselect filtra por OR entre valores', async () => {
+    const service = crear([
+      postulante({
+        usuarioId: { nombre: 'Ana', apellidos: 'Soto', email: 'ana3@x.com' },
+        vacante: '', // incompleto (0% de avance)
+      }),
+      postulante({
+        usuarioId: { nombre: 'Beto', apellidos: 'Cruz', email: 'beto2@x.com' },
+        vacante: 'Capitán', // en_proceso (solo vacante cumplida)
+      }),
+    ]);
+
+    const ambos = await service.listarCandidatos(
+      { estado: ['incompleto', 'en_proceso'], page: 1, limit: 20 } as any,
+      ADMIN,
+    );
+    expect(ambos.data).toHaveLength(2);
+
+    const soloIncompleto = await service.listarCandidatos(
+      { estado: ['incompleto'], page: 1, limit: 20 } as any,
+      ADMIN,
+    );
+    expect(soloIncompleto.data).toHaveLength(1);
+    expect(soloIncompleto.data[0].email).toBe('ana3@x.com');
+  });
+
+  it('conteos refleja la distribución completa aunque se filtre por estado (no colapsa a un solo bucket)', async () => {
+    const service = crear([
+      postulante({
+        usuarioId: { nombre: 'Ana', apellidos: 'Soto', email: 'ana4@x.com' },
+        vacante: '',
+      }),
+      postulante({
+        usuarioId: { nombre: 'Beto', apellidos: 'Cruz', email: 'beto3@x.com' },
+        vacante: 'Capitán',
+      }),
+    ]);
+
+    const resultado = await service.listarCandidatos(
+      { estado: ['incompleto'], page: 1, limit: 20 } as any,
+      ADMIN,
+    );
+    expect(resultado.data).toHaveLength(1);
+    expect(resultado.conteos.incompleto).toBe(1);
+    expect(resultado.conteos.en_proceso).toBe(1);
+  });
+
+  it('ordenarPor=eliminadoEn en vista=activos responde 400', async () => {
+    const service = crear([postulanteActivo()]);
+    await expect(
+      service.listarCandidatos(
+        { ordenarPor: 'eliminadoEn', vista: 'activos' } as any,
+        ADMIN,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('ordenarPor=eliminadoEn en vista=papelera funciona', async () => {
+    const service = crear([postulanteSoftDeleted()]);
+    const resultado = await service.listarCandidatos(
+      { ordenarPor: 'eliminadoEn', direccion: 'desc', vista: 'papelera' } as any,
+      ADMIN,
+    );
+    expect(resultado.data).toHaveLength(1);
+  });
+
+  it('expone estadoGeneral calculado en cada item', async () => {
+    const service = crear([postulanteActivo()]);
+    const resultado = await service.listarCandidatos();
+    // vacante cumplida (1/10 requisitos obligatorios), resto no: en_proceso.
+    expect(resultado.data[0].estadoGeneral).toBe('en_proceso');
   });
 });

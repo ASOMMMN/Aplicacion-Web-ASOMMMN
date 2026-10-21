@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { EstadoCandidato } from './listar-candidatos-query.dto';
 
 export class CandidatoListaItemDto {
   @ApiProperty()
@@ -66,6 +67,12 @@ export class CandidatoListaItemDto {
   @ApiProperty({ enum: ['pendiente', 'en_evaluacion', 'evaluado'] })
   estadoEvaluacion: 'pendiente' | 'en_evaluacion' | 'evaluado';
 
+  /** Única fuente de verdad del estado visible en la UI (ver utils/estado-candidato.util.ts). */
+  @ApiProperty({
+    enum: ['incompleto', 'en_proceso', 'completo', 'enviado', 'evaluado'],
+  })
+  estadoGeneral: EstadoCandidato;
+
   // ─── Eliminación (soft-delete / legado) ────────────────────────────────────
 
   @ApiProperty()
@@ -113,6 +120,23 @@ export class ResumenCandidatosDto {
   eliminados?: number;
 }
 
+export class ConteosPorEstadoDto {
+  @ApiProperty()
+  incompleto: number;
+
+  @ApiProperty()
+  en_proceso: number;
+
+  @ApiProperty()
+  completo: number;
+
+  @ApiProperty()
+  enviado: number;
+
+  @ApiProperty()
+  evaluado: number;
+}
+
 export class CandidatosPaginadosDto {
   @ApiProperty({ type: [CandidatoListaItemDto] })
   data: CandidatoListaItemDto[];
@@ -128,6 +152,10 @@ export class CandidatosPaginadosDto {
 
   @ApiProperty()
   pages: number;
+
+  /** Distribución por estadoGeneral sobre el conjunto filtrado SIN aplicar `estado` (para KPIs/chips). */
+  @ApiProperty({ type: ConteosPorEstadoDto })
+  conteos: ConteosPorEstadoDto;
 }
 
 export class EvaluacionItemDto {

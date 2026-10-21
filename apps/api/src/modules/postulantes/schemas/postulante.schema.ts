@@ -87,4 +87,12 @@ export class Postulante {
 }
 
 export const PostulanteSchema = SchemaFactory.createForClass(Postulante);
+
+// Soportan los filtros/orden de GET /evaluaciones/candidatos (ver
+// evaluaciones.service.ts#construirCandidatos + filtrar-ordenar-candidatos.util.ts).
+PostulanteSchema.index({ vacante: 1 });
+PostulanteSchema.index({ creadoEn: -1 });
+PostulanteSchema.index({ actualizadoEn: -1 });
+PostulanteSchema.index({ estadoPostulacion: 1 });
+
 export type PostulanteDocument = Postulante & Document;

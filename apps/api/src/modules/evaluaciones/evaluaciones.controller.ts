@@ -98,6 +98,16 @@ export class EvaluacionesController {
     res.send(csv);
   }
 
+  @Get('vacantes')
+  @Roles('evaluador', 'administrador')
+  @ApiOperation({
+    summary: 'Catálogo de vacantes distintas usadas por los postulantes',
+  })
+  @ApiResponse({ status: 200, type: [String] })
+  async listarVacantes(): Promise<string[]> {
+    return this.evaluacionesService.listarVacantesDistintas();
+  }
+
   @Get('candidatos/:id')
   @Roles('evaluador', 'administrador')
   @ApiOperation({ summary: 'Obtener detalle de un candidato' })

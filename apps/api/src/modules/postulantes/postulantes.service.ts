@@ -21,6 +21,10 @@ import {
   resolverEstadoExpediente,
 } from './constants/expediente.constants';
 import {
+  demoverSiExpedienteIncompleto,
+  sincronizarEstadoExpediente,
+} from './utils/sincronizar-estado-expediente.util';
+import {
   DocPersonal,
   DocPersonalDocument,
 } from '../docs-personales/schemas/doc-personal.schema';
@@ -169,6 +173,17 @@ export class PostulantesService {
     });
 
     await postulante.save();
+
+    // Si se vació la vacante de un expediente ya enviado, lo demueve a
+    // en_proceso (ver sincronizar-estado-expediente.util.ts).
+    await sincronizarEstadoExpediente(
+      {
+        postulanteModel: this.postulanteModel,
+        documentoModel: this.documentoModel,
+        docPersonalModel: this.docPersonalModel,
+      },
+      postulante._id,
+    );
 
     // Retornar perfil completo
     return this.obtenerPerfil(userId);
@@ -623,19 +638,17 @@ export class PostulantesService {
     const cumplidosCount = requeridos.filter((r) => r.cumplido).length;
     const porcentaje = Math.round((cumplidosCount / total) * 100);
     const estadoGuardado = postulante?.estadoExpediente ?? 'en_proceso';
-    const estadoExpediente = resolverEstadoExpediente(
-      porcentaje,
-      estadoGuardado,
-    );
+    const estadoExpediente = postulanteId
+      ? await demoverSiExpedienteIncompleto(
+          this.postulanteModel,
+          postulanteId,
+          porcentaje,
+          estadoGuardado,
+        )
+      : resolverEstadoExpediente(porcentaje, estadoGuardado);
 
-    let enviadoEn = postulante?.enviadoEn;
-    if (estadoExpediente !== estadoGuardado && postulanteId) {
-      enviadoEn = undefined;
-      await this.postulanteModel.updateOne(
-        { _id: postulanteId },
-        { $set: { estadoExpediente: 'en_proceso' }, $unset: { enviadoEn: '' } },
-      );
-    }
+    const enviadoEn =
+      estadoExpediente === estadoGuardado ? postulante?.enviadoEn : undefined;
 
     return {
       porcentaje,

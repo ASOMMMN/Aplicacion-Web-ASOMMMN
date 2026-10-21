@@ -14,8 +14,13 @@ import {
   PostulanteDocument,
 } from '../postulantes/schemas/postulante.schema';
 import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
+import {
+  DocPersonal,
+  DocPersonalDocument,
+} from '../docs-personales/schemas/doc-personal.schema';
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { sincronizarEstadoExpediente } from '../postulantes/utils/sincronizar-estado-expediente.util';
 import {
   DocumentoActualResponseDto,
   HistorialDocumentosResponseDto,
@@ -38,6 +43,8 @@ export class DocumentosService {
     private postulanteModel: Model<PostulanteDocument>,
     @InjectModel(Usuario.name)
     private usuarioModel: Model<UsuarioDocument>,
+    @InjectModel(DocPersonal.name)
+    private docPersonalModel: Model<DocPersonalDocument>,
     private storageService: StorageService,
     private auditoriaService: AuditoriaService,
   ) {}
@@ -321,6 +328,18 @@ export class DocumentosService {
         await prev.save();
       }
     }
+
+    // Si este CV era el requisito que faltaba de un expediente ya enviado y
+    // no quedó versión previa, lo demueve a en_proceso (ver
+    // sincronizar-estado-expediente.util.ts).
+    await sincronizarEstadoExpediente(
+      {
+        postulanteModel: this.postulanteModel,
+        documentoModel: this.documentoModel,
+        docPersonalModel: this.docPersonalModel,
+      },
+      postulanteId,
+    );
 
     await this.auditoriaService.registrar({
       actorId: userId,
