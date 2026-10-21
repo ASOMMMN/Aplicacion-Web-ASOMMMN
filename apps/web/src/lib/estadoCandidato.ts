@@ -1,11 +1,5 @@
 export type EstadoGeneral = 'incompleto' | 'en_proceso' | 'completo' | 'enviado' | 'evaluado';
 
-export interface CandidatoEstadoInput {
-  porcentajeExpediente: number;
-  estadoExpediente: 'en_proceso' | 'enviado';
-  estadoEvaluacion: 'pendiente' | 'en_evaluacion' | 'evaluado';
-}
-
 interface EstadoGeneralConfig {
   label: string;
   badgeClass: string;
@@ -36,14 +30,11 @@ export const ESTADO_GENERAL_CONFIG: Record<EstadoGeneral, EstadoGeneralConfig> =
  *
  * Prioridad (de mayor a menor): evaluado > enviado > completo/en_proceso/incompleto
  * (estos tres últimos, derivados únicamente del % de avance).
+ *
+ * El cálculo vive en el backend (apps/api/.../utils/estado-candidato.util.ts)
+ * y viaja como `estadoGeneral` en la respuesta de /evaluaciones/candidatos —
+ * este archivo solo se encarga de la presentación (labels/colores/iconos).
  */
-export function estadoGeneral(input: CandidatoEstadoInput): EstadoGeneral {
-  if (input.estadoEvaluacion === 'evaluado') return 'evaluado';
-  if (input.estadoExpediente === 'enviado') return 'enviado';
-  if (input.porcentajeExpediente >= 100) return 'completo';
-  if (input.porcentajeExpediente > 0) return 'en_proceso';
-  return 'incompleto';
-}
 
 /** Agrupa los 5 estados en 3 grupos de avance, para las tarjetas de resumen y su filtro rápido. */
 export type GrupoAvance = 'completo' | 'en_proceso' | 'incompleto';

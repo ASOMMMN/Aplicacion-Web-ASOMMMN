@@ -645,6 +645,19 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   white-space: normal;
   line-height: 1.25;
 }
+/* Las cabeceras ordenables envuelven el texto en un <button> (ThOrdenable);
+   el reboot de Bootstrap resetea text-transform/font-size de los <button> y
+   .fw-semibold fuerza su propio font-weight, así que sin esto se veían en
+   mayúsculas/tamaño distintos a las cabeceras planas (Vacante, Estado
+   postulación, Acción). Se heredan explícitamente los mismos valores que ya
+   aplica .nautical-panel .table thead th para que todas luzcan igual. */
+.tabla-candidatos thead th .btn {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
 .tabla-candidatos > tbody > tr > td {
   padding-left: .5rem;
   padding-right: .5rem;

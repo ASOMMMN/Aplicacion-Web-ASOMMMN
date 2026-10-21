@@ -26,6 +26,9 @@ const ROLE_ALLOWED_PREFIXES: Record<string, string[]> = {
     "/reportes",
     "/auditoria",
     "/analisis-documentos",
+    "/candidatos",
+    "/candidato",
+    "/archivos",
   ],
 };
 

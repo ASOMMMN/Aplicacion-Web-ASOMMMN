@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api/client';
 import { session } from '@/lib/auth/session';
 import { cerrarSesion, refrescarSesion } from '@/lib/auth/refrescarSesion';
+import { decodeAccessToken } from '@/lib/auth/decodeAccessToken';
 import { ROLE_HOME } from '@/lib/auth/roleHome';
 
 export function useAuth() {
@@ -14,16 +15,22 @@ export function useAuth() {
     id: string;
     email: string;
     rol: string;
-    nombre: string;
-    apellidos: string;
+    nombre?: string;
+    apellidos?: string;
   } | null>(null);
 
   // Al montar, intenta renovar el access token con el refresh cookie (la
   // misma petición compartida que usan el interceptor y los layouts). Solo
-  // un 401 limpia la sesión; eso lo hace refrescarSesion.
+  // un 401 limpia la sesión; eso lo hace refrescarSesion. /auth/refresh solo
+  // devuelve {accessToken, rol} (no nombre/apellidos: para eso hace falta
+  // haber iniciado sesión en esta misma carga, ver login()), así que id/email
+  // se leen del propio token — nadie más en la app depende hoy de
+  // nombre/apellidos desde useAuth().
   const initSession = useCallback(async () => {
     try {
-      await refrescarSesion();
+      const { accessToken, rol } = await refrescarSesion();
+      const payload = decodeAccessToken(accessToken);
+      setUser({ id: payload?.sub ?? '', email: payload?.email ?? '', rol });
     } catch {
       // 401: sesión ya limpiada; 429 o red: se conserva para reintentar luego.
     } finally {
