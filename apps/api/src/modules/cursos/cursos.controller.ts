@@ -30,6 +30,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
+import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.util';
 import { CursosService } from './cursos.service';
 import { CreateCursoDto, RenombrarCursoDto } from './dto/create-curso.dto';
 import {
@@ -77,9 +78,10 @@ export class CursosController {
         errorMensaje: 'No se recibió archivo.',
       };
     }
+    // Tipo real por firma de bytes; uno desconocido lo rechaza el servicio.
     return this.cursosService.extraerDatosCursoIa(
       file.buffer,
-      file.mimetype,
+      detectarTipoArchivo(file.buffer) ?? 'application/octet-stream',
       user.userId,
       user.email,
     );
@@ -88,7 +90,10 @@ export class CursosController {
   @Post()
   @Roles('postulante')
   @UseInterceptors(
-    FileInterceptor('documentoExtra', { storage: memoryStorage() }),
+    FileInterceptor('documentoExtra', {
+      storage: memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024 },
+    }),
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
