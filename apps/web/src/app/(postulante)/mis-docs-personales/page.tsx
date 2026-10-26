@@ -15,6 +15,7 @@ import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
 import { DocumentChecklist } from '@/components/documentos/DocumentChecklist';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
+import { DocumentScanner, escanerDisponible } from '@/components/scanner';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -123,10 +124,24 @@ function TarjetaTipo({
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
   const [previewDoc, setPreviewDoc] = useState<DocFile | null>(null);
+  const [escanerAbierto, setEscanerAbierto] = useState(false);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const file = files[0];
+    await subirArchivo(files[0]);
+  };
+
+  const abrirEscaner = () => {
+    if (!escanerDisponible()) {
+      setErr('Tu navegador no permite escanear. Sube el archivo con “+ Subir archivo”.');
+      return;
+    }
+    setErr('');
+    setEscanerAbierto(true);
+  };
+
+  // El PDF del escáner entra por aquí, igual que un archivo elegido a mano.
+  const subirArchivo = async (file: File) => {
     const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
     if (!allowed.includes(file.type)) {
       setErr('Solo se aceptan PDF, JPG o PNG.');
@@ -330,18 +345,34 @@ function TarjetaTipo({
               className="d-none"
               onChange={(e) => handleFiles(e.target.files)}
             />
-            <Button
-              size="sm"
-              variant="outline-primary"
-              onClick={() => inputRef.current?.click()}
-            >
-              + Subir archivo
-            </Button>
-            <div className="text-muted small mt-1">PDF, JPG o PNG</div>
+            <div className="d-flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline-primary"
+                onClick={() => inputRef.current?.click()}
+              >
+                + Subir archivo
+              </Button>
+              <Button size="sm" variant="outline-primary" onClick={abrirEscaner}>
+                <i className="bi bi-camera me-1" aria-hidden="true" />
+                Escanear con cámara
+              </Button>
+            </div>
+            <div className="text-muted small mt-1">PDF, JPG o PNG, o escanéalo y se guarda como PDF</div>
           </>
         )}
       </Card.Body>
     </Card>
+    {escanerAbierto && (
+      <DocumentScanner
+        etiqueta={info.label}
+        onCerrar={() => setEscanerAbierto(false)}
+        onListo={async (archivo) => {
+          setEscanerAbierto(false);
+          await subirArchivo(archivo);
+        }}
+      />
+    )}
     {previewDoc?.urlVista && (
       <DocumentoPreviewModal
         show

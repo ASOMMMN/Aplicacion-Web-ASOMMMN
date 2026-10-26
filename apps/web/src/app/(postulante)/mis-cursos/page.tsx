@@ -16,6 +16,7 @@ import api from '@/lib/api/client';
 import { IconTimon, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
+import { DocumentScanner, escanerDisponible } from '@/components/scanner';
 import {
   formatearFechaCalendario,
   type OrigenVencimiento,
@@ -165,6 +166,7 @@ export default function MisCursosPage() {
   const [data, setData]             = useState<CursosResponse | null>(null);
   const [previewCurso, setPreviewCurso] = useState<CursoItem | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [escanerAbierto, setEscanerAbierto] = useState(false);
 
   // AI flow
   const [pendingFile, setPendingFile]   = useState<File | null>(null);
@@ -415,7 +417,35 @@ export default function MisCursosPage() {
                         <p className="text-muted small mb-0">O haz clic para seleccionar</p>
                       </label>
                     </div>
-                    <div className="text-muted small">Un archivo por vez: PDF, JPG o PNG.</div>
+                    <div className="d-flex flex-wrap align-items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        onClick={() => {
+                          if (!escanerDisponible()) {
+                            setError('Tu navegador no permite escanear. Sube el archivo arrastrándolo o seleccionándolo.');
+                            return;
+                          }
+                          setError('');
+                          setEscanerAbierto(true);
+                        }}
+                      >
+                        <i className="bi bi-camera me-1" aria-hidden="true" />
+                        Escanear con cámara
+                      </Button>
+                      <span className="text-muted small">Un archivo por vez: PDF, JPG o PNG.</span>
+                    </div>
+                    {escanerAbierto && (
+                      <DocumentScanner
+                        etiqueta="Certificado"
+                        onCerrar={() => setEscanerAbierto(false)}
+                        onListo={async (archivo) => {
+                          setEscanerAbierto(false);
+                          // Mismo flujo que un archivo arrastrado: extracción IA y confirmación.
+                          await iniciarFlujoIA(archivo);
+                        }}
+                      />
+                    )}
                   </>
                 )}
 
