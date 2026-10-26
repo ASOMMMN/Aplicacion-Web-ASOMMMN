@@ -23,6 +23,7 @@ export function SelectorModo({ modo, onChange, deshabilitado }: Props) {
           type="button"
           className={`btn escaner-boton-modo ${m.modo === modo ? 'btn-primary' : 'btn-outline-primary'}`}
           aria-pressed={m.modo === modo}
+          aria-label={m.etiqueta}
           title={m.ayuda}
           disabled={deshabilitado}
           onClick={() => m.modo !== modo && onChange(m.modo)}

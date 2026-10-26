@@ -471,7 +471,7 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
           >
             <i className="bi bi-plus-lg me-1" aria-hidden="true" /> Agregar página
           </Button>
-          <Button size="lg" className="btn-dorado" disabled={ocupado} onClick={() => void usarDocumento()}>
+          <Button size="lg" variant="dorado" disabled={ocupado} onClick={() => void usarDocumento()}>
             {paso === 'generando' ? (
               <Spinner animation="border" size="sm" className="me-2" />
             ) : (
