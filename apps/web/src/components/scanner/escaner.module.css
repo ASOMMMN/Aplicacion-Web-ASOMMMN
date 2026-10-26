@@ -1,0 +1,252 @@
+/*
+ * Estilos del escáner. Van en un CSS Module (no en globals.css) para que
+ * solo se descarguen con el chunk perezoso del escáner.
+ * Las clases de EditorEsquinas/ListaPaginas/SelectorModo se declaran
+ * :global dentro de .cuerpo porque esos componentes usan nombres fijos.
+ */
+
+.cuerpo {
+  background: var(--asommmn-fondo);
+  padding: var(--asommmn-space-sm);
+}
+
+.captura {
+  max-width: 420px;
+  margin: var(--asommmn-space-md) auto;
+}
+
+.consejos {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--asommmn-space-md);
+  color: var(--asommmn-text-muted);
+}
+
+.consejos li {
+  display: flex;
+  gap: .6rem;
+  align-items: baseline;
+  padding: .35rem 0;
+}
+
+.consejos i {
+  color: var(--asommmn-dorado-dark);
+}
+
+.botonGrande {
+  min-height: 56px;
+  font-weight: 600;
+}
+
+/* Vista previa de la página procesada */
+.vista {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  background: var(--asommmn-azul);
+  border-radius: var(--asommmn-radius-card);
+  padding: .5rem;
+}
+
+.vista img {
+  max-width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+}
+
+.velo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 34, 64, .45);
+  border-radius: var(--asommmn-radius-card);
+}
+
+.herramientas {
+  display: flex;
+  gap: .5rem;
+  justify-content: center;
+  margin: .5rem 0;
+}
+
+.herramientas :global(.btn) {
+  min-height: 44px;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.acciones :global(.btn) {
+  flex: 1 1 0;
+  min-height: 52px;
+  min-width: 140px;
+  font-weight: 600;
+}
+
+/* ── Editor de esquinas ─────────────────────────────────────────────── */
+
+.cuerpo :global(.escaner-lienzo) {
+  display: flex;
+  justify-content: center;
+  background: var(--asommmn-azul);
+  border-radius: var(--asommmn-radius-card);
+  padding: .75rem;
+}
+
+.cuerpo :global(.escaner-marco) {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.cuerpo :global(.escaner-foto) {
+  display: block;
+  max-width: 100%;
+  max-height: 62vh;
+}
+
+.cuerpo :global(.escaner-esquinas) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: none;
+}
+
+.cuerpo :global(.escaner-sombra) {
+  fill: rgba(10, 34, 64, .55);
+}
+
+.cuerpo :global(.escaner-contorno) {
+  fill: rgba(201, 162, 75, .12);
+  stroke: var(--asommmn-dorado);
+}
+
+.cuerpo :global(.escaner-punto) {
+  fill: #fff;
+  stroke: var(--asommmn-dorado);
+  pointer-events: none;
+}
+
+.cuerpo :global(.escaner-punto-toque) {
+  fill: transparent;
+  cursor: grab;
+  outline: none;
+}
+
+.cuerpo :global(.escaner-punto-toque:focus-visible) {
+  fill: rgba(201, 162, 75, .35);
+}
+
+.cuerpo :global(.escaner-lupa) {
+  position: absolute;
+  top: 8px;
+  border-radius: 50%;
+  border: 3px solid var(--asommmn-dorado);
+  background-repeat: no-repeat;
+  background-color: #000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+  pointer-events: none;
+}
+
+.cuerpo :global(.escaner-lupa)::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--asommmn-dorado);
+  border-radius: 50%;
+}
+
+/* ── Selector de modo ───────────────────────────────────────────────── */
+
+.cuerpo :global(.escaner-modos) {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .5rem;
+  margin-top: .75rem;
+}
+
+.cuerpo :global(.escaner-boton-modo) {
+  min-height: 56px;
+  line-height: 1.2;
+}
+
+/* ── Páginas ────────────────────────────────────────────────────────── */
+
+.cuerpo :global(.escaner-paginas) {
+  display: flex;
+  gap: .75rem;
+  overflow-x: auto;
+  list-style: none;
+  padding: .5rem 0 0;
+  margin: .5rem 0 0;
+  border-top: 1px solid rgba(10, 34, 64, .1);
+}
+
+.cuerpo :global(.escaner-pagina) {
+  flex: 0 0 auto;
+  width: 112px;
+}
+
+.cuerpo :global(.escaner-miniatura) {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 112px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cuerpo :global(.escaner-pagina.activa .escaner-miniatura) {
+  border-color: var(--asommmn-dorado);
+}
+
+.cuerpo :global(.escaner-miniatura img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cuerpo :global(.escaner-numero) {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--asommmn-azul);
+  color: #fff;
+  font-size: .75rem;
+  line-height: 22px;
+}
+
+.cuerpo :global(.escaner-pagina-acciones) {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.cuerpo :global(.escaner-pagina-acciones .btn) {
+  min-width: 34px;
+  min-height: 36px;
+  padding: 0;
+}
