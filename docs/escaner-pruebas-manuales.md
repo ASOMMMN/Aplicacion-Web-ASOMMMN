@@ -81,6 +81,12 @@ Anota en cada caso: dispositivo, versión del navegador, ✅/❌ y observaciones
   el escáner regresó a la pantalla de captura (con la página ya guardada; “Volver
   a las páginas” la mostraba bien). No se pudo reproducir. Si te pasa, anota
   qué tocaste justo antes.
+- 🔎 **Diagnóstico temporal**: el escáner registra en la consola `[escaner-diag]`
+  cada cambio de paso y cada clic en un botón (con los ms desde el último cambio).
+  Hipótesis: tras **Continuar** un segundo clic/toque cae sobre **Agregar página**
+  (el pie pasa de 2 a 3 botones). Si te pasa, conecta el celular (Chrome:
+  `chrome://inspect`; Safari: Inspector web) o, en escritorio, abre la consola y
+  copia `window.__escanerDiag`: ahí verás qué botón se tocó y a cuántos ms.
 
 ## 7. Mis cursos (certificados)
 
@@ -98,3 +104,28 @@ Anota en cada caso: dispositivo, versión del navegador, ✅/❌ y observaciones
 - Arrastrar o seleccionar un certificado en Mis cursos funciona igual.
 - Otras pantallas (dashboard, CV, panel del evaluador) cargan igual de rápido:
   el escáner solo se descarga al abrirlo.
+
+## 9. Arrastrar y soltar (escritorio)
+
+Probar con archivos reales arrastrados desde el Explorador/Finder. Puntos de
+subida: Mi CV, Mis cursos, cada tarjeta de Documentos personales, Mi nube y
+Archivos del evaluador.
+
+- Arrastra un PDF válido sobre la zona: se resalta (o aparece la capa) **sin
+  parpadear** al pasar sobre el texto y los botones; al soltar sigue el flujo de
+  siempre.
+- Arrastra y sal de la zona sin soltar: el resaltado desaparece.
+- Suelta un `.exe` o un `.docx` donde solo se aceptan PDF/JPG/PNG: mensaje rojo
+  con los tipos permitidos y no se sube nada.
+- Suelta un archivo mayor al límite (20 MB; 50 MB en evaluador; 100 MB en Mi nube):
+  mensaje con el límite, sin subir.
+- Suelta una **carpeta**: mensaje “No se pueden subir carpetas”.
+- Suelta dos archivos donde solo cabe uno: mensaje “Suelta un solo archivo a la vez”
+  (en Mi nube sí se aceptan varios).
+- Suelta un archivo **fuera** de cualquier zona (fondo de la página): el navegador
+  no lo abre ni cambia de página.
+- Con una subida en curso, suelta otro archivo: “Espera a que termine la subida actual.”
+- Teclado: con Tab llega a la zona de Mi CV / Mis cursos (anillo dorado) y Enter o
+  Espacio abren el selector.
+- En Documentos personales y Mis cursos, **Escanear con cámara** y **+ Subir archivo**
+  siguen funcionando; arrastrar un archivo sobre el modal del escáner no sube nada.
