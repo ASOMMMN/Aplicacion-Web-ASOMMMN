@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ChangeEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -26,6 +25,7 @@ import Swal from "sweetalert2";
 import { DocumentoNubeItem, miNubeApi } from "@/lib/api/miNube";
 import { SpinnerTimon } from "@/components/ui/NauticalIcons";
 import { BotonVolver } from "@/components/ui/BotonVolver";
+import { DropZone } from "@/components/ui/DropZone";
 import { DocumentoPreviewModal } from "@/components/documentos/DocumentoPreviewModal";
 
 type TrailItem = { id: string | null; nombre: string };
@@ -76,6 +76,9 @@ function downloadObjectUrl(blob: Blob, filename: string) {
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+/** Mismo límite que la API (POST /mi-nube/upload). */
+const LIMITE_NUBE_BYTES = 100 * 1024 * 1024;
 
 export default function MiNubePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -191,9 +194,7 @@ export default function MiNubePage() {
     }
   };
 
-  const subirArchivos = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  const subirArchivos = async (files: File[]) => {
     if (files.length === 0) return;
 
     try {
@@ -338,6 +339,14 @@ export default function MiNubePage() {
   return (
     <div className="nautical-panel min-vh-100 py-4">
       <div className="container-fluid px-3 px-lg-4">
+        <DropZone
+          multiple
+          capa="pantalla"
+          maxSizeBytes={LIMITE_NUBE_BYTES}
+          loading={working}
+          textoSoltar="Suelta los archivos para subirlos a esta carpeta"
+          onFiles={subirArchivos}
+        >
         <Card className="card-asommmn card-asommmn-top-azul">
           <Card.Body>
             <Row className="mb-3">
@@ -373,9 +382,12 @@ export default function MiNubePage() {
                   type="file"
                   multiple
                   hidden
-                  onChange={(event) =>
-                    void subirArchivos(event as ChangeEvent<HTMLInputElement>)
-                  }
+                  onChange={(event) => {
+                    const input = event.target as HTMLInputElement;
+                    const files = Array.from(input.files ?? []);
+                    input.value = "";
+                    void subirArchivos(files);
+                  }}
                 />
               </div>
             </div>
@@ -554,6 +566,7 @@ export default function MiNubePage() {
             )}
           </Card.Body>
         </Card>
+        </DropZone>
       </div>
 
       <Modal

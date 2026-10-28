@@ -13,6 +13,7 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { DropZone } from '@/components/ui/DropZone';
 import { DocumentChecklist } from '@/components/documentos/DocumentChecklist';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 import { DocumentScanner, escanerDisponible } from '@/components/scanner';
@@ -109,6 +110,8 @@ const toError = (e: unknown): string => {
 };
 
 const ACCEPTED = '.pdf,.jpg,.jpeg,.png';
+/** Mismo límite que la API (POST /docs-personales/subir). */
+const LIMITE_DOC_BYTES = 20 * 1024 * 1024;
 
 // ── Componente por tipo ────────────────────────────────────────────────────────
 
@@ -242,6 +245,15 @@ function TarjetaTipo({
 
   return (
     <>
+    <DropZone
+      className="h-100"
+      accept={ACCEPTED}
+      etiquetaTipos="PDF, JPG o PNG"
+      maxSizeBytes={LIMITE_DOC_BYTES}
+      loading={uploading}
+      textoSoltar={`Suelta el archivo para subirlo como ${info.label}`}
+      onFiles={([archivo]) => subirArchivo(archivo)}
+    >
     <Card className="card-asommmn card-asommmn-top-azul card-riveted h-100">
       <Card.Body>
         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -363,6 +375,7 @@ function TarjetaTipo({
         )}
       </Card.Body>
     </Card>
+    </DropZone>
     {escanerAbierto && (
       <DocumentScanner
         etiqueta={info.label}
