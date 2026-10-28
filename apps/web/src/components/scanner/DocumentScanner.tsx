@@ -5,6 +5,7 @@ import { Alert, Button, Modal, ProgressBar, Spinner } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import { useClienteEscaner } from '@/hooks/scanner/useClienteEscaner';
 import { useDeteccionBordes } from '@/hooks/scanner/useDeteccionBordes';
+import { useDiagnosticoEscaner } from '@/hooks/scanner/useDiagnosticoEscaner';
 import { useGeneradorPdf } from '@/hooks/scanner/useGeneradorPdf';
 import { useMejoraImagen, type PaginaProcesada } from '@/hooks/scanner/useMejoraImagen';
 import { useUrlsObjeto } from '@/hooks/scanner/useUrlsObjeto';
@@ -75,6 +76,7 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
   const inputGaleria = useRef<HTMLInputElement>(null);
 
   const [paso, setPaso] = useState<Paso>('captura');
+  useDiagnosticoEscaner(paso); // TEMPORAL: ver hooks/scanner/useDiagnosticoEscaner.ts
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [paginas, setPaginas] = useState<Pagina[]>([]);
