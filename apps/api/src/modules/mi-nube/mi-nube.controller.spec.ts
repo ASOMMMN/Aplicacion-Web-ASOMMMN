@@ -62,6 +62,26 @@ describe('MiNubeController — streaming de view/download', () => {
     );
   });
 
+  it('ver: un tipo no seguro (p. ej. text/html de una subida antigua) se descarga, no se muestra', async () => {
+    const stream = new PassThrough();
+    jest.spyOn(stream, 'pipe').mockReturnValue(stream as never);
+    const { controller, service } = crearControlador(stream);
+    service.obtenerArchivo.mockResolvedValue({
+      stream,
+      nombre: 'pagina.html',
+      mimeType: 'text/html',
+      size: 10,
+    });
+    const res = crearRes();
+
+    await controller.ver(ACTOR, 'id1', res as never);
+
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Disposition',
+      expect.stringContaining('attachment'),
+    );
+  });
+
   it('si el cliente cancela (res cierra la conexión), destruye el stream de S3', async () => {
     const stream = new PassThrough();
     jest.spyOn(stream, 'pipe').mockReturnValue(stream as never);
