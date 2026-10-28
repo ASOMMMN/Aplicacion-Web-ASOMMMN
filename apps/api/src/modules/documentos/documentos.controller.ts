@@ -34,6 +34,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 
+export const LIMITE_CV_BYTES = 20 * 1024 * 1024;
+
 @ApiTags('documentos')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -46,7 +48,7 @@ export class DocumentosController {
   @UseInterceptors(
     FileInterceptor('archivo', {
       storage: memoryStorage(),
-      limits: { fileSize: 20 * 1024 * 1024 },
+      limits: { fileSize: LIMITE_CV_BYTES },
     }),
   )
   @ApiConsumes('multipart/form-data')
