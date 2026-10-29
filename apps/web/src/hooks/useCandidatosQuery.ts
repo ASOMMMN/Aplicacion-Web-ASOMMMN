@@ -186,24 +186,22 @@ export function useCandidatosQuery() {
   // Para el panel admin, la tabla por defecto ordena por fecha de postulación
   // (recientes primero) en vez de la cola FIFO que usa evaluador por defecto;
   // solo aplica si la URL no trae ya un `sort` explícito.
-  const defaultAdminAplicado = useRef(false);
-  useEffect(() => {
-    if (defaultAdminAplicado.current || !user) return;
-    defaultAdminAplicado.current = true;
-    if (initial.ordenarPor) return;
-    if (esAdmin) {
+  // Se ajusta durante el render (patrón de React para estado que depende de
+  // otro hook), no en un efecto: así no hay un render ni una petición extra
+  // con el orden anterior.
+  const [defaultAdminAplicado, setDefaultAdminAplicado] = useState(false);
+  if (user && !defaultAdminAplicado) {
+    setDefaultAdminAplicado(true);
+    if (!initial.ordenarPor && esAdmin) {
       setOrdenarPor('creadoEn');
       setDireccion('desc');
     }
-  }, [user, esAdmin, initial.ordenarPor]);
+  }
 
   // La Papelera es solo para admin: si un evaluador llega a ?vista=papelera
   // (link viejo, URL escrita a mano), lo regresamos a activos. El backend
   // también lo rechaza (403) si de alguna forma llega la petición.
-  useEffect(() => {
-    if (!user) return;
-    if (vista === 'papelera' && !esAdmin) setVista('activos');
-  }, [user, esAdmin, vista]);
+  if (user && vista === 'papelera' && !esAdmin) setVista('activos');
 
   const [paginado, setPaginado] = useState<CandidatosPaginados | null>(null);
   const [resumen, setResumen] = useState<ResumenCandidatos | null>(null);
@@ -346,6 +344,9 @@ export function useCandidatosQuery() {
   }, [construirFiltros, page, ordenarPor, direccion]);
 
   useEffect(() => {
+    // Sincroniza la lista con un sistema externo (la API): `cargar` marca
+    // refreshing/error al iniciar la petición, y eso es lo que muestra el estado de carga.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargar();
   }, [cargar]);
 
