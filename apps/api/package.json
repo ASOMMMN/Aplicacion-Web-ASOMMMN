@@ -47,7 +47,6 @@
     "docx": "^9.7.1",
     "helmet": "^8.2.0",
     "jsqr": "1.4.0",
-    "minio": "^8.0.7",
     "mongoose": "^9.7.1",
     "nest-winston": "^1.10.2",
     "openai": "^6.44.0",
