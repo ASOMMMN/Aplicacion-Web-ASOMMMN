@@ -1,6 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { crearAppDeSubida, subirArchivo } from '../../../test/utils/app-subida';
+import {
+  crearAppDeSubida,
+  subirArchivo,
+  throttlerDePrueba,
+} from '../../../test/utils/app-subida';
 import { DocumentosController, LIMITE_CV_BYTES } from './documentos.controller';
 import { DocumentosService } from './documentos.service';
 
@@ -20,6 +24,7 @@ describe('POST /documentos/subir — límite de tamaño (HTTP)', () => {
       DocumentosController,
       { provide: DocumentosService, useValue: servicio },
       USUARIO,
+      [throttlerDePrueba()],
     );
   });
   afterAll(() => app.close());

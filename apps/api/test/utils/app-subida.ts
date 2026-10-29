@@ -8,9 +8,11 @@ import {
   type CanActivate,
   type ExecutionContext,
   type INestApplication,
+  type ModuleMetadata,
   type Type,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 import { JwtAuthGuard } from '../../src/common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../src/common/guards/roles.guard';
@@ -21,10 +23,19 @@ export interface UsuarioPrueba {
   rol: string;
 }
 
+/**
+ * ThrottlerModule para apps de prueba cuyo controlador usa UserThrottlerGuard.
+ * El cupo global es holgado: solo debe contar el tope 'ia' del guard.
+ */
+export const throttlerDePrueba = () =>
+  ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100_000 }]);
+
 export async function crearAppDeSubida(
   controlador: Type,
   servicio: { provide: Type; useValue: unknown },
   usuario: UsuarioPrueba,
+  /** Módulos extra, p. ej. ThrottlerModule para los endpoints con UserThrottlerGuard. */
+  imports: ModuleMetadata['imports'] = [],
 ): Promise<INestApplication> {
   const permitir: CanActivate = {
     canActivate: (ctx: ExecutionContext) => {
@@ -33,6 +44,7 @@ export async function crearAppDeSubida(
     },
   };
   const modulo = await Test.createTestingModule({
+    imports,
     controllers: [controlador],
     providers: [servicio],
   })

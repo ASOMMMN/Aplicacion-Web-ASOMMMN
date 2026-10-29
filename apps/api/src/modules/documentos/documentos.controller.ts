@@ -27,6 +27,11 @@ import {
   HistorialDocumentosResponseDto,
   RenombrarDocumentoDto,
 } from './dto/documento-response.dto';
+import { Throttle } from '@nestjs/throttler';
+import {
+  MensajeTopeIa,
+  UserThrottlerGuard,
+} from '../../common/guards/user-throttler.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -45,6 +50,12 @@ export class DocumentosController {
 
   @Post('subir')
   @Roles('postulante')
+  @UseGuards(UserThrottlerGuard)
+  // No llama a la IA: frena el abuso de almacenamiento (hasta 20 MB por CV).
+  @Throttle({ ia: { limit: 20, ttl: 3_600_000 } }) // 20 subidas/hora por usuario
+  @MensajeTopeIa(
+    'Has subido demasiados CV en poco tiempo. Intenta de nuevo más tarde.',
+  )
   @UseInterceptors(
     FileInterceptor('archivo', {
       storage: memoryStorage(),

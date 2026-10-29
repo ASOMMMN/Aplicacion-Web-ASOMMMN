@@ -24,8 +24,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
+import { Throttle } from '@nestjs/throttler';
+
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
@@ -47,6 +50,8 @@ export class CursosController {
 
   @Post('extraer-ia')
   @Roles('postulante')
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 30, ttl: 3_600_000 } }) // 30 lecturas con IA/hora por usuario
   @UseInterceptors(
     FileInterceptor('archivo', {
       storage: memoryStorage(),
