@@ -5,6 +5,8 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 import '@/styles/globals.css';
 import { TITULO_SISTEMA, DESCRIPCION_SISTEMA } from '@/lib/branding';
 import { BloqueoSoltarGlobal } from '@/components/ui/BloqueoSoltarGlobal';
+import { BandaEntorno } from '@/components/ui/BandaEntorno';
+import { etiquetaEntorno } from '@/lib/entorno/entorno';
 
 // Playfair Display: reservada ÚNICAMENTE para el nombre de la escuela
 // (navbar y pantallas de autenticación). Todo lo demás usa Public Sans.
@@ -21,8 +23,11 @@ const publicSans = Public_Sans({
   display: 'swap',
 });
 
+// Solo en staging (NEXT_PUBLIC_ENTORNO=staging): banda visible y prefijo en el título.
+const etiquetaDeEntorno = etiquetaEntorno(process.env.NEXT_PUBLIC_ENTORNO);
+
 export const metadata: Metadata = {
-  title: TITULO_SISTEMA,
+  title: etiquetaDeEntorno ? `[${etiquetaDeEntorno}] ${TITULO_SISTEMA}` : TITULO_SISTEMA,
   description: DESCRIPCION_SISTEMA,
 };
 
@@ -34,6 +39,7 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${playfair.variable} ${publicSans.variable}`}>
       <body style={{ fontFamily: 'var(--font-public-sans, var(--bs-font-sans-serif))' }}>
+        {etiquetaDeEntorno && <BandaEntorno etiqueta={etiquetaDeEntorno} />}
         <BloqueoSoltarGlobal />
         {children}
       </body>

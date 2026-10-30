@@ -53,6 +53,11 @@ const securityHeaders = [
       "form-action 'self'",
     ].join("; "),
   },
+  // Solo staging (NEXT_PUBLIC_ENTORNO=staging): que los buscadores no lo indexen.
+  // En producción esta lista no cambia.
+  ...((process.env.NEXT_PUBLIC_ENTORNO ?? "").trim().toLowerCase() === "staging"
+    ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }]
+    : []),
 ];
 
 const nextConfig: NextConfig = {
