@@ -41,6 +41,13 @@ export const CONFIG_ESCANER = {
   /** Confianza mínima para aceptar los bordes detectados. */
   umbralConfianza: 0.45,
 
+  /**
+   * Tras entrar a la revisión se ignoran "Repetir" y "Agregar página" durante
+   * este tiempo: un segundo toque de "Continuar" cae sobre ellos apenas aparece
+   * el pie con 3 botones y devolvía al usuario a la captura.
+   */
+  ventanaToqueTrasRevisionMs: 500,
+
   modoPorDefecto: 'color' as ModoMejora,
 } as const;
 

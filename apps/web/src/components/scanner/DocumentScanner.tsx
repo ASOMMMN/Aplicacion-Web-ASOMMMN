@@ -12,6 +12,7 @@ import { useUrlsObjeto } from '@/hooks/scanner/useUrlsObjeto';
 import { CONFIG_ESCANER } from '@/lib/scanner/constantes';
 import { esConvexo } from '@/lib/scanner/geometria';
 import { decodificarFoto, ErrorImagen, imageDataAJpeg } from '@/lib/scanner/lienzo';
+import { toqueTrasEntrarARevision } from '@/lib/scanner/toque-revision';
 import type { Cuadrilatero, ModoMejora, Rotacion } from '@/lib/scanner/tipos';
 import { EditorEsquinas } from './EditorEsquinas';
 import { ListaPaginas } from './ListaPaginas';
@@ -95,6 +96,19 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
   useEffect(() => {
     paginasRef.current = paginas;
   }, [paginas]);
+
+  /** Cuándo (performance.now) entró a la revisión: ver toqueTrasEntrarARevision. */
+  const entradaRevision = useRef(0);
+  useEffect(() => {
+    if (paso === 'revision') entradaRevision.current = performance.now();
+  }, [paso]);
+
+  /** Vuelve a la captura (repetir una página o agregar otra), salvo un toque rezagado tras "Continuar". */
+  const irACaptura = (paginaAReemplazar: string | null) => {
+    if (toqueTrasEntrarARevision(performance.now(), entradaRevision.current)) return;
+    setReemplazar(paginaAReemplazar);
+    setPaso('captura');
+  };
 
   const trabajando = (texto: string) => {
     setError(null);
@@ -460,7 +474,7 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
             size="lg"
             variant="outline-secondary"
             disabled={ocupado}
-            onClick={() => { setReemplazar(actual.id); setPaso('captura'); }}
+            onClick={() => irACaptura(actual.id)}
           >
             <i className="bi bi-arrow-counterclockwise me-1" aria-hidden="true" /> Repetir
           </Button>
@@ -469,7 +483,7 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
             variant="outline-primary"
             disabled={ocupado || lleno}
             title={lleno ? `Máximo ${CONFIG_ESCANER.maxPaginas} páginas` : undefined}
-            onClick={() => { setReemplazar(null); setPaso('captura'); }}
+            onClick={() => irACaptura(null)}
           >
             <i className="bi bi-plus-lg me-1" aria-hidden="true" /> Agregar página
           </Button>
