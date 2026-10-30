@@ -87,6 +87,12 @@ Anota en cada caso: dispositivo, versión del navegador, ✅/❌ y observaciones
   (el pie pasa de 2 a 3 botones). Si te pasa, conecta el celular (Chrome:
   `chrome://inspect`; Safari: Inspector web) o, en escritorio, abre la consola y
   copia `window.__escanerDiag`: ahí verás qué botón se tocó y a cuántos ms.
+- 🩹 **Mitigación aplicada**: tras entrar a la revisión (después de **Continuar**), 
+  **Repetir** y **Agregar página** ignoran los toques durante ~500 ms. Prueba: toca
+  **Continuar** una vez y luego **dos veces rápido**: no debe regresar a la captura.
+  Si aun así regresa, copia `window.__escanerDiag`: un toque ignorado aparece como
+  `click en "Agregar página" a N ms…` **sin** un `paso revision → captura` después.
+  El diagnóstico se quita cuando confirmes que ya no ocurre.
 
 ## 7. Mis cursos (certificados)
 

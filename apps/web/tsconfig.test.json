@@ -7,5 +7,5 @@
     "incremental": false,
     "types": ["jest", "node"]
   },
-  "include": ["src/lib/scanner/**/*.ts", "src/lib/dropzone/**/*.ts", "src/lib/validators/**/*.ts"]
+  "include": ["src/lib/scanner/**/*.ts", "src/lib/dropzone/**/*.ts", "src/lib/validators/**/*.ts", "src/lib/entorno/**/*.ts"]
 }
