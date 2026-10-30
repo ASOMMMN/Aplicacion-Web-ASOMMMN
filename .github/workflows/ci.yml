@@ -104,8 +104,10 @@ jobs:
           restore-keys: |
             next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
+      # next/font/google descarga Public Sans en cada build: una falla transitoria
+      # de red (visto en el PR #2) se reintenta una vez; un error real falla igual.
       - name: Build (next)
-        run: npx next build
+        run: npx next build || (echo "Reintentando el build una vez" && sleep 15 && npx next build)
         working-directory: apps/web
 
       - name: Caché de Jest
