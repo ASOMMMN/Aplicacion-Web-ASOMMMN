@@ -41,6 +41,25 @@ describe('validate() — CORS_ORIGIN', () => {
     ).not.toThrow();
   });
 
+  it.each(['*@ejemplo.test', 'no es correo', 'a@ejemplo.test,'])(
+    'EMAIL_ALLOWLIST inválida (%s): no arranca, en cualquier entorno',
+    (valor) => {
+      expect(() =>
+        validate({ ...BASE, NODE_ENV: 'test', EMAIL_ALLOWLIST: valor }),
+      ).toThrow(/EMAIL_ALLOWLIST inválida/);
+    },
+  );
+
+  it('EMAIL_ALLOWLIST válida: arranca', () => {
+    expect(() =>
+      validate({
+        ...BASE,
+        NODE_ENV: 'test',
+        EMAIL_ALLOWLIST: 'ana@ejemplo.test,equipo.test',
+      }),
+    ).not.toThrow();
+  });
+
   it.each(['development', 'test'])(
     '%s: CORS_ORIGIN no es obligatoria',
     (env) => {
