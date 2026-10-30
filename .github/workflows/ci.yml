@@ -3,8 +3,8 @@ name: CI
 # Verificaciones antes de cada merge a main. Dos jobs en paralelo (API y Web).
 # Marcar como obligatorios en la protección de rama: "API" y "Web".
 on:
+  # Sin filtro de rama base: los PR apilados (rama sobre rama) también deben correr el CI.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
