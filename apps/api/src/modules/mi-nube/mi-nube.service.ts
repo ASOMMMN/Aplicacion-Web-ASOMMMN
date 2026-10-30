@@ -20,6 +20,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import { escapeRegex } from '../../common/utils/regex.util';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import { tipoParaGuardar } from '../../common/utils/detectar-tipo-archivo.util';
 
 const NUBE_CATEGORY = 'mi-nube';
 
@@ -130,6 +131,9 @@ export class MiNubeService {
     await this.validarNombreDisponible(ownerId, parentObjId, nombreSeguro);
 
     const extension = this.obtenerExtension(nombreSeguro);
+    // Tipo por contenido real: con él se sirve el archivo en /view y
+    // /download; el mimetype del cliente es falsificable.
+    const mimeType = tipoParaGuardar(file.buffer);
     const owner = await this.usuarioModel
       .findById(ownerId)
       .select('nombre apellidos')
@@ -154,7 +158,7 @@ export class MiNubeService {
       cloudinaryUrl: url,
       cloudinaryPublicId: s3Key,
       storageType: 'cloudinary',
-      mimeType: file.mimetype || null,
+      mimeType,
       size: file.size,
       extension,
       isDeleted: false,
@@ -166,7 +170,7 @@ export class MiNubeService {
       nombre: nombreSeguro,
       parentId: parentObjId?.toString() ?? null,
       size: file.size,
-      mimeType: file.mimetype,
+      mimeType,
     });
 
     return (await this.mapItems([doc.toObject()]))[0];

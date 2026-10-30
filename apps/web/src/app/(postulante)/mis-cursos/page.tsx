@@ -15,7 +15,9 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { IconTimon, SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { DropZone } from '@/components/ui/DropZone';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
+import { DocumentScanner, escanerDisponible } from '@/components/scanner';
 import {
   formatearFechaCalendario,
   type OrigenVencimiento,
@@ -81,6 +83,8 @@ type IaResult = {
 
 /** Formatos que lee la IA (PDF, foto o escaneo). */
 const TIPOS_ACEPTADOS = ['application/pdf', 'image/jpeg', 'image/png'];
+/** Mismo límite que la API (POST /cursos/extraer-ia y POST /cursos). */
+const LIMITE_CERTIFICADO_BYTES = 20 * 1024 * 1024;
 
 /** Vencimiento de un curso con su origen: nunca se confunde el estimado con el del documento. */
 function VencimientoCurso({ curso }: { curso: CursoItem }) {
@@ -164,7 +168,7 @@ export default function MisCursosPage() {
   const [error, setError]           = useState('');
   const [data, setData]             = useState<CursosResponse | null>(null);
   const [previewCurso, setPreviewCurso] = useState<CursoItem | null>(null);
-  const [dragActive, setDragActive] = useState(false);
+  const [escanerAbierto, setEscanerAbierto] = useState(false);
 
   // AI flow
   const [pendingFile, setPendingFile]   = useState<File | null>(null);
@@ -287,29 +291,6 @@ export default function MisCursosPage() {
     }
   };
 
-  // ── Drag & drop ────────────────────────────────────────────────────────
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
-    else if (e.type === 'dragleave') setDragActive(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) await iniciarFlujoIA(file);
-  };
-
-  const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) await iniciarFlujoIA(file);
-    e.target.value = '';
-  };
-
   // ── Row actions ────────────────────────────────────────────────────────
 
   const renombrarCurso = async (cursoId: string, nombreActual: string) => {
@@ -392,30 +373,48 @@ export default function MisCursosPage() {
                       Arrastra el certificado (PDF, foto o escaneo). La IA leerá el contenido y
                       propondrá el nombre real del curso y las fechas para que las confirmes.
                     </p>
-                    <div
-                      className={`border-2 border-dashed rounded p-4 text-center mb-3 ${
-                        dragActive ? 'border-primary bg-light' : 'border-secondary'
-                      }`}
-                      onDragEnter={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDragOver={handleDrag}
-                      onDrop={handleDrop}
-                      style={{ cursor: 'pointer', borderWidth: '2px' }}
-                    >
-                      <input
-                        type="file"
+                    <div className="mb-3">
+                      <DropZone
+                        seleccionable
                         accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                        onChange={handleFileInput}
-                        id="certInput"
-                        hidden
-                      />
-                      <label htmlFor="certInput" style={{ cursor: 'pointer' }}>
+                        etiquetaTipos="PDF, JPG o PNG"
+                        maxSizeBytes={LIMITE_CERTIFICADO_BYTES}
+                        onFiles={([archivo]) => iniciarFlujoIA(archivo)}
+                      >
                         <div className="mb-2" style={{ fontSize: '2rem' }}>📄</div>
                         <p className="fw-bold mb-1">Arrastra tu certificado aquí</p>
-                        <p className="text-muted small mb-0">O haz clic para seleccionar</p>
-                      </label>
+                        <p className="text-muted small mb-0">O haz clic para seleccionar (hasta 20 MB)</p>
+                      </DropZone>
                     </div>
-                    <div className="text-muted small">Un archivo por vez: PDF, JPG o PNG.</div>
+                    <div className="d-flex flex-wrap align-items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        onClick={() => {
+                          if (!escanerDisponible()) {
+                            setError('Tu navegador no permite escanear. Sube el archivo arrastrándolo o seleccionándolo.');
+                            return;
+                          }
+                          setError('');
+                          setEscanerAbierto(true);
+                        }}
+                      >
+                        <i className="bi bi-camera me-1" aria-hidden="true" />
+                        Escanear con cámara
+                      </Button>
+                      <span className="text-muted small">Un archivo por vez: PDF, JPG o PNG.</span>
+                    </div>
+                    {escanerAbierto && (
+                      <DocumentScanner
+                        etiqueta="Certificado"
+                        onCerrar={() => setEscanerAbierto(false)}
+                        onListo={async (archivo) => {
+                          setEscanerAbierto(false);
+                          // Mismo flujo que un archivo arrastrado: extracción IA y confirmación.
+                          await iniciarFlujoIA(archivo);
+                        }}
+                      />
+                    )}
                   </>
                 )}
 

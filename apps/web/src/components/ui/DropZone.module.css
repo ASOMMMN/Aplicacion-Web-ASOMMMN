@@ -1,0 +1,88 @@
+/* DropZone: estados reposo, arrastrando, error y cargando. */
+
+.caja {
+  position: relative;
+  border: 2px dashed #adb5bd;
+  border-radius: .5rem;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+
+.caja:hover {
+  border-color: var(--asommmn-azul);
+}
+
+.caja:focus-visible {
+  outline: 3px solid var(--asommmn-dorado);
+  outline-offset: 2px;
+  border-color: var(--asommmn-azul);
+}
+
+.superficie {
+  position: relative;
+}
+
+/* Arrastrando: la caja se resalta; en las superficies aparece la capa. */
+.caja.arrastrando {
+  border-color: var(--asommmn-azul);
+  background-color: rgba(10, 34, 64, .06);
+}
+
+.velo {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--asommmn-azul);
+  border-radius: .5rem;
+  background-color: rgba(255, 255, 255, .88);
+  color: var(--asommmn-azul);
+  font-weight: 600;
+  /* La capa no recibe eventos: así no provoca dragenter/dragleave propios. */
+  pointer-events: none;
+}
+
+/* Páginas largas: la capa sigue a la ventana en vez de al contenido. */
+.velo.pantalla {
+  position: fixed;
+  inset: .5rem;
+  z-index: 1060;
+}
+
+/* Error: el último intento fue rechazado. */
+.caja.conError {
+  border-color: var(--bs-danger, #dc3545);
+}
+
+.error {
+  margin-top: .75rem;
+  color: var(--bs-danger, #dc3545);
+  font-size: .875rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.superficie > .error {
+  margin: 0 0 .5rem;
+}
+
+/* Cargando: hay una subida en curso. */
+.caja.cargando {
+  cursor: progress;
+  opacity: .65;
+}
+
+.caja.deshabilitada {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caja {
+    transition: none;
+  }
+}

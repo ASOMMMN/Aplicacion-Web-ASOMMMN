@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { DropZone } from '@/components/ui/DropZone';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 
 interface Documento {
@@ -56,6 +57,9 @@ const toErrorMessage = (msg: unknown): string => {
   return String(msg);
 };
 
+/** Mismo límite que la API (POST /documentos/subir). */
+const LIMITE_CV_BYTES = 20 * 1024 * 1024;
+
 export default function MiCVPage() {
   const router = useRouter();
   const [cvActual, setCVActual] = useState<CVActual | null>(null);
@@ -63,7 +67,6 @@ export default function MiCVPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewCV, setPreviewCV] = useState(false);
@@ -121,33 +124,6 @@ export default function MiCVPage() {
 
     setError('');
     setSelectedFile(file);
-  };
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    const files = e.dataTransfer.files;
-    if (files && files[0]) {
-      handleFileSelect(files[0]);
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelect(e.target.files[0]);
-    }
   };
 
   const subirCV = async () => {
@@ -338,31 +314,20 @@ export default function MiCVPage() {
                 )}
 
                 {/* Zona de Drag & Drop */}
-                <div
-                  className={`border-2 border-dashed rounded p-4 text-center cursor-pointer transition mb-3 ${
-                    dragActive ? 'border-primary bg-light' : 'border-secondary'
-                  }`}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  style={{ cursor: 'pointer', borderWidth: '2px' }}
-                >
-                  <input
-                    type="file"
+                <div className="mb-3">
+                  <DropZone
+                    seleccionable
                     accept=".pdf,application/pdf"
-                    onChange={handleFileInput}
-                    id="fileInput"
-                    hidden
-                  />
-                  <label htmlFor="fileInput" style={{ cursor: 'pointer' }}>
+                    etiquetaTipos="PDF"
+                    maxSizeBytes={LIMITE_CV_BYTES}
+                    loading={uploading}
+                    onFiles={([archivo]) => handleFileSelect(archivo)}
+                  >
                     <div className="mb-2">📁</div>
                     <p className="fw-bold mb-1">Arrastra tu CV aquí</p>
                     <p className="text-muted small">O haz clic para seleccionar</p>
-                    <small className="text-muted d-block">
-                      Solo PDF, sin límite de tamaño
-                    </small>
-                  </label>
+                    <small className="text-muted d-block">Solo PDF, hasta 20 MB</small>
+                  </DropZone>
                 </div>
 
                 {/* Archivo Seleccionado */}
