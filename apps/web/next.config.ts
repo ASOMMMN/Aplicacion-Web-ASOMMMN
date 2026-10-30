@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -55,6 +56,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Raíz del monorepo (donde viven package-lock.json y el node_modules con
+  // `next`). Desde Next 16.4 la raíz se limita al repositorio Git más cercano:
+  // un .git suelto dentro de apps/web ya no deja resolver los paquetes
+  // hoisted. Fijarla evita depender de dónde esté el .git.
+  turbopack: { root: path.join(__dirname, "..", "..") },
   async headers() {
     return [
       {
