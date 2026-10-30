@@ -18,6 +18,11 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerService } from './common/logger';
+import {
+  ORIGENES_CORS_DESARROLLO,
+  opcionesCors,
+  parsearOrigenesCors,
+} from './common/utils/cors.util';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -78,20 +83,16 @@ async function bootstrap() {
     config.get<string>('STORAGE_PATH') || join(process.cwd(), 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
 
-  // CORS: en producción, origin exacto (sin wildcards ni múltiples dominios)
-  // desde CORS_ORIGIN (Render), con fallback al dominio de Netlify. En
-  // desarrollo se permite localhost para no bloquear el frontend local.
-  const corsOrigin = isProduction
-    ? (config.get<string>('CORS_ORIGIN') ??
-      'https://reclutamiento-asommmn.netlify.app')
-    : ['http://localhost:3000', 'http://localhost:3002'];
+  // CORS: en producción, CORS_ORIGIN (Render) es una lista de orígenes exactos
+  // separados por comas (sin comodines); si falta o es inválida la API no
+  // arranca (ver parsearOrigenesCors; env.validation ya lo comprueba antes de
+  // conectar a Mongo). No hay valor por defecto. En desarrollo se permite
+  // localhost para no bloquear el frontend local.
+  const origenesCors = isProduction
+    ? parsearOrigenesCors(config.get<string>('CORS_ORIGIN'))
+    : ORIGENES_CORS_DESARROLLO;
 
-  app.enableCors({
-    origin: corsOrigin,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-  });
+  app.enableCors(opcionesCors(origenesCors));
 
   app.useGlobalPipes(
     new ValidationPipe({

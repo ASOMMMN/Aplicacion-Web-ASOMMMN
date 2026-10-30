@@ -1,4 +1,5 @@
 import { plainToInstance } from 'class-transformer';
+import { parsearOrigenesCors } from '../common/utils/cors.util';
 import {
   IsEnum,
   IsNumber,
@@ -190,6 +191,13 @@ export function validate(config: Record<string, unknown>) {
   const errors = validateSync(validated, { skipMissingProperties: false });
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+  // En producción CORS_ORIGIN es obligatoria y debe ser una lista de orígenes
+  // exactos: se falla aquí, antes de conectar a Mongo o abrir el puerto.
+  if (validated.NODE_ENV === Environment.Production) {
+    parsearOrigenesCors(
+      typeof config.CORS_ORIGIN === 'string' ? config.CORS_ORIGIN : undefined,
+    );
   }
   return validated;
 }
