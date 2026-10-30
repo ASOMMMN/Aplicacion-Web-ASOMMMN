@@ -3,8 +3,8 @@ name: CI
 # Verificaciones antes de cada merge a main. Dos jobs en paralelo (API y Web).
 # Marcar como obligatorios en la protección de rama: "API" y "Web".
 on:
+  # Sin filtro de rama base: los PR apilados (rama sobre rama) también deben correr el CI.
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -104,8 +104,10 @@ jobs:
           restore-keys: |
             next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
+      # next/font/google descarga Public Sans en cada build: una falla transitoria
+      # de red (visto en el PR #2) se reintenta una vez; un error real falla igual.
       - name: Build (next)
-        run: npx next build
+        run: npx next build || (echo "Reintentando el build una vez" && sleep 15 && npx next build)
         working-directory: apps/web
 
       - name: Caché de Jest

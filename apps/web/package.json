@@ -14,7 +14,7 @@
     "@hookform/resolvers": "^5.4.0",
     "ag-grid-community": "^35.3.1",
     "ag-grid-react": "^35.3.1",
-    "axios": "^1.18.0",
+    "axios": "1.21.0",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
     "next": "16.2.12",
@@ -24,7 +24,7 @@
     "react-dom": "19.2.4",
     "react-hook-form": "^7.79.0",
     "sweetalert2": "^11.26.25",
-    "zod": "^4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^5.15.13",
