@@ -11,6 +11,7 @@ import { useMejoraImagen, type PaginaProcesada } from '@/hooks/scanner/useMejora
 import { useUrlsObjeto } from '@/hooks/scanner/useUrlsObjeto';
 import { CONFIG_ESCANER } from '@/lib/scanner/constantes';
 import { esConvexo } from '@/lib/scanner/geometria';
+import { entregarDocumento } from '@/lib/scanner/entrega';
 import { decodificarFoto, ErrorImagen, imageDataAJpeg } from '@/lib/scanner/lienzo';
 import { toqueTrasEntrarARevision } from '@/lib/scanner/toque-revision';
 import type { Cuadrilatero, ModoMejora, Rotacion } from '@/lib/scanner/tipos';
@@ -54,8 +55,14 @@ export interface DocumentScannerProps {
   /** Nombre del documento ("INE", "Pasaporte"...): se usa en el título y en el nombre del PDF. */
   etiqueta: string;
   onCerrar: () => void;
-  /** Recibe el PDF listo para el flujo de subida existente. */
-  onListo: (archivo: File) => void | Promise<void>;
+  /**
+   * Recibe el PDF listo para el flujo de subida existente. El escáner NO se
+   * cierra solo: quien lo usa lo cierra (onCerrar) cuando la subida terminó
+   * bien. Si la promesa se rechaza, el mensaje del Error se muestra en el
+   * escáner y se conservan las páginas y el PDF para reintentar.
+   * `alProgreso` (0–100) muestra el avance de la subida.
+   */
+  onListo: (archivo: File, alProgreso: (porcentaje: number) => void) => void | Promise<void>;
 }
 
 let contadorIds = 0;
@@ -91,10 +98,16 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
   const actual = paginas.find((p) => p.id === seleccionada) ?? null;
   const lleno = paginas.length >= CONFIG_ESCANER.maxPaginas;
 
+  /** Avance de la subida (0–100) mientras `onListo` está en curso; null si no se está subiendo. */
+  const [progresoSubida, setProgresoSubida] = useState<number | null>(null);
+  /** PDF ya generado cuya subida falló: se reutiliza al reintentar mientras las páginas no cambien. */
+  const pdfPendiente = useRef<File | null>(null);
+
   /** Copia de `paginas` para leer el estado vigente desde callbacks asíncronos. */
   const paginasRef = useRef(paginas);
   useEffect(() => {
     paginasRef.current = paginas;
+    pdfPendiente.current = null; // cualquier cambio de páginas invalida el PDF guardado
   }, [paginas]);
 
   /** Cuándo (performance.now) entró a la revisión: ver toqueTrasEntrarARevision. */
@@ -292,20 +305,34 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
     if (paginas.length === 0) return;
     setError(null);
     setPaso('generando');
-    try {
-      const archivo = await generar(
-        paginas.map((p) => p.resultado),
-        etiqueta,
-      );
-      await onListo(archivo);
-    } catch {
-      setPaso('revision');
-      setError('No se pudo generar el PDF. Intenta de nuevo.');
+    const resultado = await entregarDocumento<File>({
+      existente: pdfPendiente.current,
+      generar: () =>
+        generar(
+          paginas.map((p) => p.resultado),
+          etiqueta,
+        ),
+      entregar: async (archivo) => {
+        pdfPendiente.current = archivo;
+        setProgresoSubida(0);
+        await onListo(archivo, setProgresoSubida);
+      },
+    });
+    setProgresoSubida(null);
+    if (resultado.ok) {
+      pdfPendiente.current = null;
+      return; // quien usa el escáner lo cierra al terminar
     }
+    // Falló la generación del PDF o la subida (el mensaje las distingue): se vuelve a la revisión.
+    if (resultado.fase === 'pdf') pdfPendiente.current = null;
+    setPaso('revision');
+    setError(resultado.mensaje);
   };
 
   const cerrar = async () => {
-    if (paginas.length > 0 && paso !== 'generando') {
+    // Mientras se genera o se sube el PDF no se puede salir: se perdería el escaneo.
+    if (paso === 'generando') return;
+    if (paginas.length > 0) {
       const r = await Swal.fire({
         icon: 'question',
         title: '¿Descartar el escaneo?',
@@ -448,8 +475,10 @@ export default function DocumentScanner({ etiqueta, onCerrar, onListo }: Documen
             )}
             {paso === 'generando' && (
               <div className="mt-3" role="status" aria-live="polite">
-                <div className="small text-muted mb-1">{progreso?.mensaje ?? 'Generando PDF…'}</div>
-                <ProgressBar now={progreso?.porcentaje ?? 5} animated />
+                <div className="small text-muted mb-1">
+                  {progresoSubida !== null ? 'Subiendo el documento…' : (progreso?.mensaje ?? 'Generando PDF…')}
+                </div>
+                <ProgressBar now={progresoSubida ?? progreso?.porcentaje ?? 5} animated />
               </div>
             )}
           </>

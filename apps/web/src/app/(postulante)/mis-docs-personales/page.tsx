@@ -134,36 +134,33 @@ function TarjetaTipo({
     await subirArchivo(files[0]);
   };
 
-  const abrirEscaner = () => {
+  /** Si la tarjeta ya tiene archivos, pregunta si de todos modos se agrega otro. */
+  const confirmarAgregarOtro = async (queAgregar: string): Promise<boolean> => {
+    if (info.cantidad === 0) return true;
+    const conf = await Swal.fire({
+      icon: 'question',
+      title: '¿Agregar otro archivo?',
+      text: `Ya subiste ${info.cantidad} archivo${info.cantidad !== 1 ? 's' : ''} para ${info.label}. ¿Deseas agregar ${queAgregar} de todos modos?`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, agregar',
+      cancelButtonText: 'Cancelar',
+    });
+    return conf.isConfirmed;
+  };
+
+  // La pregunta va ANTES de abrir el escáner: después de escanear ya no hay nada que decidir.
+  const abrirEscaner = async () => {
     if (!escanerDisponible()) {
       setErr('Tu navegador no permite escanear. Sube el archivo con “+ Subir archivo”.');
       return;
     }
+    if (!(await confirmarAgregarOtro('un escaneo nuevo'))) return;
     setErr('');
     setEscanerAbierto(true);
   };
 
-  // El PDF del escáner entra por aquí, igual que un archivo elegido a mano.
-  const subirArchivo = async (file: File) => {
-    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
-    if (!allowed.includes(file.type)) {
-      setErr('Solo se aceptan PDF, JPG o PNG.');
-      return;
-    }
-
-    if (info.cantidad > 0) {
-      const conf = await Swal.fire({
-        icon: 'question',
-        title: '¿Agregar otro archivo?',
-        text: `Ya subiste ${info.cantidad} archivo${info.cantidad !== 1 ? 's' : ''} para ${info.label}. ¿Deseas agregar "${file.name}" de todos modos?`,
-        showCancelButton: true,
-        confirmButtonText: 'Sí, agregar',
-        cancelButtonText: 'Cancelar',
-      });
-      if (!conf.isConfirmed) return;
-    }
-
-    setErr('');
+  /** Sube el archivo. Si falla lanza un Error con el mensaje de la API; quien llama decide dónde mostrarlo. */
+  const enviarArchivo = async (file: File, alProgreso?: (porcentaje: number) => void) => {
     setUploading(true);
     setProgress(0);
 
@@ -173,25 +170,51 @@ function TarjetaTipo({
 
     try {
       await api.post('/docs-personales/subir', formData, {
-        onUploadProgress: (e) =>
-          setProgress(Math.round(((e.loaded ?? 0) * 100) / (e.total ?? 1))),
+        onUploadProgress: (e) => {
+          const porcentaje = Math.round(((e.loaded ?? 0) * 100) / (e.total ?? 1));
+          setProgress(porcentaje);
+          alProgreso?.(porcentaje);
+        },
       });
-      await Swal.fire({
-        icon: 'success',
-        title: 'Archivo subido',
-        text: `${file.name} guardado como ${info.label}.`,
-        timer: 1800,
-        showConfirmButton: false,
-      });
-      onUploaded();
     } catch (e: unknown) {
       const axiosErr = e as { response?: { data?: { message?: unknown } } };
-      setErr(toError(axiosErr.response?.data?.message ?? 'Error al subir el archivo.'));
+      throw new Error(toError(axiosErr.response?.data?.message ?? 'Error al subir el archivo.'));
     } finally {
       setUploading(false);
       setProgress(0);
       if (inputRef.current) inputRef.current.value = '';
     }
+  };
+
+  const avisarSubida = async (file: File) => {
+    await Swal.fire({
+      icon: 'success',
+      title: 'Archivo subido',
+      text: `${file.name} guardado como ${info.label}.`,
+      timer: 1800,
+      showConfirmButton: false,
+    });
+    onUploaded();
+  };
+
+  // Archivo elegido a mano o arrastrado.
+  const subirArchivo = async (file: File) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!allowed.includes(file.type)) {
+      setErr('Solo se aceptan PDF, JPG o PNG.');
+      return;
+    }
+
+    if (!(await confirmarAgregarOtro(`"${file.name}"`))) return;
+
+    setErr('');
+    try {
+      await enviarArchivo(file);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Error al subir el archivo.');
+      return;
+    }
+    await avisarSubida(file);
   };
 
   const handleRenombrar = async (doc: DocFile) => {
@@ -365,7 +388,7 @@ function TarjetaTipo({
               >
                 + Subir archivo
               </Button>
-              <Button size="sm" variant="outline-primary" onClick={abrirEscaner}>
+              <Button size="sm" variant="outline-primary" onClick={() => void abrirEscaner()}>
                 <i className="bi bi-camera me-1" aria-hidden="true" />
                 Escanear con cámara
               </Button>
@@ -380,9 +403,12 @@ function TarjetaTipo({
       <DocumentScanner
         etiqueta={info.label}
         onCerrar={() => setEscanerAbierto(false)}
-        onListo={async (archivo) => {
+        // El escáner sigue abierto hasta que la subida termina bien: si falla, el
+        // Error se muestra dentro del escáner y las páginas se conservan para reintentar.
+        onListo={async (archivo, alProgreso) => {
+          await enviarArchivo(archivo, alProgreso);
           setEscanerAbierto(false);
-          await subirArchivo(archivo);
+          await avisarSubida(archivo);
         }}
       />
     )}
