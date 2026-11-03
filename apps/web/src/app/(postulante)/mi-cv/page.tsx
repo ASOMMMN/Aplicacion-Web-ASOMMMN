@@ -17,6 +17,7 @@ import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
 import { DropZone } from '@/components/ui/DropZone';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
+import { DocumentScanner, escanerDisponible } from '@/components/scanner';
 
 interface Documento {
   _id: string;
@@ -70,6 +71,7 @@ export default function MiCVPage() {
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewCV, setPreviewCV] = useState(false);
+  const [escanerAbierto, setEscanerAbierto] = useState(false);
 
   const cargarCV = useCallback(async () => {
     try {
@@ -126,49 +128,75 @@ export default function MiCVPage() {
     setSelectedFile(file);
   };
 
-  const subirCV = async () => {
-    if (!selectedFile) {
-      setError('Por favor selecciona un archivo');
-      return;
-    }
-
+  /** Sube el CV. Si falla lanza un Error con el mensaje de la API; quien llama decide dónde mostrarlo. */
+  const enviarCV = async (
+    archivo: File,
+    alProgreso?: (porcentaje: number) => void,
+  ): Promise<CVActual> => {
     try {
       setUploading(true);
-      setError('');
       setUploadProgress(0);
 
       const formData = new FormData();
-      formData.append('archivo', selectedFile);
+      formData.append('archivo', archivo);
 
-      // Aquí es donde simularíamos el progreso
       const config = {
         onUploadProgress: (progressEvent: { loaded: number; total?: number }) => {
           const percentCompleted = Math.round(
             (progressEvent.loaded * 100) / (progressEvent.total ?? 1),
           );
           setUploadProgress(percentCompleted);
+          alProgreso?.(percentCompleted);
         },
       };
 
       const res = await api.post<CVActual>('/documentos/subir', formData, config);
-
-      await Swal.fire({
-        icon: 'success',
-        title: '¡CV subido!',
-        text: `Tu CV (v${res.data.version}) ha sido guardado exitosamente.`,
-        confirmButtonColor: '#0d6efd',
-      });
-
-      setSelectedFile(null);
-      setUploadProgress(0);
-      await cargarCV();
+      return res.data;
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: unknown } } };
       const msg = axiosErr.response?.data?.message ?? 'Error al subir el CV. Intenta de nuevo.';
-      setError(toErrorMessage(msg));
+      throw new Error(toErrorMessage(msg));
     } finally {
       setUploading(false);
     }
+  };
+
+  const avisarCVSubido = async (cv: CVActual) => {
+    await Swal.fire({
+      icon: 'success',
+      title: '¡CV subido!',
+      text: `Tu CV (v${cv.version}) ha sido guardado exitosamente.`,
+      confirmButtonColor: '#0d6efd',
+    });
+    setSelectedFile(null);
+    setUploadProgress(0);
+    await cargarCV();
+  };
+
+  const subirCV = async () => {
+    if (!selectedFile) {
+      setError('Por favor selecciona un archivo');
+      return;
+    }
+
+    setError('');
+    let cv: CVActual;
+    try {
+      cv = await enviarCV(selectedFile);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al subir el CV. Intenta de nuevo.');
+      return;
+    }
+    await avisarCVSubido(cv);
+  };
+
+  const abrirEscaner = () => {
+    if (!escanerDisponible()) {
+      setError('Tu navegador no permite escanear. Sube el archivo con la zona de arriba.');
+      return;
+    }
+    setError('');
+    setEscanerAbierto(true);
   };
 
   const descargarCV = async (documentoId: string) => {
@@ -330,6 +358,14 @@ export default function MiCVPage() {
                   </DropZone>
                 </div>
 
+                <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+                  <Button variant="outline-primary" size="sm" disabled={uploading} onClick={abrirEscaner}>
+                    <i className="bi bi-camera me-1" aria-hidden="true" />
+                    Escanear con cámara
+                  </Button>
+                  <span className="text-muted small">Escanea tu CV impreso y se sube como PDF.</span>
+                </div>
+
                 {/* Archivo Seleccionado */}
                 {selectedFile && (
                   <div className="bg-light p-3 rounded mb-3 d-flex justify-content-between align-items-center">
@@ -474,6 +510,19 @@ export default function MiCVPage() {
           </Col>
         </Row>
       </Container>
+      {escanerAbierto && (
+        <DocumentScanner
+          etiqueta="CV"
+          onCerrar={() => setEscanerAbierto(false)}
+          // Sigue abierto hasta que la subida termina bien: si falla, el Error se
+          // muestra dentro del escáner y las páginas se conservan para reintentar.
+          onListo={async (archivo, alProgreso) => {
+            const cv = await enviarCV(archivo, alProgreso);
+            setEscanerAbierto(false);
+            await avisarCVSubido(cv);
+          }}
+        />
+      )}
       {previewCV && cvActual && (
         <DocumentoPreviewModal
           show
