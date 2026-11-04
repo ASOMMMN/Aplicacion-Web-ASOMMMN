@@ -261,11 +261,31 @@ function EvaluacionDocumentoPanel({
   const [mostrarHistorial, setMostrarHistorial] = useState(false);
   const [resultado, setResultado] = useState<ResultadoEvaluacion>('EN_REVISION');
   const [comentario, setComentario] = useState('');
+  const [errorForm, setErrorForm] = useState('');
 
   const ultima = evaluacion.ultimaEvaluacion;
+  /** Valor del select al abrir el formulario: el resultado vigente del documento. */
+  const resultadoVigente: ResultadoEvaluacion = ultima?.resultadoEvaluacion ?? 'EN_REVISION';
 
+  const alternarForm = () => {
+    if (!mostrarForm) {
+      setResultado(resultadoVigente);
+      setErrorForm('');
+    }
+    setMostrarForm((v) => !v);
+  };
+
+  // El formulario solo se cierra si la API respondió 2xx. Si falla, queda
+  // abierto con el error y el select vuelve a su valor anterior.
   const handleSubmit = async () => {
-    await onEvaluar(evaluacion.documentoClave, { resultadoEvaluacion: resultado, comentario });
+    setErrorForm('');
+    try {
+      await onEvaluar(evaluacion.documentoClave, { resultadoEvaluacion: resultado, comentario });
+    } catch (err: unknown) {
+      setErrorForm(err instanceof Error ? err.message : 'No se pudo guardar la evaluación.');
+      setResultado(resultadoVigente);
+      return;
+    }
     setComentario('');
     setMostrarForm(false);
   };
@@ -297,7 +317,7 @@ function EvaluacionDocumentoPanel({
           <Button
             size="sm"
             variant={ultima ? 'outline-secondary' : 'outline-primary'}
-            onClick={() => setMostrarForm((v) => !v)}
+            onClick={alternarForm}
           >
             {ultima ? 'Re-evaluar' : 'Evaluar'}
           </Button>
@@ -320,6 +340,11 @@ function EvaluacionDocumentoPanel({
 
       {mostrarForm && (
         <div className="mt-2 pt-2 border-top">
+          {errorForm && (
+            <Alert variant="danger" className="py-2 small mb-2" role="alert">
+              {errorForm}
+            </Alert>
+          )}
           <Form.Select
             size="sm"
             className="mb-2"
@@ -543,6 +568,28 @@ export default function CandidatoDetallePage() {
     }
   }, [candidatoId, cargarExtraccion, cargarTodo]);
 
+  /**
+   * Vuelve a pedir las evaluaciones (por documento y comentarios) y el detalle
+   * sin la pantalla de carga completa, para que el estado mostrado sea el que
+   * quedó guardado en la API.
+   */
+  const recargarEvaluaciones = async () => {
+    try {
+      const [documentosRes, comentariosRes, detalleRes] = await Promise.all([
+        api.get<EvaluacionDocumento[]>(`/evaluaciones/${candidatoId}/documentos`),
+        api.get<Comentario[]>(`/evaluaciones/${candidatoId}/comentarios`),
+        api.get<CandidatoDetalle>(`/evaluaciones/candidatos/${candidatoId}`),
+      ]);
+      setEvaluacionesPorDocumento(documentosRes.data ?? []);
+      setComentarios(comentariosRes.data ?? []);
+      setDetalle(detalleRes.data);
+    } catch (err) {
+      console.error('[candidato/[id]] fallo al re-sincronizar evaluaciones', err);
+      setError('La evaluación se guardó, pero no se pudo actualizar la vista. Recarga la página.');
+    }
+  };
+
+  /** Si la API no responde 2xx lanza un Error con el mensaje, que el panel muestra sin cerrarse. */
   const evaluarDocumento = async (
     documentoClave: string,
     payload: { resultadoEvaluacion: ResultadoEvaluacion; comentario: string },
@@ -555,13 +602,18 @@ export default function CandidatoDetallePage() {
         resultadoEvaluacion: payload.resultadoEvaluacion,
         comentario: payload.comentario.trim() || undefined,
       });
-      await cargarTodo();
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: unknown } }; message?: string };
-      setError(toErrorMessage(axiosErr.response?.data?.message ?? axiosErr.message));
+      const axiosErr = err as { response?: { data?: { message?: unknown } } };
+      const mensaje = axiosErr.response?.data?.message;
+      throw new Error(
+        mensaje !== undefined
+          ? toErrorMessage(mensaje)
+          : 'No se pudo guardar la evaluación. Revisa tu conexión e intenta de nuevo.',
+      );
     } finally {
       setSavingDocumento(null);
     }
+    await recargarEvaluaciones();
   };
 
   const decidirCandidato = async (decision: Estado) => {
