@@ -42,12 +42,15 @@ function getErrorMessage(error: unknown): string {
   return String(message ?? "Ocurrió un error inesperado.");
 }
 
-function formatDate(value?: string) {
+/** Fecha y hora por separado: en dos líneas la celda es angosta y no se parte en 4. */
+function formatDia(value?: string) {
   if (!value) return "-";
-  return new Date(value).toLocaleString("es-MX", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return new Date(value).toLocaleDateString("es-MX", { dateStyle: "medium" });
+}
+
+function formatHora(value?: string) {
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString("es-MX", { timeStyle: "short" });
 }
 
 function formatSize(bytes: number) {
@@ -468,7 +471,7 @@ export default function MiNubePage() {
                 <thead>
                   <tr>
                     <th className="col-nombre">Nombre</th>
-                    <th>Tipo</th>
+                    <th className="col-tipo">Tipo</th>
                     <th>Tamaño</th>
                     <th>Creación</th>
                     <th>Propietario</th>
@@ -509,14 +512,20 @@ export default function MiNubePage() {
                           </Badge>
                         )}
                       </td>
-                      <td>{item.tipo === "folder" ? "Carpeta" : "Archivo"}</td>
+                      <td className="col-tipo">{item.tipo === "folder" ? "Carpeta" : "Archivo"}</td>
                       <td>
                         {item.tipo === "folder" ? "-" : formatSize(item.size)}
                       </td>
-                      <td>{formatDate(item.createdAt)}</td>
+                      <td className="text-nowrap">
+                        <div>{formatDia(item.createdAt)}</div>
+                        <div className="text-muted small">{formatHora(item.createdAt)}</div>
+                      </td>
                       <td>
                         <div>{item.owner?.nombre ?? "-"}</div>
-                        <div className="text-muted small">
+                        <div
+                          className="text-muted small propietario-email"
+                          title={item.owner?.email ?? undefined}
+                        >
                           {item.owner?.email ?? ""}
                         </div>
                       </td>
@@ -525,39 +534,54 @@ export default function MiNubePage() {
                           {item.tipo === "file" && canPreview(item) && (
                             <Button
                               variant="outline-primary"
+                              title="Ver"
+                              aria-label="Ver"
                               onClick={() => void ver(item)}
                             >
-                              Ver
+                              <i className="bi bi-eye" aria-hidden="true" />
+                              <span className="texto-accion ms-1">Ver</span>
                             </Button>
                           )}
                           {item.tipo === "file" && (
                             <Button
                               variant="outline-secondary"
+                              title="Descargar"
+                              aria-label="Descargar"
                               onClick={() => void descargar(item)}
                             >
-                              Descargar
+                              <i className="bi bi-download" aria-hidden="true" />
+                              <span className="texto-accion ms-1">Descargar</span>
                             </Button>
                           )}
                           <Button
                             variant="outline-secondary"
+                            title="Renombrar"
+                            aria-label="Renombrar"
                             onClick={() => {
                               setRenameTarget(item);
                               setRenameValue(item.nombre);
                             }}
                           >
-                            Renombrar
+                            <i className="bi bi-pencil" aria-hidden="true" />
+                            <span className="texto-accion ms-1">Renombrar</span>
                           </Button>
                           <Button
                             variant="outline-secondary"
+                            title="Mover"
+                            aria-label="Mover"
                             onClick={() => abrirMover(item)}
                           >
-                            Mover
+                            <i className="bi bi-folder-symlink" aria-hidden="true" />
+                            <span className="texto-accion ms-1">Mover</span>
                           </Button>
                           <Button
                             variant="outline-danger"
+                            title="Eliminar"
+                            aria-label="Eliminar"
                             onClick={() => void eliminar(item)}
                           >
-                            Eliminar
+                            <i className="bi bi-trash" aria-hidden="true" />
+                            <span className="texto-accion ms-1">Eliminar</span>
                           </Button>
                         </ButtonGroup>
                       </td>

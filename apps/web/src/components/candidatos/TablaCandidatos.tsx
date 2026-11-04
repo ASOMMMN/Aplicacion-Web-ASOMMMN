@@ -358,10 +358,12 @@ export function TablaCandidatos({
             <Table hover className="align-middle mb-0 tabla-candidatos">
               <colgroup>
                 <col style={{ width: '2%' }} />
-                <col style={{ width: '21%' }} />
+                <col style={{ width: '18%' }} />
                 <col style={{ width: '11%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '10%' }} />
+                {/* Fecha de postulación: palabra + ícono de orden necesitan ~124 px. */}
+                <col style={{ width: '14%' }} />
+                {/* Oculta bajo xxl (como su th/td): sin esto seguía reservando 10 % de ancho. */}
+                <col className="col-ultima-actividad" style={{ width: '10%' }} />
                 {/* Estado del expediente: +2 % (quitados a Candidato) para que el encabezado no se parta. */}
                 <col style={{ width: '12%' }} />
                 <col style={{ width: '14%' }} />
