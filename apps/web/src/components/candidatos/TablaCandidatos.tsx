@@ -169,7 +169,8 @@ function DocsEvaluadosInfo({ item, estado }: { item: CandidatoItem; estado: Esta
         ? 'Evaluado'
         : item.estadoEvaluacion === 'en_evaluacion'
           ? 'En evaluación'
-          : 'Evaluados';
+          : // Ningún documento evaluado todavía (antes decía "Evaluados" bajo "0/11").
+            'Sin evaluar';
   return (
     <>
       <div className="small fw-semibold text-nowrap">
@@ -357,11 +358,12 @@ export function TablaCandidatos({
             <Table hover className="align-middle mb-0 tabla-candidatos">
               <colgroup>
                 <col style={{ width: '2%' }} />
-                <col style={{ width: '23%' }} />
+                <col style={{ width: '21%' }} />
                 <col style={{ width: '11%' }} />
                 <col style={{ width: '11%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
+                {/* Estado del expediente: +2 % (quitados a Candidato) para que el encabezado no se parta. */}
+                <col style={{ width: '12%' }} />
                 <col style={{ width: '14%' }} />
                 <col style={{ width: '11%' }} />
                 <col style={{ width: '8%' }} />

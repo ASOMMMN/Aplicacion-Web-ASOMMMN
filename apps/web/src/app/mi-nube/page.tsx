@@ -464,28 +464,28 @@ export default function MiNubePage() {
                   : "Esta carpeta está vacía."}
               </Alert>
             ) : (
-              <Table responsive hover className="align-middle mb-0">
+              <Table responsive hover className="align-middle mb-0 tabla-mi-nube">
                 <thead>
                   <tr>
-                    <th>Nombre</th>
+                    <th className="col-nombre">Nombre</th>
                     <th>Tipo</th>
                     <th>Tamaño</th>
                     <th>Creación</th>
                     <th>Propietario</th>
-                    <th className="text-end">Acciones</th>
+                    <th className="text-end col-acciones">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleItems.map((item) => (
                     <tr key={item.id}>
-                      <td>
+                      <td className="col-nombre">
                         {item.tipo === "folder" ? (
                           <Button
                             variant="link"
                             className="p-0 fw-semibold text-decoration-none"
                             onClick={() => entrarCarpeta(item)}
                           >
-                            📁 {item.nombre}
+                            📁 <span className="nombre-archivo" title={item.nombre}>{item.nombre}</span>
                           </Button>
                         ) : canPreview(item) ? (
                           <Button
@@ -496,10 +496,12 @@ export default function MiNubePage() {
                             onClick={() => void ver(item)}
                           >
                             <i className="bi bi-eye me-1" />
-                            {item.nombre}
+                            <span className="nombre-archivo" title={item.nombre}>{item.nombre}</span>
                           </Button>
                         ) : (
-                          <span className="fw-semibold">📄 {item.nombre}</span>
+                          <span className="fw-semibold">
+                            📄 <span className="nombre-archivo" title={item.nombre}>{item.nombre}</span>
+                          </span>
                         )}
                         {item.extension && (
                           <Badge bg="light" text="dark" className="ms-2">
@@ -518,7 +520,7 @@ export default function MiNubePage() {
                           {item.owner?.email ?? ""}
                         </div>
                       </td>
-                      <td className="text-end">
+                      <td className="text-end col-acciones">
                         <ButtonGroup size="sm">
                           {item.tipo === "file" && canPreview(item) && (
                             <Button

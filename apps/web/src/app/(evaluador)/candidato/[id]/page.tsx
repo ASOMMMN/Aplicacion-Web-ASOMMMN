@@ -699,7 +699,7 @@ export default function CandidatoDetallePage() {
   if (!detalle) {
     return (
       <Container className="py-4">
-        <Alert variant="danger">No se encontro el candidato solicitado.</Alert>
+        <Alert variant="danger">No se encontró el candidato solicitado.</Alert>
         <Link href="/candidatos" className="btn btn-outline-secondary">
           Volver a candidatos
         </Link>
@@ -760,7 +760,7 @@ export default function CandidatoDetallePage() {
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <IconAncla size={17} className="nautical-icon" />
-                  Informacion del candidato
+                  Información del candidato
                   <span className="anchor-glyph">⚓</span>
                 </h5>
                 <div className="d-flex align-items-center gap-3 mb-2">
@@ -1140,7 +1140,7 @@ export default function CandidatoDetallePage() {
                 {comentarios.length === 0 ? (
                   <div className="empty-state">
                     <i className="bi bi-chat-left-text" />
-                    <span>Aun no hay comentarios registrados.</span>
+                    <span>Aún no hay comentarios registrados.</span>
                   </div>
                 ) : (
                   <div className="d-flex flex-column gap-2">

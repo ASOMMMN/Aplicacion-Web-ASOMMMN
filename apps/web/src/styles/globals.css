@@ -644,6 +644,10 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   padding-right: .5rem;
   white-space: normal;
   line-height: 1.25;
+  /* Envolver entre palabras, nunca a media palabra ("ESTADO POSTULA-CIÓN"). */
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
 }
 /* Las cabeceras ordenables envuelven el texto en un <button> (ThOrdenable);
    el reboot de Bootstrap resetea text-transform/font-size de los <button> y
@@ -665,6 +669,28 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   padding-bottom: .5rem;
   font-size: .82rem;
   overflow: hidden;
+}
+
+/* Tabla de Mi nube: a ~1000 px los 5 botones de acciones (que no se envuelven)
+   aplastaban la columna de nombre hasta partirla letra por letra y cortaban
+   "Eliminar". Con un ancho mínimo, .table-responsive hace scroll horizontal
+   controlado; el nombre largo se trunca con "…" y el completo va en el title. */
+.tabla-mi-nube {
+  min-width: 900px;
+}
+.tabla-mi-nube .col-nombre {
+  min-width: 220px;
+}
+.tabla-mi-nube .nombre-archivo {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.tabla-mi-nube .col-acciones {
+  white-space: nowrap;
 }
 
 /* ---------- 5. Badges / píldoras ---------- */
