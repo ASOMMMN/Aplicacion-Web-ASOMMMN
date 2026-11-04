@@ -18,6 +18,7 @@ import { BotonVolver } from '@/components/ui/BotonVolver';
 import { DropZone } from '@/components/ui/DropZone';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 import { DocumentScanner, escanerDisponible } from '@/components/scanner';
+import { mensajeErrorExtraerIa } from '@/lib/cursos/mensajeExtraerIa';
 import {
   formatearFechaCalendario,
   type OrigenVencimiento,
@@ -225,12 +226,13 @@ export default function MisCursosPage() {
       setFormEmision(proposal.fechaEmision ?? '');
       // Solo el vencimiento del documento; el estimado lo calcula la API al guardar.
       setFormVence(proposal.fechaVencimiento ?? '');
-    } catch {
+    } catch (err: unknown) {
+      // Sea cual sea el error, se pasa a la captura manual; solo cambia la explicación.
       setIaResult({
         nombreCurso: null, fechaInicio: null, fechaVencimiento: null, fechaEmision: null,
         confianza: { nombreCurso: 'baja', fechaInicio: 'baja', fechaVencimiento: 'baja' },
         iaDisponible: false,
-        errorMensaje: 'No se pudo conectar con el servicio de IA. Ingresa los datos manualmente.',
+        errorMensaje: mensajeErrorExtraerIa(err),
       });
       setFormNombre('');
       setFormInicio('');
