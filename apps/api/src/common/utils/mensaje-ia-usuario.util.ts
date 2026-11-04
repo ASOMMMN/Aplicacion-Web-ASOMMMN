@@ -12,6 +12,14 @@ export const MENSAJE_IA_GENERICO =
 export const MENSAJE_IA_OCUPADO =
   'El servicio de IA está ocupado en este momento';
 
+/**
+ * Errores que afectan a TODOS los documentos (sin saldo, API key inválida):
+ * no tiene caso seguir con un lote. Se evalúa sobre el texto crudo, antes de
+ * sanearlo para mostrarlo.
+ */
+export const esErrorGlobalIa = (interno: string | null | undefined): boolean =>
+  /API key|sin saldo/i.test(interno ?? '');
+
 const PATRON_LIMITE = /l[íi]mite por minuto|rate[_ ]?limit/i;
 
 const PATRON_PROVEEDOR =

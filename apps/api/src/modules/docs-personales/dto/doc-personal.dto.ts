@@ -351,6 +351,12 @@ export class ResultadoAnalisisDocDto {
       'OpenAI respondió límite por minuto tras los reintentos: reintentar más tarde.',
   })
   limitePorMinuto?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'La IA no está disponible para ningún documento (sin saldo o clave inválida). No trae el detalle del proveedor.',
+  })
+  iaNoDisponible?: boolean;
 }
 
 /** Estado del análisis global en segundo plano (solo administrador). */
