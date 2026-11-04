@@ -812,7 +812,8 @@ export class EvaluacionesService {
         postulanteId: new Types.ObjectId(postulanteId),
         evaluadorId: new Types.ObjectId(evaluadorUserId),
         documentoClave: dto.documentoClave,
-        comentario: dto.comentario,
+        // undefined, null, '' o solo espacios => '' (el comentario es opcional).
+        comentario: dto.comentario?.trim() || '',
         calificacion: dto.calificacion,
         estadoSugerido: dto.estadoSugerido ?? 'en_proceso',
         resultadoEvaluacion: dto.resultadoEvaluacion,
