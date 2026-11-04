@@ -380,7 +380,8 @@ export function TablaCandidatos({
                     onOrdenar={toggleOrden}
                     className="d-none d-xxl-table-cell"
                   />
-                  <th>Estado postulación</th>
+                  {/* estadoGeneral: avance del expediente (no la decisión del evaluador, que se ve en el detalle). */}
+                  <th>Estado del expediente</th>
                   <ThOrdenable campo="porcentajeExpediente" label="Avance de carga" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                   <ThOrdenable campo="docsEvaluados" label="Docs. evaluados" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                   <th className="text-end">Acción</th>

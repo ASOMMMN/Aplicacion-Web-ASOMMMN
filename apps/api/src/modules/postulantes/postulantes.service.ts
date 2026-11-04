@@ -20,6 +20,7 @@ import {
   REQUISITOS_EXPEDIENTE,
   resolverEstadoExpediente,
 } from './constants/expediente.constants';
+import { calcularProgresoExpediente } from './utils/progreso-expediente.util';
 import {
   demoverSiExpedienteIncompleto,
   sincronizarEstadoExpediente,
@@ -622,24 +623,25 @@ export class PostulantesService {
         : Promise.resolve([] as string[]),
     ]);
 
-    const cumplidos = new Set<string>(tiposDP);
-    if (tieneCV) cumplidos.add('cv');
-    if (postulante?.vacante?.trim()) cumplidos.add('vacante');
+    // Misma regla que la lista y el detalle del evaluador. Los opcionales
+    // (vacuna, visa, refrendo) no cuentan para el % ni bloquean el envío.
+    const progreso = calcularProgresoExpediente({
+      tiposEntregados: tiposDP,
+      tieneCV: Boolean(tieneCV),
+      tieneVacante: Boolean(postulante?.vacante?.trim()),
+    });
 
     const requisitos = REQUISITOS_EXPEDIENTE.map((r) => ({
       clave: r.clave,
       label: r.label,
       urlFrontend: r.urlFrontend,
-      cumplido: cumplidos.has(r.clave),
+      cumplido: progreso.cumplidos.has(r.clave),
       requerido: r.requerido,
     }));
 
-    // Los requisitos opcionales (ej. vacuna de fiebre amarilla) no cuentan
-    // para el % de avance ni bloquean el envío del expediente.
-    const requeridos = requisitos.filter((r) => r.requerido);
-    const total = requeridos.length;
-    const cumplidosCount = requeridos.filter((r) => r.cumplido).length;
-    const porcentaje = Math.round((cumplidosCount / total) * 100);
+    const total = progreso.requeridosTotal;
+    const cumplidosCount = progreso.requeridosCumplidos;
+    const porcentaje = progreso.porcentajeExpediente;
     const estadoGuardado = postulante?.estadoExpediente ?? 'en_proceso';
     const estadoExpediente = postulanteId
       ? await demoverSiExpedienteIncompleto(

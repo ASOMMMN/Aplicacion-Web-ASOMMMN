@@ -65,6 +65,7 @@ import {
 } from './dto/doc-personal.dto';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import { mensajeIaParaUsuario } from '../../common/utils/mensaje-ia-usuario.util';
 import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.util';
 
 /** Carpeta Cloudinary: asommmn/documentos */
@@ -382,7 +383,7 @@ export class DocsPersonalesService {
       );
       if (r.errorOpenAI?.tipo === 'limite_por_minuto') {
         limitePorMinuto = true;
-        aviso = r.resultado.errorMensaje;
+        aviso = mensajeIaParaUsuario(r.resultado.errorMensaje);
       }
     } else {
       this.logger.error(`[doc ${docId}] ${errorDescarga}`);

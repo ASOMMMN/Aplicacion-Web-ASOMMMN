@@ -46,8 +46,13 @@ const securityHeaders = [
       `img-src 'self' data: blob: https://${s3Host}`,
       `connect-src 'self' ${apiOrigin}`,
       "font-src 'self'",
-      "object-src 'none'",
-      `frame-src 'self' https://${s3Host}`,
+      // blob: en object-src y frame-src: la vista previa de Mi nube muestra el
+      // archivo como URL blob: (la API exige el token, que un <iframe> no manda).
+      // Un documento blob: hereda esta CSP, y el visor de PDF del navegador lo
+      // incrusta como objeto: con object-src 'none' se veía "contenido bloqueado".
+      // Solo este origen puede crear URLs blob:, así que no abre otra fuente.
+      "object-src blob:",
+      `frame-src 'self' blob: https://${s3Host}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
