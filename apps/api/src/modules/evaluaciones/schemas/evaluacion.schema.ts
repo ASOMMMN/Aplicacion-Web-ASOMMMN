@@ -23,7 +23,8 @@ export class Evaluacion {
   @Prop({ type: String, required: true, trim: true, index: true })
   documentoClave: string;
 
-  @Prop({ required: true, trim: true })
+  // Opcional: evaluar un documento sin comentario es válido (se guarda '').
+  @Prop({ type: String, trim: true, default: '' })
   comentario: string;
 
   @Prop({ min: 1, max: 10 })

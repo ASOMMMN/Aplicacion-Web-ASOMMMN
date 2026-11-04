@@ -3,10 +3,8 @@ import { Model, Types } from 'mongoose';
 import { PostulanteDocument } from '../schemas/postulante.schema';
 import { DocumentoDocument } from '../../documentos/schemas/documento.schema';
 import { DocPersonalDocument } from '../../docs-personales/schemas/doc-personal.schema';
-import {
-  REQUISITOS_EXPEDIENTE,
-  resolverEstadoExpediente,
-} from '../constants/expediente.constants';
+import { resolverEstadoExpediente } from '../constants/expediente.constants';
+import { calcularProgresoExpediente } from './progreso-expediente.util';
 
 export interface ModelosExpediente {
   postulanteModel: Model<PostulanteDocument>;
@@ -65,15 +63,11 @@ export async function sincronizarEstadoExpediente(
     modelos.docPersonalModel.distinct('tipo', { postulanteId }),
   ]);
 
-  const cumplidos = new Set<string>(tiposDP as string[]);
-  if (tieneCV) cumplidos.add('cv');
-  if (postulante.vacante?.trim()) cumplidos.add('vacante');
-
-  const requeridos = REQUISITOS_EXPEDIENTE.filter((r) => r.requerido);
-  const cumplidosCount = requeridos.filter((r) =>
-    cumplidos.has(r.clave),
-  ).length;
-  const porcentaje = Math.round((cumplidosCount / requeridos.length) * 100);
+  const { porcentajeExpediente: porcentaje } = calcularProgresoExpediente({
+    tiposEntregados: tiposDP as string[],
+    tieneCV: Boolean(tieneCV),
+    tieneVacante: Boolean(postulante.vacante?.trim()),
+  });
 
   await demoverSiExpedienteIncompleto(
     modelos.postulanteModel,

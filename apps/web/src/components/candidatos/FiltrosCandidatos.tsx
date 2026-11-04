@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Dropdown, Form } from 'react-bootstrap';
+import { Dropdown, Form, InputGroup } from 'react-bootstrap';
 import { ESTADO_GENERAL_CONFIG, type EstadoGeneral } from '@/lib/estadoCandidato';
 import type { NivelAvance, NivelDocs, OrigenEliminacion, Vista } from '@/hooks/useCandidatosQuery';
 
@@ -208,35 +208,35 @@ export function FiltrosCandidatos({
         id="candidatos-filtro-docs"
         value={docs}
         onChange={(e) => setDocs(e.target.value as NivelDocs | '')}
-        style={{ minWidth: 150, maxWidth: 190 }}
+        style={{ minWidth: 200, maxWidth: 240 }}
       >
         <option value="">Docs. evaluados: todos</option>
         <option value="ninguno">Ninguno</option>
         <option value="parcial">Parcial</option>
         <option value="completo">Completo</option>
       </Form.Select>
-      <Form.Label htmlFor="candidatos-fecha-desde" className="visually-hidden">
-        Fecha de postulación desde
-      </Form.Label>
-      <Form.Control
-        id="candidatos-fecha-desde"
-        type="date"
-        value={fechaDesde}
-        onChange={(e) => setFechaDesde(e.target.value)}
-        style={{ maxWidth: 160 }}
-        title="Postulación desde"
-      />
-      <Form.Label htmlFor="candidatos-fecha-hasta" className="visually-hidden">
-        Fecha de postulación hasta
-      </Form.Label>
-      <Form.Control
-        id="candidatos-fecha-hasta"
-        type="date"
-        value={fechaHasta}
-        onChange={(e) => setFechaHasta(e.target.value)}
-        style={{ maxWidth: 160 }}
-        title="Postulación hasta"
-      />
+      <InputGroup style={{ width: 'auto', maxWidth: 210 }}>
+        <InputGroup.Text id="candidatos-fecha-desde-label">Desde</InputGroup.Text>
+        <Form.Control
+          id="candidatos-fecha-desde"
+          type="date"
+          value={fechaDesde}
+          onChange={(e) => setFechaDesde(e.target.value)}
+          aria-label="Postulado desde"
+          aria-describedby="candidatos-fecha-desde-label"
+        />
+      </InputGroup>
+      <InputGroup style={{ width: 'auto', maxWidth: 210 }}>
+        <InputGroup.Text id="candidatos-fecha-hasta-label">Hasta</InputGroup.Text>
+        <Form.Control
+          id="candidatos-fecha-hasta"
+          type="date"
+          value={fechaHasta}
+          onChange={(e) => setFechaHasta(e.target.value)}
+          aria-label="Postulado hasta"
+          aria-describedby="candidatos-fecha-hasta-label"
+        />
+      </InputGroup>
     </div>
   );
 

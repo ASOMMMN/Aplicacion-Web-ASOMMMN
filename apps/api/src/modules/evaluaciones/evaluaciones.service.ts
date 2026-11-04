@@ -62,6 +62,7 @@ import {
   resolverEstadoExpediente,
 } from '../postulantes/constants/expediente.constants';
 import { demoverSiExpedienteIncompleto } from '../postulantes/utils/sincronizar-estado-expediente.util';
+import { calcularProgresoExpediente } from '../postulantes/utils/progreso-expediente.util';
 
 const DOCUMENTO_CLAVE_LEGADO = 'general';
 
@@ -437,24 +438,18 @@ export class EvaluacionesService {
       const tieneCV = Boolean(cv);
       const tieneVacante = Boolean((p.vacante as string | undefined)?.trim());
 
-      const cumplidos = new Set<string>(tiposDP);
-      if (tieneCV) cumplidos.add('cv');
-      if (tieneVacante) cumplidos.add('vacante');
-
-      // Solo requisitos obligatorios cuentan para "Falta: ..." y el % de
-      // avance (ej. la vacuna de fiebre amarilla es opcional).
-      const requisitosObligatorios = REQUISITOS_EXPEDIENTE.filter(
-        (r) => r.requerido,
-      );
-      const requisitosFaltantes = requisitosObligatorios
-        .filter((r) => !cumplidos.has(r.clave))
-        .map((r) => r.label);
-
-      const porcentajeExpediente = Math.round(
-        ((requisitosObligatorios.length - requisitosFaltantes.length) /
-          requisitosObligatorios.length) *
-          100,
-      );
+      // Misma regla que el detalle y el panel del postulante.
+      const {
+        porcentajeExpediente,
+        requisitosFaltantes,
+        docsEvaluados,
+        docsTotal,
+      } = calcularProgresoExpediente({
+        tiposEntregados: tiposDP,
+        tieneCV,
+        tieneVacante,
+        clavesEvaluadas: docsEvaluadosByPostulante.get(String(p._id)),
+      });
 
       // Nota de solo-lectura: si el % de avance ya no sostiene un
       // estadoExpediente='enviado' guardado, aquí se refleja ya corregido
@@ -467,10 +462,6 @@ export class EvaluacionesService {
         porcentajeExpediente,
         estadoGuardado,
       );
-
-      const docsEvaluados =
-        docsEvaluadosByPostulante.get(String(p._id))?.size ?? 0;
-      const docsTotal = CLAVES_REQUISITO.length;
 
       const estadoEvaluacion = calcularEstadoEvaluacion(
         docsEvaluados,
@@ -600,24 +591,29 @@ export class EvaluacionesService {
     const tieneCV = Boolean(cvActual);
     const tieneVacante = Boolean(postulante.vacante?.trim());
 
-    const cumplidos = new Set<string>(tiposDP);
-    if (tieneCV) cumplidos.add('cv');
-    if (tieneVacante) cumplidos.add('vacante');
+    const evaluacionesDocs = await this.evaluacionModel
+      .find({
+        postulanteId: postulante._id,
+        documentoClave: { $ne: DOCUMENTO_CLAVE_LEGADO },
+      })
+      .select('documentoClave')
+      .lean();
 
-    // Solo requisitos obligatorios cuentan para "Falta: ..." y el % de
-    // avance (ej. la vacuna de fiebre amarilla es opcional).
-    const requisitosObligatorios = REQUISITOS_EXPEDIENTE.filter(
-      (r) => r.requerido,
-    );
-    const requisitosFaltantes = requisitosObligatorios
-      .filter((r) => !cumplidos.has(r.clave))
-      .map((r) => r.label);
-
-    const porcentajeExpediente = Math.round(
-      ((requisitosObligatorios.length - requisitosFaltantes.length) /
-        requisitosObligatorios.length) *
-        100,
-    );
+    // Misma regla que la lista y el panel del postulante. Registros legado sin
+    // documentoClave no cuentan como documento evaluado.
+    const {
+      porcentajeExpediente,
+      requisitosFaltantes,
+      docsEvaluados,
+      docsTotal,
+    } = calcularProgresoExpediente({
+      tiposEntregados: tiposDP,
+      tieneCV,
+      tieneVacante,
+      clavesEvaluadas: evaluacionesDocs
+        .map((e) => e.documentoClave)
+        .filter((clave): clave is string => Boolean(clave)),
+    });
 
     const estadoGuardado: 'en_proceso' | 'enviado' =
       postulante.estadoExpediente ?? 'en_proceso';
@@ -630,23 +626,6 @@ export class EvaluacionesService {
 
     const enviadoEn =
       estadoExpediente === estadoGuardado ? postulante.enviadoEn : undefined;
-
-    const evaluacionesDocs = await this.evaluacionModel
-      .find({
-        postulanteId: postulante._id,
-        documentoClave: { $ne: DOCUMENTO_CLAVE_LEGADO },
-      })
-      .select('documentoClave')
-      .lean();
-    // Defensivo: si algún registro llegara sin documentoClave (legado no
-    // migrado), no cuenta como documento evaluado. Ver mismo guard en
-    // listarCandidatos.
-    const docsEvaluados = new Set(
-      evaluacionesDocs
-        .map((e) => e.documentoClave)
-        .filter((clave): clave is string => Boolean(clave)),
-    ).size;
-    const docsTotal = CLAVES_REQUISITO.length;
 
     return {
       postulanteId: String(postulante._id),
@@ -812,7 +791,8 @@ export class EvaluacionesService {
         postulanteId: new Types.ObjectId(postulanteId),
         evaluadorId: new Types.ObjectId(evaluadorUserId),
         documentoClave: dto.documentoClave,
-        comentario: dto.comentario,
+        // undefined, null, '' o solo espacios => '' (el comentario es opcional).
+        comentario: dto.comentario?.trim() || '',
         calificacion: dto.calificacion,
         estadoSugerido: dto.estadoSugerido ?? 'en_proceso',
         resultadoEvaluacion: dto.resultadoEvaluacion,
