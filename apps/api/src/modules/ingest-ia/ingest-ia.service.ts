@@ -15,6 +15,11 @@ import {
 } from './schemas/extraccion.schema';
 import { OpenAiIaService } from './openai-ia.service';
 import { MODELO_GENERAL_POR_DEFECTO } from '../../common/utils/openai-client.util';
+import {
+  ErrorIaVisible,
+  MENSAJE_IA_GENERICO,
+  mensajeIaParaUsuario,
+} from '../../common/utils/mensaje-ia-usuario.util';
 import { StorageService } from '../storage/storage.service';
 import {
   Documento,
@@ -92,7 +97,7 @@ export class IngestIaService {
   ): Promise<void> {
     try {
       if (documento.storageType !== 'cloudinary' || !documento.cloudinaryUrl) {
-        throw new Error(
+        throw new ErrorIaVisible(
           'El CV es de un almacenamiento anterior y ya no está disponible. Pide que vuelva a subirlo.',
         );
       }
@@ -105,7 +110,9 @@ export class IngestIaService {
       const texto = await this.openAiIa.extraerTextoPdf(buffer);
 
       if (!texto || texto.length < 50) {
-        throw new Error('El PDF no contiene suficiente texto legible.');
+        throw new ErrorIaVisible(
+          'El PDF no contiene suficiente texto legible.',
+        );
       }
 
       // Las fechas que no aparecen en el CV quedan en null (no se estiman).
@@ -120,12 +127,17 @@ export class IngestIaService {
         `Extracción completada para postulante ${extraccion.postulanteId.toString()}`,
       );
     } catch (err: unknown) {
+      // El detalle (p. ej. el texto de OpenAI con su enlace de facturación) va
+      // solo al log; al evaluador se le guarda un mensaje propio o genérico.
       const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `Extracción fallida ${extraccion._id.toString()}: ${msg}`,
+      );
       await this.extraccionModel.findByIdAndUpdate(extraccion._id, {
-        errorMensaje: msg,
+        errorMensaje:
+          err instanceof ErrorIaVisible ? err.message : MENSAJE_IA_GENERICO,
         estado: 'rechazado',
       });
-      this.logger.warn(`Extracción fallida: ${msg}`);
     }
   }
 
@@ -133,9 +145,15 @@ export class IngestIaService {
     postulanteId: string,
   ): Promise<ExtraccionDocument | null> {
     if (!Types.ObjectId.isValid(postulanteId)) return null;
-    return this.extraccionModel
+    const extraccion = await this.extraccionModel
       .findOne({ postulanteId: new Types.ObjectId(postulanteId) })
       .sort({ creadoEn: -1 });
+    // Extracciones guardadas antes de este cambio pueden traer el mensaje
+    // crudo del proveedor: se sanea al leer (sin escribir en la BD).
+    if (extraccion?.errorMensaje) {
+      extraccion.errorMensaje = mensajeIaParaUsuario(extraccion.errorMensaje);
+    }
+    return extraccion;
   }
 
   async confirmar(

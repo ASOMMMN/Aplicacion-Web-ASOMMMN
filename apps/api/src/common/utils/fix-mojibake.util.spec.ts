@@ -16,6 +16,8 @@ describe('corregirMojibakeLatin1', () => {
     ['MÉDICO.pdf', 'MÉDICO.pdf'],
     ['Peña.pdf', 'Peña.pdf'],
     ['Ñandú.pdf', 'Ñandú.pdf'],
+    // Caso reportado por QA: se veía "ESPAÃOL" (Ñ = C3 91; 0x91 es invisible).
+    ['CURSO DE ESPAÑOL.pdf', 'CURSO DE ESPAÑOL.pdf'],
     [
       'Certificación Médica - José Muñoz.pdf',
       'Certificación Médica - José Muñoz.pdf',

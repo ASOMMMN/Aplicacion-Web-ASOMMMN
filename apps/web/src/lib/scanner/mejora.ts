@@ -29,7 +29,7 @@ interface AjustesModo {
   nitidez: number;
 }
 
-export const AJUSTES_MEJORA: Record<ModoMejora, AjustesModo> = {
+export const AJUSTES_MEJORA: Record<Exclude<ModoMejora, 'original'>, AjustesModo> = {
   color: { gananciaMax: 2.3, negroMax: 40, nitidez: 0.5 },
   gris: { gananciaMax: 2.5, negroMax: 60, nitidez: 0.7 },
   bn: { gananciaMax: 3, negroMax: 80, nitidez: 0 },
@@ -41,6 +41,12 @@ const BLANCO_PAPEL = 245;
 const LADO_FONDO = 256;
 
 export function mejorarImagen(img: ImagenRGBA, modo: ModoMejora): ImagenRGBA {
+  // Sin mejora: se devuelve una COPIA. El procesador guarda en caché la
+  // página enderezada y el worker transfiere el buffer del resultado; si
+  // fuera el mismo, la caché quedaría vacía.
+  if (modo === 'original') {
+    return { width: img.width, height: img.height, data: new Uint8ClampedArray(img.data) };
+  }
   const aj = AJUSTES_MEJORA[modo];
   const { width: w, height: h } = img;
   const lum = luminancia(img);

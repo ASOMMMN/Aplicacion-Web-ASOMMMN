@@ -65,6 +65,10 @@ import {
 } from './dto/doc-personal.dto';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import {
+  esErrorGlobalIa,
+  mensajeIaParaUsuario,
+} from '../../common/utils/mensaje-ia-usuario.util';
 import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.util';
 
 /** Carpeta Cloudinary: asommmn/documentos */
@@ -169,10 +173,11 @@ export class DocsPersonalesService {
       })),
       ...resumenFuentes(doc.detalleFechasIa, Boolean(doc.fechasVerificadas)),
       analizadoEn: doc.analisisIa?.analizadoEn,
-      errorAnalisis: doc.analisisIa?.error,
+      // Nunca el texto crudo del proveedor (créditos, códigos, enlaces).
+      errorAnalisis: mensajeIaParaUsuario(doc.analisisIa?.error),
       fechasVerificadas: Boolean(doc.fechasVerificadas),
       extraccionEstado: extraccion.estado,
-      extraccionError: extraccion.error,
+      extraccionError: mensajeIaParaUsuario(extraccion.error) ?? null,
 
       urlDescargar:
         storageType === 'cloudinary'
@@ -382,7 +387,7 @@ export class DocsPersonalesService {
       );
       if (r.errorOpenAI?.tipo === 'limite_por_minuto') {
         limitePorMinuto = true;
-        aviso = r.resultado.errorMensaje;
+        aviso = mensajeIaParaUsuario(r.resultado.errorMensaje);
       }
     } else {
       this.logger.error(`[doc ${docId}] ${errorDescarga}`);
@@ -413,7 +418,9 @@ export class DocsPersonalesService {
       label: LABEL_TIPO_DOC[doc.tipo],
       nombreOriginal: doc.nombreOriginal,
       extraccionEstado: estado,
-      extraccionError: error,
+      // El detalle del proveedor queda en el log; aquí solo el mensaje saneado.
+      extraccionError: mensajeIaParaUsuario(error) ?? null,
+      ...(esErrorGlobalIa(error) ? { iaNoDisponible: true } : {}),
       fechaEmision: iso(doc.fechaEmision),
       fechaInicio: iso(doc.fechaInicio),
       fechaVencimiento: iso(doc.fechaVencimiento),

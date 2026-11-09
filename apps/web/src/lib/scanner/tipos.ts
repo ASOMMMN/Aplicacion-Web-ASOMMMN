@@ -27,8 +27,9 @@ export interface ImagenRGBA {
  *   hologramas y sellos). Es el modo por defecto.
  * - gris: igual, pero en escala de grises.
  * - bn: blanco y negro con umbral adaptativo; ideal para hojas de solo texto.
+ * - original: la foto tal cual, sin mejora ("Usar tal cual").
  */
-export type ModoMejora = 'color' | 'gris' | 'bn';
+export type ModoMejora = 'color' | 'gris' | 'bn' | 'original';
 
 /** Rotación en grados horarios. */
 export type Rotacion = 0 | 90 | 180 | 270;

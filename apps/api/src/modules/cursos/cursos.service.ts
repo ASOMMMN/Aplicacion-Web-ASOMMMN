@@ -63,6 +63,7 @@ import {
   ExtraerIaResponseDto,
 } from './dto/curso-response.dto';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import { mensajeIaParaUsuario } from '../../common/utils/mensaje-ia-usuario.util';
 import {
   detectarTipoArchivo,
   TipoArchivoDetectado,
@@ -411,7 +412,9 @@ export class CursosService {
       return {
         ...vacio,
         iaDisponible: res.iaDisponible,
-        errorMensaje: res.errorMensaje ?? 'IA no disponible.',
+        // Sin mensajes ni enlaces del proveedor: el detalle ya quedó en el log.
+        errorMensaje:
+          mensajeIaParaUsuario(res.errorMensaje) ?? 'IA no disponible.',
       };
     }
 

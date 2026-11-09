@@ -86,6 +86,16 @@ export function rectanguloRespaldo(
   ];
 }
 
+/** La imagen completa, sin recorte ("Usar tal cual"). */
+export function rectanguloCompleto(ancho: number, alto: number): Cuadrilatero {
+  return [
+    { x: 0, y: 0 },
+    { x: ancho, y: 0 },
+    { x: ancho, y: alto },
+    { x: 0, y: alto },
+  ];
+}
+
 export function escalarCuadrilatero(q: Cuadrilatero, f: number): Cuadrilatero {
   return q.map((p) => ({ x: p.x * f, y: p.y * f })) as Cuadrilatero;
 }

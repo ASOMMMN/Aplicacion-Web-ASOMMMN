@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { LoggerService } from '../logger';
+import { traducirErrorMongoose } from '../utils/errores-mongoose.util';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -15,30 +16,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    // ID mal formado que llegó a Mongoose sin ParseObjectIdPipe: es un 400,
-    // no un error del servidor.
-    const idInvalido =
-      exception instanceof Error &&
-      exception.name === 'CastError' &&
-      (exception as Error & { kind?: string }).kind === 'ObjectId';
+    // Errores de Mongoose/MongoDB sin capturar (ValidationError, CastError,
+    // índice único): son errores del cliente (400/409), no del servidor.
+    const mongoose =
+      exception instanceof HttpException
+        ? null
+        : traducirErrorMongoose(exception);
 
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
-        : idInvalido
-          ? HttpStatus.BAD_REQUEST
-          : HttpStatus.INTERNAL_SERVER_ERROR;
+        : (mongoose?.status ?? HttpStatus.INTERNAL_SERVER_ERROR);
 
     const rawResponse =
       exception instanceof HttpException
         ? exception.getResponse()
-        : idInvalido
-          ? {
-              statusCode: HttpStatus.BAD_REQUEST,
-              message: 'El identificador no es válido.',
-              error: 'Bad Request',
-            }
-          : 'Internal server error';
+        : (mongoose?.body ?? 'Internal server error');
 
     const message =
       typeof rawResponse === 'string'
