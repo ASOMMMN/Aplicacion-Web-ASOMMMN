@@ -17,6 +17,8 @@ import {
 
 import { IngestIaService } from './ingest-ia.service';
 import { ConfirmarExtraccionDto } from './dto/confirmar-extraccion.dto';
+import { Throttle } from '@nestjs/throttler';
+import { UserThrottlerGuard } from '../../common/guards/user-throttler.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -33,6 +35,8 @@ export class IngestIaController {
   @Post('procesar/:postulanteId')
   @HttpCode(202)
   @Roles('evaluador', 'administrador')
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 60, ttl: 3_600_000 } }) // 60 extracciones/hora por usuario
   @ApiOperation({
     summary: 'Iniciar extracción IA del CV de un postulante (asíncrono)',
   })
@@ -56,8 +60,7 @@ export class IngestIaController {
   @HttpCode(200)
   @Roles('evaluador', 'administrador')
   @ApiOperation({
-    summary:
-      'Confirmar (y opcionalmente editar) los datos extraídos por la IA',
+    summary: 'Confirmar (y opcionalmente editar) los datos extraídos por la IA',
   })
   confirmar(
     @Param('id') id: string,

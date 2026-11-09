@@ -35,6 +35,17 @@ import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 import { construirContentDisposition } from '../../common/utils/content-disposition.util';
 
+export const LIMITE_MI_NUBE_BYTES = 100 * 1024 * 1024;
+
+/** Tipos que /view puede mostrar en línea (los que guarda tipoParaGuardar). */
+const TIPOS_EN_LINEA = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+]);
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('administrador', 'evaluador')
 @Controller('mi-nube')
@@ -65,7 +76,7 @@ export class MiNubeController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 100 * 1024 * 1024 },
+      limits: { fileSize: LIMITE_MI_NUBE_BYTES },
     }),
   )
   subirArchivo(
@@ -104,9 +115,15 @@ export class MiNubeController {
   ): Promise<void> {
     const archivo = await this.service.obtenerArchivo(actor, id);
     res.setHeader('Content-Type', archivo.mimeType);
+    // Los archivos anteriores a la detección por firma pueden traer el tipo
+    // que declaró el cliente: solo lo que el navegador no ejecuta ni renderiza
+    // como página se muestra en línea; lo demás se descarga.
     res.setHeader(
       'Content-Disposition',
-      construirContentDisposition('inline', archivo.nombre),
+      construirContentDisposition(
+        TIPOS_EN_LINEA.has(archivo.mimeType) ? 'inline' : 'attachment',
+        archivo.nombre,
+      ),
     );
     res.setHeader('Content-Length', archivo.size);
     this.transmitir(archivo.stream, res);

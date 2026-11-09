@@ -53,6 +53,7 @@ import {
   NubeItemCategoria,
 } from './schemas/nube-item.schema';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.util';
 
 @Injectable()
 export class PostulantesService {
@@ -312,7 +313,9 @@ export class PostulantesService {
     file?: Express.Multer.File,
   ): Promise<NubeItemResponseDto> {
     if (!file) throw new BadRequestException('No se envió archivo.');
-    if (file.mimetype !== 'application/pdf') {
+    // No basta con file.mimetype: lo manda el cliente y es falsificable. Se
+    // valida el contenido real por su firma de bytes.
+    if (detectarTipoArchivo(file.buffer) !== 'application/pdf') {
       throw new BadRequestException('Solo se aceptan archivos PDF.');
     }
 
@@ -360,7 +363,7 @@ export class PostulantesService {
       nombre: nombreArchivo,
       tipo: 'archivo',
       categoria,
-      mimeType: file.mimetype,
+      mimeType: 'application/pdf',
       tamanio: file.size,
       storagePath: `${this.NUBE_CATEGORY}/${key}`,
       cloudinaryUrl: url,

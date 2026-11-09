@@ -1,4 +1,8 @@
-import { detectarTipoArchivo } from './detectar-tipo-archivo.util';
+import {
+  detectarTipoArchivo,
+  tipoParaGuardar,
+  TIPO_DESCONOCIDO,
+} from './detectar-tipo-archivo.util';
 
 describe('detectarTipoArchivo', () => {
   it('detecta un PDF real por su firma %PDF-', () => {
@@ -36,5 +40,35 @@ describe('detectarTipoArchivo', () => {
 
   it('devuelve null para un buffer más corto que la firma más larga', () => {
     expect(detectarTipoArchivo(Buffer.from([0x89, 0x50]))).toBeNull();
+  });
+});
+
+describe('tipoParaGuardar', () => {
+  it('usa la firma real aunque el cliente diga otra cosa', () => {
+    expect(tipoParaGuardar(Buffer.from('%PDF-1.7\n'))).toBe('application/pdf');
+    expect(tipoParaGuardar(Buffer.from([0xff, 0xd8, 0xff, 0xdb]))).toBe(
+      'image/jpeg',
+    );
+  });
+
+  it('reconoce GIF y WEBP para conservar su vista previa', () => {
+    expect(tipoParaGuardar(Buffer.from('GIF89a\x01\x00'))).toBe('image/gif');
+    expect(
+      tipoParaGuardar(Buffer.from('RIFF\x24\x00\x00\x00WEBPVP8 ', 'latin1')),
+    ).toBe('image/webp');
+  });
+
+  it('lo no reconocido (HTML, Office, texto) se guarda como application/octet-stream', () => {
+    expect(
+      tipoParaGuardar(Buffer.from('<html><script>x</script></html>')),
+    ).toBe(TIPO_DESCONOCIDO);
+    expect(tipoParaGuardar(Buffer.from('PK\x03\x04docx', 'latin1'))).toBe(
+      TIPO_DESCONOCIDO,
+    );
+    expect(tipoParaGuardar(Buffer.alloc(0))).toBe(TIPO_DESCONOCIDO);
+  });
+
+  it('no amplía lo que acepta detectarTipoArchivo', () => {
+    expect(detectarTipoArchivo(Buffer.from('GIF89a\x01\x00'))).toBeNull();
   });
 });

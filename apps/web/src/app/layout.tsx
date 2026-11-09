@@ -4,6 +4,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import '@/styles/globals.css';
 import { TITULO_SISTEMA, DESCRIPCION_SISTEMA } from '@/lib/branding';
+import { BloqueoSoltarGlobal } from '@/components/ui/BloqueoSoltarGlobal';
 
 // Playfair Display: reservada ÚNICAMENTE para el nombre de la escuela
 // (navbar y pantallas de autenticación). Todo lo demás usa Public Sans.
@@ -42,6 +43,7 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${playfair.variable} ${publicSans.variable}`}>
       <body style={{ fontFamily: 'var(--font-public-sans, var(--bs-font-sans-serif))' }}>
+        <BloqueoSoltarGlobal />
         {children}
       </body>
     </html>

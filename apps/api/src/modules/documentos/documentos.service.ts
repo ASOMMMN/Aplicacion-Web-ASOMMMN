@@ -30,6 +30,8 @@ import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.ut
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 
 const CV_CATEGORY = 'cvs';
+// subirCV ya validó la firma %PDF-: el tipo guardado no depende del cliente.
+const TIPO_CV = 'application/pdf';
 const MAX_VERSIONS = 10;
 
 @Injectable()
@@ -113,7 +115,7 @@ export class DocumentosService {
         postulanteId: postulante._id,
         usuarioId: new Types.ObjectId(userId),
         nombreOriginal: file.originalname,
-        tipoMime: file.mimetype,
+        tipoMime: TIPO_CV,
         tamanio: file.size,
         hash,
         storagePath: `${CV_CATEGORY}/${key}`,
@@ -129,12 +131,12 @@ export class DocumentosService {
       const urlDescargar = await this.storageService.getSecureDownloadUrl(
         url,
         file.originalname,
-        file.mimetype,
+        TIPO_CV,
       );
       const urlVista = await this.storageService.getPreviewUrl(
         url,
         file.originalname,
-        file.mimetype,
+        TIPO_CV,
       );
 
       return {

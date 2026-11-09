@@ -85,8 +85,10 @@ const archivo = {
   originalname: 'curso.pdf',
   mimetype: 'application/pdf',
   size: 10,
-  buffer: Buffer.from('pdf'),
+  buffer: Buffer.from('%PDF-1.4'),
 } as Express.Multer.File;
+
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
 const guardado = (cursoModel: { create: jest.Mock }) =>
   (cursoModel.create.mock.calls as unknown[][])[0][0] as Record<
@@ -217,8 +219,41 @@ describe('CursosService.crearCurso: regla de vencimiento y evidencia', () => {
         ...archivo,
         mimetype: 'image/jpeg',
         originalname: 'foto.jpg',
+        buffer: JPEG,
       },
     );
     expect(cursoModel.create).toHaveBeenCalled();
+  });
+
+  it('rechaza un archivo cuyo contenido no es PDF/JPG/PNG aunque el mimetype lo diga', async () => {
+    const { servicio, cursoModel } = crear(lectura({}));
+    await expect(
+      servicio.crearCurso(
+        USUARIO,
+        { nombreCurso: 'Falso', apareceEnCV: false },
+        {
+          ...archivo,
+          mimetype: 'application/pdf',
+          buffer: Buffer.from('<html>no soy un pdf</html>'),
+        },
+      ),
+    ).rejects.toThrow('Documento extra inválido');
+    expect(cursoModel.create).not.toHaveBeenCalled();
+  });
+
+  it('guarda y analiza con el tipo real, no con el mimetype del cliente', async () => {
+    const { servicio, cursoModel, extraccionIa } = crear(
+      lectura({ fechaInicio: '2022-06-25' }),
+    );
+    await servicio.crearCurso(
+      USUARIO,
+      { nombreCurso: 'Mimetype falso', apareceEnCV: false },
+      { ...archivo, mimetype: 'image/png', buffer: JPEG },
+    );
+    const doc = guardado(cursoModel).documentoExtra as Record<string, unknown>;
+    expect(doc.tipoMime).toBe('image/jpeg');
+    expect(extraccionIa.extraer).toHaveBeenCalledWith(
+      expect.objectContaining({ mimeType: 'image/jpeg' }),
+    );
   });
 });

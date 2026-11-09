@@ -26,21 +26,17 @@ export function useAuth() {
   // haber iniciado sesión en esta misma carga, ver login()), así que id/email
   // se leen del propio token — nadie más en la app depende hoy de
   // nombre/apellidos desde useAuth().
-  const initSession = useCallback(async () => {
-    try {
-      const { accessToken, rol } = await refrescarSesion();
-      const payload = decodeAccessToken(accessToken);
-      setUser({ id: payload?.sub ?? '', email: payload?.email ?? '', rol });
-    } catch {
-      // 401: sesión ya limpiada; 429 o red: se conserva para reintentar luego.
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    initSession();
-  }, [initSession]);
+    refrescarSesion()
+      .then(({ accessToken, rol }) => {
+        const payload = decodeAccessToken(accessToken);
+        setUser({ id: payload?.sub ?? '', email: payload?.email ?? '', rol });
+      })
+      .catch(() => {
+        // 401: sesión ya limpiada; 429 o red: se conserva para reintentar luego.
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
