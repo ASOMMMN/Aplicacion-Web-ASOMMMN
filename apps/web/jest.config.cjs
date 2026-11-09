@@ -8,7 +8,8 @@ module.exports = {
   testRegex: '.*\.spec\.ts$',
   testEnvironment: 'node',
   transform: {
-    '^.+\.ts$': [
+    // .tsx: vistas sin estado que se prueban con react-dom/server (sin DOM).
+    '^.+\.tsx?$': [
       'ts-jest',
       { tsconfig: '<rootDir>/../tsconfig.test.json' },
     ],

@@ -127,6 +127,13 @@ describe('CORS por HTTP (preflight y petición real)', () => {
     expect(res.headers['access-control-allow-origin']).toBe(PERMITIDO);
   });
 
+  it('petición real: expone Content-Disposition (nombre de las descargas)', async () => {
+    const res = await http().get('/prueba').set('Origin', PERMITIDO);
+    expect(res.headers['access-control-expose-headers']).toBe(
+      'Content-Disposition',
+    );
+  });
+
   it('petición real: origen no permitido no recibe Allow-Origin', async () => {
     const res = await http().get('/prueba').set('Origin', NO_PERMITIDO);
     expect(res.headers['access-control-allow-origin']).toBeUndefined();

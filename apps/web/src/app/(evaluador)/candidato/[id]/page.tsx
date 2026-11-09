@@ -28,6 +28,8 @@ import type { BitacoraEmbarqueResponse } from '@/components/bitacora-embarque/ty
 import { ResumenFechasTabla } from '@/components/resumen-fechas/ResumenFechasTabla';
 import { AnalizarPendientesCandidato } from '@/components/resumen-fechas/AnalizarPendientesCandidato';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
+import { DescargarTodoZip } from '@/components/documentos/DescargarTodoZip';
+import { nombreZipRespaldo, resumirArchivosExpediente } from '@/lib/descargaZipExpediente';
 import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 import { formatearFechaCalendario } from '@/lib/fechas';
 import { contarTiposEntregados, esDocEvaluable, esTipoDocOpcional } from '@/lib/expediente';
@@ -688,6 +690,20 @@ export default function CandidatoDetallePage() {
   const descargarBitacora = (formato: 'docx' | 'pdf') =>
     descargarArchivoCandidato('bitacora-vigencias', 'Bitacora_Vigencias', formato);
 
+  /** "Descargar todo (ZIP)": autenticada con el Bearer del cliente axios, nunca con el token en la URL. */
+  const postulanteIdZip = detalle?.postulanteId;
+  const obtenerZipDocumentos = useCallback(async () => {
+    const res = await api.get<Blob>(`/candidatos/${postulanteIdZip}/documentos-zip`, {
+      responseType: 'blob',
+      timeout: 0, // expedientes grandes: el ZIP se arma en streaming y puede tardar
+    });
+    return {
+      blob: res.data,
+      contentType: res.headers['content-type'] as string | undefined,
+      contentDisposition: res.headers['content-disposition'] as string | undefined,
+    };
+  }, [postulanteIdZip]);
+
   if (loading) {
     return (
       <Container fluid className="nautical-panel d-flex justify-content-center align-items-center min-vh-100">
@@ -713,6 +729,13 @@ export default function CandidatoDetallePage() {
     docsPersonales?.tipos ?? [],
   );
   const tiposCompletos = tiposEntregados.entregados === tiposEntregados.total;
+
+  // Misma regla que la API: solo archivos disponibles (con urlDescargar).
+  const archivosZip = resumirArchivosExpediente({
+    docsPersonales: docsPersonales?.tipos,
+    cursos: cursosData?.cursos,
+    cv: detalle.cvActual,
+  });
 
   const evalPorClave = new Map(
     evaluacionesPorDocumento.map((e) => [e.documentoClave, e]),
@@ -791,6 +814,13 @@ export default function CandidatoDetallePage() {
                 )}
               </Card.Body>
             </Card>
+
+            <DescargarTodoZip
+              totalArchivos={archivosZip.total}
+              bytesEstimados={archivosZip.bytes}
+              nombreRespaldo={nombreZipRespaldo(detalle.apellidos, detalle.nombre)}
+              obtenerZip={obtenerZipDocumentos}
+            />
 
             <Card className="card-asommmn card-asommmn-top-verde">
               <Card.Body>
