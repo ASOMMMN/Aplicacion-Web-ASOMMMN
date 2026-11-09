@@ -4,6 +4,8 @@
  * terminar: Safari iOS libera su memoria solo así.
  */
 
+import { dimensionesCaptura } from './camara';
+
 export class ErrorImagen extends Error {}
 
 function lienzo(width: number, height: number) {
@@ -75,6 +77,27 @@ export async function imageDataAJpeg(img: ImageData, calidad: number): Promise<B
   const { canvas, ctx } = lienzo(img.width, img.height);
   try {
     ctx.putImageData(img, 0, 0);
+    return await aBlob(canvas, calidad);
+  } finally {
+    soltar(canvas);
+  }
+}
+
+/**
+ * Fotograma actual del <video> de la cámara → JPEG, con el lado largo
+ * limitado a `ladoMax`. El resultado entra al mismo camino que una foto
+ * elegida con <input type="file">.
+ */
+export async function fotogramaAJpeg(video: HTMLVideoElement, ladoMax: number, calidad: number): Promise<Blob> {
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  if (!w || !h) throw new ErrorImagen('La cámara todavía no está lista. Intenta de nuevo.');
+  const { ancho, alto } = dimensionesCaptura(w, h, ladoMax);
+  const { canvas, ctx } = lienzo(ancho, alto);
+  try {
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(video, 0, 0, ancho, alto);
     return await aBlob(canvas, calidad);
   } finally {
     soltar(canvas);

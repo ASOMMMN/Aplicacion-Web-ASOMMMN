@@ -6,6 +6,7 @@ const MODOS: Array<{ modo: ModoMejora; etiqueta: string; icono: string; ayuda: s
   { modo: 'color', etiqueta: 'Color', icono: 'bi-palette', ayuda: 'Recomendado para INE, pasaporte y documentos con foto o sellos' },
   { modo: 'gris', etiqueta: 'Escala de grises', icono: 'bi-circle-half', ayuda: 'Más ligero, conserva los tonos' },
   { modo: 'bn', etiqueta: 'Blanco y negro', icono: 'bi-file-earmark-text', ayuda: 'Ideal para hojas de solo texto' },
+  { modo: 'original', etiqueta: 'Original', icono: 'bi-image', ayuda: 'La foto tal cual, sin mejora' },
 ];
 
 interface Props {

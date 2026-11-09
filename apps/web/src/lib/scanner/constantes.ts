@@ -10,8 +10,8 @@ export const CONFIG_ESCANER = {
   ladoMaxEntrada: 2400,
   /** Lado largo de la copia reducida sobre la que se detectan los bordes. */
   ladoDeteccion: 512,
-  /** Lado largo máximo de cada página ya enderezada. */
-  ladoMaxSalida: 2000,
+  /** Lado largo máximo de cada página ya enderezada (también el del JPEG que entra al PDF). */
+  ladoMaxSalida: 1600,
   /**
    * La compresión adaptativa nunca reduce una página por debajo de este lado
    * largo: el QR y la MRZ de la INE/pasaporte deben seguir legibles.
@@ -19,7 +19,7 @@ export const CONFIG_ESCANER = {
   ladoMinLegible: 1400,
 
   /** Calidad JPEG inicial (0–1). */
-  calidadJpeg: 0.85,
+  calidadJpeg: 0.8,
   /** Calidad mínima a la que puede bajar la compresión adaptativa. */
   calidadMinima: 0.6,
   /** Cuánto baja la calidad en cada intento. */
@@ -28,6 +28,9 @@ export const CONFIG_ESCANER = {
   factorReduccion: 0.85,
   /** Tamaño orientativo del PDF completo. Si no se alcanza sin bajar de los mínimos, se acepta más grande. */
   tamanoObjetivoBytes: 2 * 1024 * 1024,
+
+  /** Tamaño máximo de cada imagen que se elige o arrastra (se reduce en el navegador; no se sube). */
+  maxBytesImagen: 40 * 1024 * 1024,
 
   /** El análisis IA del servidor lee como máximo 8 páginas (IA_DOCS_MAX_PAGINAS). */
   maxPaginas: 8,
