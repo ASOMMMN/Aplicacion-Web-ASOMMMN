@@ -152,6 +152,47 @@ h1.section-title {
 .panel-notificaciones-asommmn .notificacion-no-leida {
   background-color: rgba(201,162,75,.12);
 }
+.panel-notificaciones-asommmn .panel-notificaciones-encabezado {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--asommmn-blanco);
+}
+.panel-notificaciones-asommmn .panel-notificaciones-seccion {
+  padding: .35rem .9rem;
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--asommmn-azul);
+  background: var(--asommmn-fondo);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.panel-notificaciones-asommmn .aviso-campana-icono {
+  color: var(--asommmn-azul);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+.panel-notificaciones-asommmn .aviso-campana-punto {
+  flex: 0 0 auto;
+  width: .5rem;
+  height: .5rem;
+  margin-top: .35rem;
+  border-radius: 50%;
+  background: var(--asommmn-dorado);
+}
+/* Celular: el panel cabe en la pantalla y los renglones son fáciles de tocar */
+@media (max-width: 575.98px) {
+  .panel-notificaciones-asommmn {
+    min-width: 0;
+    width: calc(100vw - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+    max-height: 70vh;
+  }
+  .panel-notificaciones-asommmn .dropdown-item {
+    padding: .75rem .9rem;
+  }
+}
 
 /* Botón "Cerrar sesión" en navbar */
 .btn-logout-asommmn {

@@ -28,6 +28,11 @@ import {
   OneTimeTokenDocument,
 } from './schemas/one-time-token.schema';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
+import {
+  Postulante,
+  PostulanteDocument,
+} from '../postulantes/schemas/postulante.schema';
 import { MFAService } from '../mfa/mfa.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { RegisterDto } from './dto/register.dto';
@@ -101,6 +106,9 @@ export class AuthService implements OnModuleInit {
     private notificaciones: NotificacionesService,
     private mfaService: MFAService,
     private auditoria: AuditoriaService,
+    @InjectModel(Postulante.name)
+    private postulanteModel: Model<PostulanteDocument>,
+    private notificacionesApp: NotificacionesAppService,
   ) {}
 
   async onModuleInit() {
@@ -155,6 +163,40 @@ export class AuthService implements OnModuleInit {
   private async notificarNuevoCandidato(
     usuario: UsuarioDocument,
   ): Promise<void> {
+    const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
+
+    // Campanita de evaluadores y admins. El perfil de postulante se crea
+    // aquí (antes nacía en su primera visita al portal, con los mismos
+    // valores iniciales) para que el aviso enlace a /candidato/<id>.
+    try {
+      const ahora = new Date();
+      const postulante = await this.postulanteModel
+        .findOneAndUpdate(
+          { usuarioId: usuario._id },
+          {
+            $setOnInsert: {
+              estadoPostulacion: 'en_proceso',
+              creadoEn: ahora,
+              actualizadoEn: ahora,
+            },
+          },
+          { upsert: true, returnDocument: 'after', projection: { _id: 1 } },
+        )
+        .lean();
+      if (postulante) {
+        await this.notificacionesApp.notificarNuevoCandidato(
+          postulante._id,
+          nombreCandidato,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `Error creando la notificación de nuevo candidato: ${(err as Error).message}`,
+      );
+    }
+
+    // Correo desactivado por defecto (NOTIF_EMAIL_EVALUADORES=false).
+    if (!this.notificaciones.avisosEvaluadorPorCorreo) return;
     try {
       const evaluadores = await this.usuarioModel
         .find({
@@ -167,7 +209,6 @@ export class AuthService implements OnModuleInit {
         'FRONTEND_URL',
         'http://localhost:3000',
       );
-      const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
 
       await Promise.all(
         evaluadores.map((evaluador) =>

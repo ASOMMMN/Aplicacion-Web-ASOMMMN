@@ -2,139 +2,169 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge, Dropdown } from 'react-bootstrap';
-import { notificacionesApi, NotificacionItem } from '@/lib/api/notificaciones';
-import { formatearFechaCalendarioMesCorto } from '@/lib/fechas';
+import { Dropdown } from 'react-bootstrap';
+import {
+  notificacionesApi,
+  notificacionesAppApi,
+  NotificacionItem,
+} from '@/lib/api/notificaciones';
+import {
+  EstadoAvisos,
+  INTERVALO_REFRESCO_MS,
+  LIMITE_AVISOS_CAMPANA,
+  MENSAJES_CAMPANA,
+  abrirAviso,
+  marcarAvisoLeido,
+  marcarTodosAvisosLeidos,
+} from '@/lib/notificacionesCampana';
+import { ContadorCampana, PanelNotificacionesVista } from './PanelNotificaciones';
 
-const INTERVALO_REFRESCO_MS = 60_000;
-
-// Fecha de calendario: sin new Date() local para no mostrar el día anterior.
-function formatFechaVencimiento(fecha: string) {
-  return formatearFechaCalendarioMesCorto(fecha);
-}
-
-function mensajeDiasRestantes(dias: number) {
-  if (dias <= 0) return 'Vence hoy';
-  if (dias === 1) return 'Vence en 1 día';
-  return `Vence en ${dias} días`;
-}
-
+/**
+ * Campanita de evaluadores y admins. Junta dos fuentes:
+ * - avisos de candidatos (nuevo registro / expediente completo), con
+ *   lectura por usuario: /notificaciones/mias
+ * - vencimientos de cursos (ya existían): /notificaciones
+ */
 export function NotificacionesBell() {
   const router = useRouter();
-  const [notificaciones, setNotificaciones] = useState<NotificacionItem[]>([]);
-  const [noLeidas, setNoLeidas] = useState(0);
+  const [abierto, setAbierto] = useState(false);
+  const [avisos, setAvisos] = useState<EstadoAvisos>({ items: [], noLeidas: 0 });
+  const [vencimientos, setVencimientos] = useState<NotificacionItem[]>([]);
+  const [noLeidasVenc, setNoLeidasVenc] = useState(0);
   const [cargando, setCargando] = useState(false);
+  const [marcandoTodas, setMarcandoTodas] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const noLeidas = avisos.noLeidas + noLeidasVenc;
+
+  /** Refresco silencioso (contadores y primera página de avisos). */
+  const refrescar = useCallback(async () => {
+    const [a, v] = await Promise.allSettled([
+      notificacionesAppApi.listarMias({ limite: LIMITE_AVISOS_CAMPANA }),
+      notificacionesApi.contarNoLeidas(),
+    ]);
+    if (a.status === 'fulfilled') {
+      setAvisos({ items: a.value.items, noLeidas: a.value.noLeidas });
+    }
+    if (v.status === 'fulfilled') setNoLeidasVenc(v.value.count);
+    return a.status === 'fulfilled' && v.status === 'fulfilled';
+  }, []);
+
+  // Cada ~60 s, solo con la pestaña visible; al volver a ella, refresca ya.
   useEffect(() => {
     let cancelado = false;
-    const refrescar = () => {
-      notificacionesApi
-        .contarNoLeidas()
-        .then(({ count }) => {
-          if (!cancelado) setNoLeidas(count);
-        })
-        .catch(() => {
-          /* el contador se reintenta en el siguiente ciclo */
-        });
+    const tick = () => {
+      if (cancelado || document.visibilityState !== 'visible') return;
+      void refrescar().catch(() => undefined);
     };
-    refrescar();
-    const id = window.setInterval(refrescar, INTERVALO_REFRESCO_MS);
+    tick();
+    const id = window.setInterval(tick, INTERVALO_REFRESCO_MS);
+    document.addEventListener('visibilitychange', tick);
     return () => {
       cancelado = true;
       window.clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
     };
-  }, []);
+  }, [refrescar]);
 
-  const cargarLista = useCallback(async () => {
+  /** Carga completa al abrir el panel, con estados de carga y error. */
+  const cargarPanel = useCallback(async () => {
+    setCargando(true);
+    setError(null);
     try {
-      setCargando(true);
-      const data = await notificacionesApi.listar();
-      setNotificaciones(data);
+      const [ok, lista] = await Promise.all([
+        refrescar(),
+        notificacionesApi.listar().then(
+          (data) => data,
+          () => null,
+        ),
+      ]);
+      if (lista) setVencimientos(lista);
+      if (!ok || !lista) setError(MENSAJES_CAMPANA.errorCarga);
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [refrescar]);
 
-  const irAlCandidato = async (notificacion: NotificacionItem) => {
-    if (!notificacion.leida) {
-      await notificacionesApi.marcarLeida(notificacion._id);
-      setNotificaciones((prev) =>
-        prev.map((item) =>
-          item._id === notificacion._id ? { ...item, leida: true } : item,
-        ),
-      );
-      setNoLeidas((prev) => Math.max(0, prev - 1));
-    }
-    router.push(`/candidato/${notificacion.candidatoId}#cursos-y-certificaciones`);
+  const onToggle = (siguiente: boolean) => {
+    setAbierto(siguiente);
+    if (siguiente) void cargarPanel();
   };
 
-  const marcarTodasLeidas = async () => {
-    await notificacionesApi.marcarTodasLeidas();
-    setNotificaciones((prev) => prev.map((item) => ({ ...item, leida: true })));
-    setNoLeidas(0);
+  const navegar = (href: string) => {
+    setAbierto(false);
+    router.push(href);
+  };
+
+  const irAlVencimiento = async (n: NotificacionItem) => {
+    if (!n.leida) {
+      setVencimientos((prev) =>
+        prev.map((item) => (item._id === n._id ? { ...item, leida: true } : item)),
+      );
+      setNoLeidasVenc((prev) => Math.max(0, prev - 1));
+      try {
+        await notificacionesApi.marcarLeida(n._id);
+      } catch {
+        /* se corrige en el siguiente refresco */
+      }
+    }
+    navegar(`/candidato/${encodeURIComponent(n.candidatoId)}#cursos-y-certificaciones`);
+  };
+
+  const marcarTodas = async () => {
+    setMarcandoTodas(true);
+    setError(null);
+    try {
+      const [a, v] = await Promise.allSettled([
+        avisos.noLeidas > 0 ? notificacionesAppApi.marcarTodasLeidas() : Promise.resolve(null),
+        noLeidasVenc > 0 ? notificacionesApi.marcarTodasLeidas() : Promise.resolve(null),
+      ]);
+      if (a.status === 'fulfilled') setAvisos(marcarTodosAvisosLeidos);
+      if (v.status === 'fulfilled') {
+        setVencimientos((prev) => prev.map((item) => ({ ...item, leida: true })));
+        setNoLeidasVenc(0);
+      }
+      if (a.status === 'rejected' || v.status === 'rejected') {
+        setError(MENSAJES_CAMPANA.errorMarcarTodas);
+      }
+    } finally {
+      setMarcandoTodas(false);
+    }
   };
 
   return (
-    <Dropdown
-      align="end"
-      onToggle={(abierto) => {
-        if (abierto) void cargarLista();
-      }}
-    >
+    <Dropdown align="end" show={abierto} onToggle={onToggle}>
       <Dropdown.Toggle
         variant="link"
         id="campana-notificaciones"
         className="btn-campana-asommmn"
+        aria-label={
+          noLeidas > 0 ? `Notificaciones: ${noLeidas} sin leer` : 'Notificaciones'
+        }
       >
         <i className="bi bi-bell" aria-hidden="true" />
-        {noLeidas > 0 && (
-          <Badge bg="danger" pill className="badge-campana-asommmn">
-            {noLeidas > 99 ? '99+' : noLeidas}
-          </Badge>
-        )}
-        <span className="visually-hidden">Notificaciones</span>
+        <ContadorCampana noLeidas={noLeidas} />
       </Dropdown.Toggle>
 
       <Dropdown.Menu className="panel-notificaciones-asommmn">
-        <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-          <span className="fw-semibold small">Notificaciones</span>
-          {noLeidas > 0 && (
-            <button
-              type="button"
-              className="btn btn-link btn-sm p-0"
-              onClick={() => void marcarTodasLeidas()}
-            >
-              Marcar todas como leídas
-            </button>
-          )}
-        </div>
-
-        {cargando ? (
-          <div className="text-center text-muted py-3 small">Cargando…</div>
-        ) : notificaciones.length === 0 ? (
-          <div className="text-center text-muted py-3 small">
-            Sin notificaciones de vencimiento por ahora.
-          </div>
-        ) : (
-          notificaciones.map((notificacion) => (
-            <Dropdown.Item
-              key={notificacion._id}
-              onClick={() => void irAlCandidato(notificacion)}
-              className={
-                notificacion.leida ? undefined : 'notificacion-no-leida'
-              }
-            >
-              <div className="fw-semibold small">
-                {notificacion.nombreCandidato}
-              </div>
-              <div className="small">{notificacion.nombreCurso}</div>
-              <div className="text-muted" style={{ fontSize: '0.75rem' }}>
-                Vence {formatFechaVencimiento(notificacion.fechaVencimiento)} ·{' '}
-                {mensajeDiasRestantes(notificacion.diasRestantes)}
-              </div>
-            </Dropdown.Item>
-          ))
-        )}
+        <PanelNotificacionesVista
+          avisos={avisos.items}
+          vencimientos={vencimientos}
+          noLeidas={noLeidas}
+          cargando={cargando}
+          error={error}
+          marcandoTodas={marcandoTodas}
+          onAbrirAviso={(aviso) =>
+            void abrirAviso(aviso, {
+              marcarLeida: notificacionesAppApi.marcarLeida,
+              alMarcar: (id) => setAvisos((prev) => marcarAvisoLeido(prev, id)),
+              navegar,
+            })
+          }
+          onAbrirVencimiento={(n) => void irAlVencimiento(n)}
+          onMarcarTodas={() => void marcarTodas()}
+          onReintentar={() => void cargarPanel()}
+        />
       </Dropdown.Menu>
     </Dropdown>
   );

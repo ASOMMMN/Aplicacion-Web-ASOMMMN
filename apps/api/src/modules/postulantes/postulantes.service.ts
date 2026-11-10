@@ -34,6 +34,7 @@ import {
 } from '../documentos/schemas/documento.schema';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { AutoeliminarCuentaDto } from './dto/autoeliminar-cuenta.dto';
@@ -75,6 +76,7 @@ export class PostulantesService {
     private readonly config: ConfigService,
     private readonly storage: StorageService,
     private readonly usuariosService: UsuariosService,
+    private readonly notificacionesApp: NotificacionesAppService,
   ) {}
 
   async eliminarMiCuenta(
@@ -733,6 +735,23 @@ export class PostulantesService {
       );
     }
 
+    const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
+
+    // Campanita de evaluadores y admins: una sola vez por candidato aunque
+    // reenvíe el expediente (ver NotificacionesAppService).
+    try {
+      await this.notificacionesApp.notificarExpedienteCompleto(
+        postulanteId,
+        nombreCandidato,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Error creando la notificación de expediente completo: ${(err as Error).message}`,
+      );
+    }
+
+    // Correo desactivado por defecto (NOTIF_EMAIL_EVALUADORES=false).
+    if (!this.notificaciones.avisosEvaluadorPorCorreo) return;
     try {
       const evaluadores = await this.usuarioModel
         .find({
@@ -746,7 +765,6 @@ export class PostulantesService {
         'http://localhost:3000',
       );
       const candidatoUrl = `${frontendUrl}/candidato/${postulanteId}`;
-      const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
 
       await Promise.all(
         evaluadores.map((evaluador) =>

@@ -6,6 +6,7 @@ import { cerrarSesion, refrescarSesion, tokenActual } from "@/lib/auth/refrescar
 import { avisarFalloSesion } from "@/lib/auth/avisarFalloSesion";
 import AppNavbar from "@/components/layout/AppNavbar";
 import AppFooter from "@/components/layout/AppFooter";
+import { NotificacionesBell } from "@/components/layout/NotificacionesBell";
 import { ROLE_HOME } from "@/lib/auth/roleHome";
 
 const NAV_ITEMS = [
@@ -44,6 +45,7 @@ export default function AdminLayout({
         rolLabel="Administrador"
         navItems={NAV_ITEMS}
         onLogout={cerrarSesion}
+        rightContent={<NotificacionesBell />}
       />
       <main className="flex-grow-1">{children}</main>
       <AppFooter />

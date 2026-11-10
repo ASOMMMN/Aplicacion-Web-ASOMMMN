@@ -75,6 +75,13 @@ class EnvironmentVariables {
   @IsString()
   EMAIL_VERIFICATION_REQUIRED: string = 'false';
 
+  // true = además de la campanita, se envían por correo "Nuevo candidato
+  // registrado" y "Expediente listo para revisar" a evaluadores y admins.
+  // Por defecto 'false' (solo campanita). Ver NotificacionesService.
+  @IsOptional()
+  @IsString()
+  NOTIF_EMAIL_EVALUADORES: string = 'false';
+
   @IsOptional()
   @IsString()
   ENABLE_TEST_ENDPOINTS: string = 'false';
