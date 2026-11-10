@@ -1,5 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable, SetMetadata } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+
+const MENSAJE_TOPE_IA = 'mensaje-tope-ia';
+
+/** Mensaje del 429 para rutas donde "análisis con IA" no describe la acción. */
+export const MensajeTopeIa = (mensaje: string) =>
+  SetMetadata(MENSAJE_TOPE_IA, mensaje);
 
 /**
  * Rate limiting por usuario autenticado para endpoints costosos (IA).
@@ -28,9 +34,13 @@ export class UserThrottlerGuard extends ThrottlerGuard {
     return userId ? `user:${userId}` : super.getTracker(req);
   }
 
-  protected getErrorMessage(): Promise<string> {
+  protected getErrorMessage(context: ExecutionContext): Promise<string> {
     return Promise.resolve(
-      'Has alcanzado el límite de análisis con IA. Intenta de nuevo más tarde.',
+      this.reflector.get<string | undefined>(
+        MENSAJE_TOPE_IA,
+        context.getHandler(),
+      ) ??
+        'Has alcanzado el límite de análisis con IA. Intenta de nuevo más tarde.',
     );
   }
 }

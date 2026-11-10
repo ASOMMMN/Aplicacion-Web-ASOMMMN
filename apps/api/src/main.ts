@@ -83,6 +83,9 @@ async function bootstrap() {
     origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    // El navegador oculta a JS las cabeceras de respuesta entre dominios salvo
+    // las "simples": la web necesita el nombre del archivo de las descargas.
+    exposedHeaders: ['Content-Disposition'],
     credentials: true,
   });
  
