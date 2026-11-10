@@ -9,6 +9,7 @@ import { WinstonModule } from 'nest-winston';
 import * as winston from 'winston';
 
 import { validate } from './config/env.validation';
+import { opcionesMongoose } from './config/mongoose.config';
 import { LoggerModule } from './common/logger';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { S3Module } from './modules/s3/s3.module';
@@ -90,11 +91,11 @@ import { HealthController } from './health.controller';
     LoggerModule,
 
     // ── Base de datos ────────────────────────────────────────────────────────
+    // En producción sin autoIndex/autoCreate (índices en segundo plano tras
+    // abrir el puerto) y con eventos de conexión visibles al momento.
     MongooseModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('MONGODB_URI'),
-      }),
+      useFactory: opcionesMongoose,
     }),
 
     // ── Rate limiting global ─────────────────────────────────────────────────

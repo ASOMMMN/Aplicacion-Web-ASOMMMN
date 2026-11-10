@@ -1,4 +1,10 @@
+// Debe ser el PRIMER import: escribe la primera línea de arranque antes de
+// cargar Nest y el resto del código (ver common/arranque/).
+import './common/arranque/inicio-arranque';
+import { detenerVigilante, fase } from './common/arranque/fases-arranque';
 import { NestFactory } from '@nestjs/core';
+import { getConnectionToken } from '@nestjs/mongoose';
+import type { Connection } from 'mongoose';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -14,9 +20,12 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerService } from './common/logger';
+import { sincronizarIndicesEnSegundoPlano } from './common/arranque/indices-segundo-plano';
  
 async function bootstrap() {
+  fase('nest', 'código cargado; creando la aplicación (NestFactory.create)');
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  fase('nest', 'aplicación creada; configurando middlewares');
 
   // Render corre la app detrás de un proxy inverso: sin esto, Express ve
   // todas las peticiones como si vinieran de la IP interna del proxy, y el
@@ -115,11 +124,26 @@ async function bootstrap() {
     SwaggerModule.setup('api-docs', app, document);
   }
  
+  fase('init', 'inicializando módulos (onModuleInit / onApplicationBootstrap)');
+  await app.init();
   await app.listen(port);
+  fase('escuchando', `puerto ${port} abierto`);
+  detenerVigilante();
+
+  // autoIndex está apagado en producción (ver config/mongoose.config.ts):
+  // los índices se crean ahora, con el puerto ya abierto y sin esperar.
+  if (isProduction) {
+    fase('indices', 'iniciando sincronización de índices en segundo plano');
+    void sincronizarIndicesEnSegundoPlano(
+      app.get<Connection>(getConnectionToken()),
+    );
+  }
  
   LoggerService.banner({ port, env: isProduction ? 'Production' : 'Development', swagger: !isProduction });
   LoggerService.system({ status: 'ready', port, env: isProduction ? 'production' : 'development', swagger: !isProduction });
 }
  
-bootstrap();
- 
+bootstrap().catch((err: Error) => {
+  fase('nest', `ERROR fatal al arrancar: ${err?.stack ?? err}`);
+  process.exit(1);
+});

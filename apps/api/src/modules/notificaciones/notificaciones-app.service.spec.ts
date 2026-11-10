@@ -62,7 +62,11 @@ describe('NotificacionesAppService (MongoDB en memoria)', () => {
   };
 
   beforeAll(async () => {
-    mongod = await MongoMemoryServer.create();
+    mongod = await MongoMemoryServer.create({
+      // Con varias suites levantando mongod en paralelo (Windows/CI), los
+      // 10 s por defecto a veces no alcanzan y falla todo el beforeAll.
+      instance: { launchTimeout: 60_000 },
+    });
     conexion = await createConnection(mongod.getUri()).asPromise();
     notificacionModel = conexion.model<NotificacionAppDocument>(
       NotificacionApp.name,
