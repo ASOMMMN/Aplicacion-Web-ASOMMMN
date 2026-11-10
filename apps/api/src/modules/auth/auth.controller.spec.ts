@@ -86,6 +86,10 @@ describe('AuthController: logout y refresh (cookies de producción)', () => {
     const { OneTimeToken } = await import('./schemas/one-time-token.schema');
     const { NotificacionesService } =
       await import('../notificaciones/notificaciones.service');
+    const { NotificacionesAppService } =
+      await import('../notificaciones/notificaciones-app.service');
+    const { Postulante } =
+      await import('../postulantes/schemas/postulante.schema');
     const { MFAService } = await import('../mfa/mfa.service');
     const { AuditoriaService } = await import('../auditoria/auditoria.service');
 
@@ -125,6 +129,8 @@ describe('AuthController: logout y refresh (cookies de producción)', () => {
           useValue: { get: (_k: string, d?: unknown) => d },
         },
         { provide: NotificacionesService, useValue: {} },
+        { provide: NotificacionesAppService, useValue: {} },
+        { provide: getModelToken(Postulante.name), useValue: {} },
         { provide: MFAService, useValue: {} },
         {
           provide: AuditoriaService,

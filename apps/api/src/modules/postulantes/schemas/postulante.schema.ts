@@ -75,6 +75,12 @@ export class Postulante {
   @Prop()
   enviadoEn?: Date;
 
+  // Se escribe una sola vez, cuando se avisa a evaluadores y admins (campanita)
+  // que el expediente quedó completo. Evita repetir el aviso aunque lo reenvíe
+  // (ver NotificacionesAppService#notificarExpedienteCompleto).
+  @Prop()
+  expedienteCompletoNotificadoEn?: Date;
+
   // Auditoría
   @Prop()
   creadoEn: Date;
