@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NotificacionesService } from './notificaciones.service';
 import { NotificacionesAppService } from './notificaciones-app.service';
 import { NotificacionesAppController } from './notificaciones-app.controller';
+import { NotificacionesDiagnosticoController } from './notificaciones-diagnostico.controller';
 import {
   NotificacionApp,
   NotificacionAppSchema,
@@ -22,7 +23,10 @@ import {
       { name: Postulante.name, schema: PostulanteSchema },
     ]),
   ],
-  controllers: [NotificacionesAppController],
+  controllers: [
+    NotificacionesAppController,
+    NotificacionesDiagnosticoController,
+  ],
   providers: [NotificacionesService, NotificacionesAppService],
   exports: [NotificacionesService, NotificacionesAppService],
 })
