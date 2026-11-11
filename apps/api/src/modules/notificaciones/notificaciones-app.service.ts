@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, type QueryFilter } from 'mongoose';
 
 import {
   NotificacionApp,
@@ -14,23 +14,37 @@ import {
   MarcarTodasAppDto,
   NotificacionAppItemDto,
 } from './dto/notificacion-app.dto';
-import {
-  Usuario,
-  UsuarioDocument,
-  UserRole,
-} from '../usuarios/schemas/usuario.schema';
+import { DiagnosticoNotificacionesAppDto } from './dto/diagnostico-notificaciones-app.dto';
+import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
 import {
   Postulante,
   PostulanteDocument,
 } from '../postulantes/schemas/postulante.schema';
 
-/** Quiénes reciben los avisos de la campanita. */
-export const ROLES_DESTINATARIOS_APP: UserRole[] = [
-  'evaluador',
-  'administrador',
-];
+/**
+ * `rol` de los destinatarios. El esquema, los guards y el JWT usan
+ * 'evaluador' y 'administrador' en minúsculas, pero una cuenta creada a mano
+ * o por un script viejo puede traer otra capitalización, espacios o "admin".
+ * Avisarle a esa cuenta no cuesta nada; dejarla fuera la deja sin campanita.
+ */
+export const PATRON_ROL_DESTINATARIO =
+  /^\s*(evaluador|administrador|admin)\s*$/i;
+
+/**
+ * Filtro de destinatarios de la campanita (y de los correos a evaluadores).
+ * Solo excluye cuentas eliminadas: no exige `estadoCuenta`, `emailVerificado`
+ * ni ningún otro campo, para no dejar fuera cuentas antiguas o del seed que
+ * no los tienen. `isDeleted: { $ne: true }` también acepta el campo ausente.
+ */
+export function filtroDestinatariosApp(): QueryFilter<UsuarioDocument> {
+  return {
+    rol: { $regex: PATRON_ROL_DESTINATARIO },
+    isDeleted: { $ne: true },
+  };
+}
 
 type IdLike = Types.ObjectId | string;
+type Destinatario = { _id: Types.ObjectId; rol?: string };
 
 function aObjectId(id: IdLike): Types.ObjectId {
   return id instanceof Types.ObjectId ? id : new Types.ObjectId(id);
@@ -38,6 +52,29 @@ function aObjectId(id: IdLike): Types.ObjectId {
 
 function esClaveDuplicada(err: unknown): boolean {
   return (err as { code?: number })?.code === 11000;
+}
+
+/** "código 11000 MongoServerError: ..." (sin datos del candidato). */
+function describirError(err: unknown): string {
+  const e = err as { code?: number; name?: string; message?: string };
+  const codigo = e?.code !== undefined ? `código ${e.code} ` : '';
+  return `${codigo}${e?.name ?? 'Error'}: ${e?.message ?? String(err)}`;
+}
+
+/** { evaluador: 2, administrador: 1 } según el `rol` tal como está guardado. */
+function contarPorRol(usuarios: { rol?: string }[]): Record<string, number> {
+  const conteo: Record<string, number> = {};
+  for (const u of usuarios) {
+    const rol = String(u.rol ?? '(sin rol)');
+    conteo[rol] = (conteo[rol] ?? 0) + 1;
+  }
+  return conteo;
+}
+
+function formatearConteo(conteo: Record<string, number>): string {
+  return Object.entries(conteo)
+    .map(([rol, n]) => `${rol}: ${n}`)
+    .join(', ');
 }
 
 export function mensajeNotificacionApp(
@@ -94,7 +131,12 @@ export class NotificacionesAppService {
       { _id: id, expedienteCompletoNotificadoEn: null },
       { $set: { expedienteCompletoNotificadoEn: new Date() } },
     );
-    if (marca.modifiedCount === 0) return false;
+    if (marca.modifiedCount === 0) {
+      this.logger.log(
+        `[expediente_completo] candidato ${String(id)}: ya se había avisado (o no existe el perfil); no se crea otro aviso`,
+      );
+      return false;
+    }
     try {
       return await this.crear('expediente_completo', id, nombreCandidato);
     } catch (err) {
@@ -107,25 +149,50 @@ export class NotificacionesAppService {
     }
   }
 
+  /** Evaluadores y admins que recibirían un aviso creado ahora. */
+  private buscarDestinatarios(): Promise<Destinatario[]> {
+    return this.usuarioModel
+      .find(filtroDestinatariosApp())
+      .select('_id rol')
+      .lean<Destinatario[]>()
+      .exec();
+  }
+
+  /**
+   * Inserta el aviso. Registra siempre el resultado (cuántos destinatarios y
+   * el _id creado) y cualquier error; los errores se relanzan para que el
+   * llamador también los vea. Nunca registra nombres ni correos.
+   */
   private async crear(
     tipo: TipoNotificacionApp,
     candidatoId: Types.ObjectId,
     nombreCandidato: string,
   ): Promise<boolean> {
-    const usuarios = await this.usuarioModel
-      .find({
-        rol: { $in: ROLES_DESTINATARIOS_APP },
-        isDeleted: { $ne: true },
-      })
-      .select('_id')
-      .lean();
-    if (usuarios.length === 0) {
-      this.logger.warn(`[${tipo}] sin evaluadores ni admins a quién avisar`);
-      return false;
+    const etiqueta = `[${tipo}] candidato ${String(candidatoId)}`;
+
+    let usuarios: Destinatario[];
+    try {
+      usuarios = await this.buscarDestinatarios();
+    } catch (err) {
+      this.logger.error(
+        `${etiqueta}: falló la búsqueda de destinatarios: ${describirError(err)}`,
+        (err as Error)?.stack,
+      );
+      throw err;
     }
 
+    if (usuarios.length === 0) {
+      this.logger.warn(
+        `${etiqueta}: 0 destinatarios (ningún usuario sin eliminar con rol evaluador/administrador); no se crea el aviso`,
+      );
+      return false;
+    }
+    this.logger.log(
+      `${etiqueta}: ${usuarios.length} destinatario(s) (${formatearConteo(contarPorRol(usuarios))})`,
+    );
+
     try {
-      await this.notificacionModel.create({
+      const creada = await this.notificacionModel.create({
         tipo,
         candidatoId,
         nombreCandidato: nombreCandidato.trim() || 'Un postulante',
@@ -133,15 +200,125 @@ export class NotificacionesAppService {
         leidaPor: [],
         creadaEn: new Date(),
       });
+      this.logger.log(
+        `${etiqueta}: aviso guardado en notificaciones_app (_id ${String(creada._id)})`,
+      );
+      return true;
     } catch (err) {
-      // Índice único parcial de expediente_completo: otra petición ganó.
-      if (esClaveDuplicada(err)) return false;
+      if (esClaveDuplicada(err)) {
+        // Índice único parcial de expediente_completo: ya hay un aviso vivo
+        // de este candidato (otra petición ganó). No es una falla, pero se
+        // registra para que nunca desaparezca en silencio.
+        this.logger.warn(
+          `${etiqueta}: no se insertó porque ya existe uno igual (clave duplicada): ${describirError(err)}`,
+        );
+        return false;
+      }
+      this.logger.error(
+        `${etiqueta}: falló el insert en notificaciones_app: ${describirError(err)}`,
+        (err as Error)?.stack,
+      );
       throw err;
     }
-    this.logger.log(
-      `[${tipo}] candidato ${String(candidatoId)} → ${usuarios.length} destinatario(s)`,
-    );
-    return true;
+  }
+
+  // ── Diagnóstico (solo lectura) ────────────────────────────────────────────
+
+  /**
+   * Qué pasaría si se creara un aviso ahora, SIN escribir nada: cuántos
+   * destinatarios hay (por valor real de `rol`), si un correo concreto está
+   * incluido y el estado de la colección. Solo lecturas.
+   */
+  async diagnosticar(email?: string): Promise<DiagnosticoNotificacionesAppDto> {
+    const destinatarios = await this.buscarDestinatarios();
+    const incluidos = new Set(destinatarios.map((u) => String(u._id)));
+
+    let consulta: DiagnosticoNotificacionesAppDto['consulta'];
+    if (email) {
+      const correo = email.trim().toLowerCase();
+      const cuentas = await this.usuarioModel
+        .find({ email: correo })
+        .select('_id rol isDeleted')
+        .lean<(Destinatario & { isDeleted?: boolean })[]>()
+        .exec();
+      const filas = cuentas.map((c) => ({
+        usuarioId: String(c._id),
+        rol: String(c.rol ?? ''),
+        eliminada: c.isDeleted === true,
+        incluida: incluidos.has(String(c._id)),
+      }));
+      consulta = {
+        email: correo,
+        incluida: filas.some((f) => f.incluida),
+        cuentas: filas,
+      };
+    }
+
+    const nombre = this.notificacionModel.collection.collectionName;
+    const db = this.notificacionModel.db.db;
+    const existe = db
+      ? (
+          await db
+            .listCollections({ name: nombre }, { nameOnly: true })
+            .toArray()
+        ).length > 0
+      : false;
+
+    let indices: string[] = [];
+    let avisosPorTipo: Record<string, number> = {};
+    let ultimaCreadaEn: Date | null = null;
+    if (existe) {
+      const [idx, grupos, ultima] = await Promise.all([
+        this.notificacionModel.collection.indexes(),
+        this.notificacionModel
+          .aggregate<{
+            _id: string;
+            n: number;
+          }>([{ $group: { _id: '$tipo', n: { $sum: 1 } } }])
+          .exec(),
+        this.notificacionModel
+          .findOne()
+          .sort({ creadaEn: -1 })
+          .select('creadaEn')
+          .lean<{ creadaEn?: Date }>()
+          .exec(),
+      ]);
+      indices = idx.map((i) => String(i.name));
+      avisosPorTipo = Object.fromEntries(
+        grupos.map((g) => [String(g._id), g.n]),
+      );
+      ultimaCreadaEn = ultima?.creadaEn ?? null;
+    }
+
+    // Postulantes vivos sin perfil en `postulantes`: a ellos no se les pudo
+    // crear el aviso "nuevo candidato" al registrarse (necesita el perfil).
+    const sinPerfil = await this.usuarioModel
+      .aggregate<{ n: number }>([
+        { $match: { rol: 'postulante', isDeleted: { $ne: true } } },
+        {
+          $lookup: {
+            from: this.postulanteModel.collection.collectionName,
+            localField: '_id',
+            foreignField: 'usuarioId',
+            as: 'perfil',
+          },
+        },
+        { $match: { perfil: { $size: 0 } } },
+        { $count: 'n' },
+      ])
+      .exec();
+
+    return {
+      soloLectura: true,
+      filtroRol: PATRON_ROL_DESTINATARIO.source,
+      destinatarios: {
+        total: destinatarios.length,
+        porRol: contarPorRol(destinatarios),
+      },
+      consulta,
+      coleccion: { nombre, existe, indices, avisosPorTipo, ultimaCreadaEn },
+      postulantesSinPerfil: sinPerfil[0]?.n ?? 0,
+    };
   }
 
   // ── Lectura por usuario ───────────────────────────────────────────────────

@@ -34,7 +34,10 @@ import {
 } from '../documentos/schemas/documento.schema';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
-import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
+import {
+  NotificacionesAppService,
+  filtroDestinatariosApp,
+} from '../notificaciones/notificaciones-app.service';
 import { UsuariosService } from '../usuarios/usuarios.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { AutoeliminarCuentaDto } from './dto/autoeliminar-cuenta.dto';
@@ -754,10 +757,7 @@ export class PostulantesService {
     if (!this.notificaciones.avisosEvaluadorPorCorreo) return;
     try {
       const evaluadores = await this.usuarioModel
-        .find({
-          rol: { $in: ['evaluador', 'administrador'] },
-          isDeleted: { $ne: true },
-        })
+        .find(filtroDestinatariosApp())
         .select('email nombre')
         .lean();
       const frontendUrl = this.config.get(
