@@ -24,6 +24,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { Model, Types } from 'mongoose';
 import { ExtraccionIaService } from '../docs-personales/extraccion-ia.service';
+import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
 import {
   CAMPOS_FECHA,
   MIMES_EXTRACCION_IA,
@@ -97,6 +98,7 @@ export class CursosService {
     private readonly auditoriaService: AuditoriaService,
     private readonly configService: ConfigService,
     private readonly extraccionIa: ExtraccionIaService,
+    private readonly notificacionesApp: NotificacionesAppService,
   ) {}
 
   async crearCurso(
@@ -217,6 +219,15 @@ export class CursosService {
           estimado: origenVencimiento === 'CALCULADO_5_ANOS',
         }),
       });
+
+      // Solo si subió un archivo (registrar un curso sin documento no es
+      // una subida). Campanita de evaluadores; no lanza.
+      if (documentoExtra) {
+        await this.notificacionesApp.avisarDocumentoSubido(
+          userId,
+          'Constancia de curso',
+        );
+      }
 
       return {
         message: 'Curso/certificación registrado correctamente.',

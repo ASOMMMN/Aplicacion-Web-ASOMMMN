@@ -69,6 +69,9 @@ function crear(analisis: ResultadoExtraccionFechas | null) {
   const extraccionIa = {
     extraer: jest.fn(() => Promise.resolve(analisis)),
   };
+  const notificacionesApp = {
+    avisarDocumentoSubido: jest.fn().mockResolvedValue(true),
+  };
   const servicio = new CursosService(
     cursoModel as never,
     postulanteModel as never,
@@ -77,8 +80,9 @@ function crear(analisis: ResultadoExtraccionFechas | null) {
     { registrar: jest.fn() } as never,
     { get: () => undefined } as never,
     extraccionIa as never,
+    notificacionesApp as never,
   );
-  return { servicio, cursoModel, extraccionIa };
+  return { servicio, cursoModel, extraccionIa, notificacionesApp };
 }
 
 const archivo = {
@@ -220,5 +224,32 @@ describe('CursosService.crearCurso: regla de vencimiento y evidencia', () => {
       },
     );
     expect(cursoModel.create).toHaveBeenCalled();
+  });
+});
+
+describe('CursosService.crearCurso: campanita de evaluadores', () => {
+  it('con archivo avisa "documento subido" (sin el nombre del curso)', async () => {
+    const { servicio, notificacionesApp } = crear(
+      lectura({ fechaInicio: '2022-06-25' }),
+    );
+    await servicio.crearCurso(
+      USUARIO,
+      { nombreCurso: 'X', apareceEnCV: false, fechaInicio: '2022-06-25' },
+      archivo,
+    );
+    expect(notificacionesApp.avisarDocumentoSubido).toHaveBeenCalledWith(
+      USUARIO,
+      'Constancia de curso',
+    );
+  });
+
+  it('sin archivo (solo CV) no es una subida: no avisa', async () => {
+    const { servicio, notificacionesApp } = crear(null);
+    await servicio.crearCurso(USUARIO, {
+      nombreCurso: 'Curso del CV',
+      apareceEnCV: true,
+      fechaInicio: '2022-06-25',
+    });
+    expect(notificacionesApp.avisarDocumentoSubido).not.toHaveBeenCalled();
   });
 });

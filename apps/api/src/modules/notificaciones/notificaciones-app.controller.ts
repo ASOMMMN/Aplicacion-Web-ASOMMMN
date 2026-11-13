@@ -21,13 +21,15 @@ import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import type { AuthUser } from '../auth/strategies/jwt.strategy';
 import { NotificacionesAppService } from './notificaciones-app.service';
 import {
+  FiltroNotificacionesAppQueryDto,
   ListaNotificacionesAppDto,
   ListarNotificacionesAppQueryDto,
   MarcarTodasAppDto,
 } from './dto/notificacion-app.dto';
 
 /**
- * Campanita: avisos de nuevo candidato y expediente completo. El usuario se
+ * Campanita: avisos de candidatos (nuevo, expediente completo, documentos,
+ * decisiones de otros evaluadores, inactividad). El usuario se
  * toma SIEMPRE del JWT; ningún endpoint recibe un userId (sin IDOR).
  *
  * Vive bajo /notificaciones/mias para no chocar con las rutas de
@@ -43,7 +45,8 @@ export class NotificacionesAppController {
 
   @Get()
   @ApiOperation({
-    summary: 'Mis notificaciones (paginado, más recientes primero) y no leídas',
+    summary:
+      'Mis notificaciones (paginado, más recientes primero), filtros (no leídas, tipo, día) y agrupación por día',
   })
   @ApiResponse({ status: 200, type: ListaNotificacionesAppDto })
   @ApiResponse({ status: 403, description: 'Rol sin acceso (postulante)' })
@@ -51,14 +54,30 @@ export class NotificacionesAppController {
     @CurrentUser() user: AuthUser,
     @Query() query: ListarNotificacionesAppQueryDto,
   ): Promise<ListaNotificacionesAppDto> {
-    return this.service.listarMias(user.userId, query.pagina, query.limite);
+    return this.service.listarMias(user.userId, {
+      pagina: query.pagina,
+      limite: query.limite,
+      soloNoLeidas: query.soloNoLeidas,
+      tipo: query.tipo,
+      dia: query.dia,
+      agrupar: query.agrupar,
+    });
   }
 
   @Patch('marcar-todas-leidas')
-  @ApiOperation({ summary: 'Marcar todas mis notificaciones como leídas' })
+  @ApiOperation({
+    summary:
+      'Marcar todas mis notificaciones como leídas (opcional: solo un tipo y/o día)',
+  })
   @ApiResponse({ status: 200, type: MarcarTodasAppDto })
-  marcarTodas(@CurrentUser() user: AuthUser): Promise<MarcarTodasAppDto> {
-    return this.service.marcarTodasLeidas(user.userId);
+  marcarTodas(
+    @CurrentUser() user: AuthUser,
+    @Query() query: FiltroNotificacionesAppQueryDto,
+  ): Promise<MarcarTodasAppDto> {
+    return this.service.marcarTodasLeidas(user.userId, {
+      tipo: query.tipo,
+      dia: query.dia,
+    });
   }
 
   @Patch(':id/leida')

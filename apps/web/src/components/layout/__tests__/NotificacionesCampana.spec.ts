@@ -1,6 +1,10 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { NotificacionAppItem, NotificacionItem } from '@/lib/api/notificaciones';
+import type {
+  GrupoNotificacionesApp,
+  NotificacionAppItem,
+  NotificacionItem,
+} from '@/lib/api/notificaciones';
 import {
   ContadorCampana,
   PanelNotificacionesVista,
@@ -30,6 +34,20 @@ const aviso = (over: Partial<NotificacionAppItem> = {}): NotificacionAppItem => 
   ...over,
 });
 
+/** Cada aviso en su propio grupo (así se ve tal cual, sin resumen). */
+const solos = (avisos: NotificacionAppItem[]): GrupoNotificacionesApp[] =>
+  avisos.map((a) => ({
+    clave: `${a._id}|${a.tipo}`,
+    tipo: a.tipo,
+    dia: a.fecha.slice(0, 10),
+    cantidad: 1,
+    noLeidas: a.leida ? 0 : 1,
+    resumen: '',
+    fecha: a.fecha,
+    items: [a],
+    hayMas: false,
+  }));
+
 const vencimiento: NotificacionItem = {
   _id: 'v1',
   tipo: 'curso_por_vencer',
@@ -44,20 +62,27 @@ const vencimiento: NotificacionItem = {
   fechaCreacion: '2026-11-01T00:00:00.000Z',
 };
 
-function render(props: Partial<PanelNotificacionesVistaProps> = {}) {
+function render(
+  props: Partial<PanelNotificacionesVistaProps> & { avisos?: NotificacionAppItem[] } = {},
+) {
+  const { avisos = [aviso()], ...resto } = props;
   return renderToStaticMarkup(
     createElement(PanelNotificacionesVista, {
-      avisos: [aviso()],
+      grupos: solos(avisos),
       vencimientos: [],
       noLeidas: 1,
+      pestana: 'todas',
       cargando: false,
       error: null,
       ahora: AHORA,
-      onAbrirAviso: () => undefined,
+      onRevisar: () => undefined,
+      onMarcarLeida: () => undefined,
+      onCambiarPestana: () => undefined,
       onAbrirVencimiento: () => undefined,
       onMarcarTodas: () => undefined,
       onReintentar: () => undefined,
-      ...props,
+      onNavegar: () => undefined,
+      ...resto,
     }),
   );
 }

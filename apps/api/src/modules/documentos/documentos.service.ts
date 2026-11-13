@@ -20,6 +20,7 @@ import {
 } from '../docs-personales/schemas/doc-personal.schema';
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
 import { sincronizarEstadoExpediente } from '../postulantes/utils/sincronizar-estado-expediente.util';
 import {
   DocumentoActualResponseDto,
@@ -47,6 +48,7 @@ export class DocumentosService {
     private docPersonalModel: Model<DocPersonalDocument>,
     private storageService: StorageService,
     private auditoriaService: AuditoriaService,
+    private notificacionesApp: NotificacionesAppService,
   ) {}
 
   async subirCV(
@@ -125,6 +127,12 @@ export class DocumentosService {
         subidasPor: new Types.ObjectId(userId),
         subidasEn: new Date(),
       });
+
+      // Campanita de evaluadores (agrupa subidas cercanas). No lanza.
+      await this.notificacionesApp.avisarDocumentoSubido(
+        userId,
+        'Currículum Vitae',
+      );
 
       const urlDescargar = await this.storageService.getSecureDownloadUrl(
         url,

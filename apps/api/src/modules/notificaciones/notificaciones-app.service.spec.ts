@@ -265,13 +265,16 @@ describe('NotificacionesAppService (MongoDB en memoria)', () => {
           creadaEn: new Date(Date.UTC(2026, 10, 1 + i)),
         });
       }
-      const p1 = await servicio.listarMias(evaluador, 1, 2);
+      const p1 = await servicio.listarMias(evaluador, { pagina: 1, limite: 2 });
       expect(p1.items.map((i) => i.nombreCandidato)).toEqual(['C4', 'C3']);
       expect(p1).toMatchObject({ total: 5, noLeidas: 5, pagina: 1, limite: 2 });
-      const p3 = await servicio.listarMias(evaluador, 3, 2);
+      const p3 = await servicio.listarMias(evaluador, { pagina: 3, limite: 2 });
       expect(p3.items.map((i) => i.nombreCandidato)).toEqual(['C0']);
       // límite acotado a 50
-      expect((await servicio.listarMias(evaluador, 1, 500)).limite).toBe(50);
+      expect(
+        (await servicio.listarMias(evaluador, { pagina: 1, limite: 500 }))
+          .limite,
+      ).toBe(50);
     });
   });
 
