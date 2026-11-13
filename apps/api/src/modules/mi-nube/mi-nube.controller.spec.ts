@@ -39,7 +39,10 @@ describe('MiNubeController — streaming de view/download', () => {
 
     await controller.descargar(ACTOR, 'id1', res as never);
 
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Type',
+      'application/pdf',
+    );
     expect(res.setHeader).toHaveBeenCalledWith('Content-Length', 1234);
     expect(res.setHeader).toHaveBeenCalledWith(
       'Content-Disposition',
@@ -59,6 +62,26 @@ describe('MiNubeController — streaming de view/download', () => {
     expect(res.setHeader).toHaveBeenCalledWith(
       'Content-Disposition',
       expect.stringContaining('inline'),
+    );
+  });
+
+  it('ver: un tipo no seguro (p. ej. text/html de una subida antigua) se descarga, no se muestra', async () => {
+    const stream = new PassThrough();
+    jest.spyOn(stream, 'pipe').mockReturnValue(stream as never);
+    const { controller, service } = crearControlador(stream);
+    service.obtenerArchivo.mockResolvedValue({
+      stream,
+      nombre: 'pagina.html',
+      mimeType: 'text/html',
+      size: 10,
+    });
+    const res = crearRes();
+
+    await controller.ver(ACTOR, 'id1', res as never);
+
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Disposition',
+      expect.stringContaining('attachment'),
     );
   });
 

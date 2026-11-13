@@ -20,6 +20,7 @@ import {
 } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
+import { DropZone } from '@/components/ui/DropZone';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
 
 interface EvalItem {
@@ -50,6 +51,9 @@ function carpetaSegmentos(carpeta: string): string[] {
   if (!carpeta) return [];
   return carpeta.split('/').filter(Boolean);
 }
+
+/** Mismo límite que la API (POST /eval-archivos/:postulanteId/upload). */
+const LIMITE_ARCHIVO_EVALUADOR_BYTES = 50 * 1024 * 1024;
 
 export default function EvalArchivosPage() {
   const params = useParams<{ postulanteId: string }>();
@@ -212,6 +216,13 @@ export default function EvalArchivosPage() {
   const listaActiva = resultadosBusqueda ?? items;
 
   return (
+    <DropZone
+      capa="pantalla"
+      maxSizeBytes={LIMITE_ARCHIVO_EVALUADOR_BYTES}
+      loading={subiendoId !== null}
+      textoSoltar="Suelta el archivo para subirlo a esta carpeta"
+      onFiles={([archivo]) => subirArchivo(archivo)}
+    >
     <Container fluid className="py-4 bg-light min-vh-100">
       <Row className="mb-3 align-items-center">
         <Col>
@@ -466,5 +477,6 @@ export default function EvalArchivosPage() {
         />
       )}
     </Container>
+    </DropZone>
   );
 }

@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -34,7 +35,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+    value: "camera=(self), microphone=(), geolocation=(), browsing-topics=()",
   },
   {
     key: "Content-Security-Policy",
@@ -45,20 +46,31 @@ const securityHeaders = [
       `img-src 'self' data: blob: https://${s3Host}`,
       `connect-src 'self' ${apiOrigin}`,
       "font-src 'self'",
-      "object-src 'none'",
-      `frame-src 'self' https://${s3Host}`,
+      // blob: en object-src y frame-src: la vista previa de Mi nube muestra el
+      // archivo como URL blob: (la API exige el token, que un <iframe> no manda).
+      // Un documento blob: hereda esta CSP, y el visor de PDF del navegador lo
+      // incrusta como objeto: con object-src 'none' se veía "contenido bloqueado".
+      // Solo este origen puede crear URLs blob:, así que no abre otra fuente.
+      "object-src blob:",
+      `frame-src 'self' blob: https://${s3Host}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
     ].join("; "),
   },
+  // Solo staging (NEXT_PUBLIC_ENTORNO=staging): que los buscadores no lo indexen.
+  // En producción esta lista no cambia.
+  ...((process.env.NEXT_PUBLIC_ENTORNO ?? "").trim().toLowerCase() === "staging"
+    ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }]
+    : []),
 ];
 
 const nextConfig: NextConfig = {
-  typescript: {
-    // Permite continuar aunque existan errores TS durante build.
-    ignoreBuildErrors: true,
-  },
+  // Raíz del monorepo (donde viven package-lock.json y el node_modules con
+  // `next`). Desde Next 16.4 la raíz se limita al repositorio Git más cercano:
+  // un .git suelto dentro de apps/web ya no deja resolver los paquetes
+  // hoisted. Fijarla evita depender de dónde esté el .git.
+  turbopack: { root: path.join(__dirname, "..", "..") },
   async headers() {
     return [
       {

@@ -23,6 +23,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { escapeRegex } from '../../common/utils/regex.util';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import { tipoParaGuardar } from '../../common/utils/detectar-tipo-archivo.util';
 
 const EVAL_CATEGORY = 'eval';
 
@@ -158,7 +159,9 @@ export class EvalArchivosService {
       cloudinaryUrl: url,
       cloudinaryPublicId: s3Key,
       storageType: 'cloudinary',
-      tipoMime: file.mimetype,
+      // Tipo por contenido real: con él se sirve después (ResponseContentType
+      // de la URL firmada); el mimetype del cliente es falsificable.
+      tipoMime: tipoParaGuardar(file.buffer),
       tamanio: file.size,
       creadoPor: new Types.ObjectId(actor.userId),
     });
@@ -326,7 +329,9 @@ export class EvalArchivosService {
     return { url, nombre: doc.nombre };
   }
 
-  private async resolverCarpetaPostulante(postulanteId: string): Promise<string> {
+  private async resolverCarpetaPostulante(
+    postulanteId: string,
+  ): Promise<string> {
     const postulante = await this.postulanteModel
       .findById(postulanteId)
       .select('usuarioId')
@@ -337,7 +342,10 @@ export class EvalArchivosService {
       .findById(postulante.usuarioId)
       .select('nombre apellidos')
       .lean();
-    return construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ?? postulanteId;
+    return (
+      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
+      postulanteId
+    );
   }
 
   private async mapItem(i: {

@@ -15,7 +15,9 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { SpinnerTimon } from '@/components/ui/NauticalIcons';
 import { BotonVolver } from '@/components/ui/BotonVolver';
+import { DropZone } from '@/components/ui/DropZone';
 import { DocumentoPreviewModal } from '@/components/documentos/DocumentoPreviewModal';
+import { DocumentScanner, escanerDisponible } from '@/components/scanner';
 
 interface Documento {
   _id: string;
@@ -56,6 +58,9 @@ const toErrorMessage = (msg: unknown): string => {
   return String(msg);
 };
 
+/** Mismo límite que la API (POST /documentos/subir). */
+const LIMITE_CV_BYTES = 20 * 1024 * 1024;
+
 export default function MiCVPage() {
   const router = useRouter();
   const [cvActual, setCVActual] = useState<CVActual | null>(null);
@@ -63,10 +68,10 @@ export default function MiCVPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewCV, setPreviewCV] = useState(false);
+  const [escanerAbierto, setEscanerAbierto] = useState(false);
 
   const cargarCV = useCallback(async () => {
     try {
@@ -123,31 +128,49 @@ export default function MiCVPage() {
     setSelectedFile(file);
   };
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
+  /** Sube el CV. Si falla lanza un Error con el mensaje de la API; quien llama decide dónde mostrarlo. */
+  const enviarCV = async (
+    archivo: File,
+    alProgreso?: (porcentaje: number) => void,
+  ): Promise<CVActual> => {
+    try {
+      setUploading(true);
+      setUploadProgress(0);
+
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+
+      const config = {
+        onUploadProgress: (progressEvent: { loaded: number; total?: number }) => {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / (progressEvent.total ?? 1),
+          );
+          setUploadProgress(percentCompleted);
+          alProgreso?.(percentCompleted);
+        },
+      };
+
+      const res = await api.post<CVActual>('/documentos/subir', formData, config);
+      return res.data;
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: unknown } } };
+      const msg = axiosErr.response?.data?.message ?? 'Error al subir el CV. Intenta de nuevo.';
+      throw new Error(toErrorMessage(msg));
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    const files = e.dataTransfer.files;
-    if (files && files[0]) {
-      handleFileSelect(files[0]);
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelect(e.target.files[0]);
-    }
+  const avisarCVSubido = async (cv: CVActual) => {
+    await Swal.fire({
+      icon: 'success',
+      title: '¡CV subido!',
+      text: `Tu CV (v${cv.version}) ha sido guardado exitosamente.`,
+      confirmButtonColor: '#0d6efd',
+    });
+    setSelectedFile(null);
+    setUploadProgress(0);
+    await cargarCV();
   };
 
   const subirCV = async () => {
@@ -156,43 +179,24 @@ export default function MiCVPage() {
       return;
     }
 
+    setError('');
+    let cv: CVActual;
     try {
-      setUploading(true);
-      setError('');
-      setUploadProgress(0);
-
-      const formData = new FormData();
-      formData.append('archivo', selectedFile);
-
-      // Aquí es donde simularíamos el progreso
-      const config = {
-        onUploadProgress: (progressEvent: { loaded: number; total?: number }) => {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / (progressEvent.total ?? 1),
-          );
-          setUploadProgress(percentCompleted);
-        },
-      };
-
-      const res = await api.post<CVActual>('/documentos/subir', formData, config);
-
-      await Swal.fire({
-        icon: 'success',
-        title: '¡CV subido!',
-        text: `Tu CV (v${res.data.version}) ha sido guardado exitosamente.`,
-        confirmButtonColor: '#0d6efd',
-      });
-
-      setSelectedFile(null);
-      setUploadProgress(0);
-      await cargarCV();
+      cv = await enviarCV(selectedFile);
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: unknown } } };
-      const msg = axiosErr.response?.data?.message ?? 'Error al subir el CV. Intenta de nuevo.';
-      setError(toErrorMessage(msg));
-    } finally {
-      setUploading(false);
+      setError(err instanceof Error ? err.message : 'Error al subir el CV. Intenta de nuevo.');
+      return;
     }
+    await avisarCVSubido(cv);
+  };
+
+  const abrirEscaner = () => {
+    if (!escanerDisponible()) {
+      setError('Tu navegador no permite escanear. Sube el archivo con la zona de arriba.');
+      return;
+    }
+    setError('');
+    setEscanerAbierto(true);
   };
 
   const descargarCV = async (documentoId: string) => {
@@ -338,31 +342,28 @@ export default function MiCVPage() {
                 )}
 
                 {/* Zona de Drag & Drop */}
-                <div
-                  className={`border-2 border-dashed rounded p-4 text-center cursor-pointer transition mb-3 ${
-                    dragActive ? 'border-primary bg-light' : 'border-secondary'
-                  }`}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  style={{ cursor: 'pointer', borderWidth: '2px' }}
-                >
-                  <input
-                    type="file"
+                <div className="mb-3">
+                  <DropZone
+                    seleccionable
                     accept=".pdf,application/pdf"
-                    onChange={handleFileInput}
-                    id="fileInput"
-                    hidden
-                  />
-                  <label htmlFor="fileInput" style={{ cursor: 'pointer' }}>
+                    etiquetaTipos="PDF"
+                    maxSizeBytes={LIMITE_CV_BYTES}
+                    loading={uploading}
+                    onFiles={([archivo]) => handleFileSelect(archivo)}
+                  >
                     <div className="mb-2">📁</div>
                     <p className="fw-bold mb-1">Arrastra tu CV aquí</p>
                     <p className="text-muted small">O haz clic para seleccionar</p>
-                    <small className="text-muted d-block">
-                      Solo PDF, sin límite de tamaño
-                    </small>
-                  </label>
+                    <small className="text-muted d-block">Solo PDF, hasta 20 MB</small>
+                  </DropZone>
+                </div>
+
+                <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+                  <Button variant="outline-primary" size="sm" disabled={uploading} onClick={abrirEscaner}>
+                    <i className="bi bi-camera me-1" aria-hidden="true" />
+                    Escanear con cámara
+                  </Button>
+                  <span className="text-muted small">Escanea tu CV impreso y se sube como PDF.</span>
                 </div>
 
                 {/* Archivo Seleccionado */}
@@ -509,6 +510,19 @@ export default function MiCVPage() {
           </Col>
         </Row>
       </Container>
+      {escanerAbierto && (
+        <DocumentScanner
+          etiqueta="CV"
+          onCerrar={() => setEscanerAbierto(false)}
+          // Sigue abierto hasta que la subida termina bien: si falla, el Error se
+          // muestra dentro del escáner y las páginas se conservan para reintentar.
+          onListo={async (archivo, alProgreso) => {
+            const cv = await enviarCV(archivo, alProgreso);
+            setEscanerAbierto(false);
+            await avisarCVSubido(cv);
+          }}
+        />
+      )}
       {previewCV && cvActual && (
         <DocumentoPreviewModal
           show

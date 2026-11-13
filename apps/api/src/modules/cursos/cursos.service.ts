@@ -64,6 +64,11 @@ import {
   ExtraerIaResponseDto,
 } from './dto/curso-response.dto';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
+import { mensajeIaParaUsuario } from '../../common/utils/mensaje-ia-usuario.util';
+import {
+  detectarTipoArchivo,
+  TipoArchivoDetectado,
+} from '../../common/utils/detectar-tipo-archivo.util';
 import {
   calcularEstadoVigencia,
   hoyISO,
@@ -116,8 +121,9 @@ export class CursosService {
       }
 
       let documentoExtra: Curso['documentoExtra'];
-      if (file) {
-        this.validarDocumentoExtra(file);
+      // Tipo real por firma de bytes (no el mimetype que manda el cliente).
+      const tipoReal = file ? this.validarDocumentoExtra(file) : null;
+      if (file && tipoReal) {
         const usuario = await this.usuarioModel
           .findById(userId)
           .select('nombre apellidos')
@@ -139,7 +145,7 @@ export class CursosService {
           cloudinaryPublicId: s3Key,
           storageType: 'cloudinary',
           nombreOriginal: file.originalname,
-          tipoMime: file.mimetype,
+          tipoMime: tipoReal,
           tamanio: file.size,
           subidoEn: new Date(),
         };
@@ -152,11 +158,11 @@ export class CursosService {
       // El documento se lee con la misma canalización (y caché) que la vista
       // previa: el mismo archivo da las mismas fechas.
       const analisis =
-        file && MIMES_EXTRACCION_IA.includes(file.mimetype)
+        file && tipoReal && MIMES_EXTRACCION_IA.includes(tipoReal)
           ? await this.extraccionIa
               .extraer({
                 buffer: file.buffer,
-                mimeType: file.mimetype,
+                mimeType: tipoReal,
                 tipo: 'curso',
                 usarCache: true,
                 reextraer: false,
@@ -417,7 +423,9 @@ export class CursosService {
       return {
         ...vacio,
         iaDisponible: res.iaDisponible,
-        errorMensaje: res.errorMensaje ?? 'IA no disponible.',
+        // Sin mensajes ni enlaces del proveedor: el detalle ya quedó en el log.
+        errorMensaje:
+          mensajeIaParaUsuario(res.errorMensaje) ?? 'IA no disponible.',
       };
     }
 
@@ -1078,11 +1086,19 @@ export class CursosService {
     });
   }
 
-  private validarDocumentoExtra(file: Express.Multer.File): void {
-    if (!ALLOWED_EXTRA_MIME.includes(file.mimetype)) {
+  /**
+   * Valida el documento por su firma de bytes: `file.mimetype` lo manda el
+   * cliente y es falsificable. Devuelve el tipo real detectado.
+   */
+  private validarDocumentoExtra(
+    file: Express.Multer.File,
+  ): Exclude<TipoArchivoDetectado, null> {
+    const tipoReal = detectarTipoArchivo(file.buffer);
+    if (!tipoReal || !ALLOWED_EXTRA_MIME.includes(tipoReal)) {
       throw new BadRequestException(
         'Documento extra inválido. Sube un PDF, JPG o PNG.',
       );
     }
+    return tipoReal;
   }
 }

@@ -14,14 +14,15 @@ Completa esta lista **antes de hacer deploy**. Cada ítem indica dónde cambiar 
 
 ---
 
-## 2. Credenciales de MinIO
+## 2. Credenciales de S3 (Amazon)
 
 | Variable | Archivo | Acción |
 |---|---|---|
-| `MINIO_ACCESS_KEY` | `apps/api/.env` | Cambia `minioadmin` por la clave real de tu MinIO de producción. |
-| `MINIO_SECRET_KEY` | `apps/api/.env` | Cambia `minioadmin123` por el secreto real. |
-| `MINIO_ENDPOINT` | `apps/api/.env` | Apunta al host/IP de tu MinIO de producción (no `localhost`). |
-| `MINIO_USE_SSL` | `apps/api/.env` | Cambia a `true` si tu MinIO está detrás de HTTPS. |
+| `AWS_ACCESS_KEY_ID` | `apps/api/.env` (en producción, Render → Environment) | Usa un usuario IAM propio de la aplicación, con permisos solo sobre el bucket (`s3:PutObject`, `s3:GetObject`, `s3:DeleteObject`, `s3:ListBucket`). Nunca la clave de la cuenta raíz. |
+| `AWS_SECRET_ACCESS_KEY` | `apps/api/.env` | Secreto de ese usuario IAM. Si se filtró, rótalo desde IAM. |
+| `AWS_REGION` | `apps/api/.env` | Región del bucket de producción (por defecto `us-east-2`). |
+| `AWS_S3_BUCKET` | `apps/api/.env` | Nombre del bucket de producción (no el de desarrollo). |
+| `NEXT_PUBLIC_S3_HOST` | `apps/web/.env.local` (en producción, Netlify) | Host exacto del bucket, para la CSP (`img-src`/`frame-src`) de las vistas previas. Sin comodines. |
 
 ✅ Todas se leen de variables de entorno.
 
@@ -110,7 +111,7 @@ Efectos al cambiar a `production`:
 - [ ] Confirmar que `.env` y `.env.local` estén en `.gitignore` (ya están).
 - [ ] Rotar los refresh tokens existentes en BD si se cambiaron los secretos JWT.
 - [ ] Configurar HTTPS en el servidor (certificado TLS).
-- [ ] Revisar que MinIO no esté expuesto públicamente; solo el backend debe poder acceder a él.
+- [ ] Revisar que el bucket S3 no sea público (Block Public Access activado): los archivos se sirven solo con URLs firmadas de corta duración.
 
 ---
 
@@ -119,7 +120,7 @@ Efectos al cambiar a `production`:
 | # | Ítem | Estado antes de deploy |
 |---|---|---|
 | 1 | Contraseña MongoDB Atlas | 🔴 Cambiar |
-| 2 | Credenciales MinIO | 🔴 Cambiar |
+| 2 | Credenciales S3 (AWS) | 🔴 Cambiar |
 | 3 | Contraseña admin seed | 🔴 Cambiar |
 | 4 | Secretos JWT | 🔴 Generar nuevos |
 | 5 | `RESEND_API_KEY` / `RESEND_FROM` (dominio verificado) | 🔴 Configurar |

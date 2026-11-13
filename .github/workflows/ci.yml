@@ -1,0 +1,123 @@
+name: CI
+
+# Verificaciones antes de cada merge a main. Dos jobs en paralelo (API y Web).
+# Marcar como obligatorios en la protección de rama: "API" y "Web".
+on:
+  # Sin filtro de rama base: los PR apilados (rama sobre rama) también deben correr el CI.
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # para comparar contra la rama base (lint de archivos cambiados)
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Tipos (tsc)
+        run: npx tsc --noEmit -p tsconfig.json
+        working-directory: apps/api
+
+      - name: Build (nest)
+        run: npm --workspace=apps/api run build
+
+      # La base todavía tiene errores de ESLint: se bloquea solo sobre los
+      # archivos que el PR agrega o modifica. Sin --fix: CI nunca reescribe código.
+      - name: Lint (archivos cambiados, sin --fix)
+        run: |
+          archivos=$(git diff --name-only --diff-filter=ACMR "origin/${{ github.base_ref }}...HEAD" \
+            -- 'apps/api/src/**/*.ts' 'apps/api/test/**/*.ts' | sed 's#^apps/api/##')
+          if [ -z "$archivos" ]; then
+            echo "Sin archivos .ts de la API cambiados."
+          else
+            echo "$archivos"
+            npx eslint $archivos
+          fi
+        working-directory: apps/api
+
+      - name: Caché de Jest
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/jest-cache-api
+          key: jest-api-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            jest-api-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
+      - name: Pruebas (Jest)
+        run: npx jest --ci --cacheDirectory="${{ runner.temp }}/jest-cache-api"
+        working-directory: apps/api
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Solo para que el build compile: no son valores reales.
+      NEXT_PUBLIC_API_URL: https://api.ci.invalid
+      NEXT_PUBLIC_S3_HOST: bucket.ci.invalid
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Tipos (tsc)
+        run: npx tsc --noEmit
+        working-directory: apps/web
+
+      # ESLint de web está limpio: se revisa completo, no solo lo cambiado.
+      - name: Lint
+        run: npx eslint
+        working-directory: apps/web
+
+      - name: Caché de Next
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/src/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
+      # next/font/google descarga Public Sans en cada build: una falla transitoria
+      # de red (visto en el PR #2) se reintenta una vez; un error real falla igual.
+      - name: Build (next)
+        run: npx next build || (echo "Reintentando el build una vez" && sleep 15 && npx next build)
+        working-directory: apps/web
+
+      - name: Caché de Jest
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/jest-cache-web
+          key: jest-web-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            jest-web-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+
+      - name: Pruebas (Jest)
+        run: npx jest -c jest.config.cjs --ci --cacheDirectory="${{ runner.temp }}/jest-cache-web"
+        working-directory: apps/web

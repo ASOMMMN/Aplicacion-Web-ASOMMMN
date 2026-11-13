@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ChangeEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -26,6 +25,7 @@ import Swal from "sweetalert2";
 import { DocumentoNubeItem, miNubeApi } from "@/lib/api/miNube";
 import { SpinnerTimon } from "@/components/ui/NauticalIcons";
 import { BotonVolver } from "@/components/ui/BotonVolver";
+import { DropZone } from "@/components/ui/DropZone";
 import { DocumentoPreviewModal } from "@/components/documentos/DocumentoPreviewModal";
 
 type TrailItem = { id: string | null; nombre: string };
@@ -42,12 +42,15 @@ function getErrorMessage(error: unknown): string {
   return String(message ?? "Ocurrió un error inesperado.");
 }
 
-function formatDate(value?: string) {
+/** Fecha y hora por separado: en dos líneas la celda es angosta y no se parte en 4. */
+function formatDia(value?: string) {
   if (!value) return "-";
-  return new Date(value).toLocaleString("es-MX", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return new Date(value).toLocaleDateString("es-MX", { dateStyle: "medium" });
+}
+
+function formatHora(value?: string) {
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString("es-MX", { timeStyle: "short" });
 }
 
 function formatSize(bytes: number) {
@@ -76,6 +79,9 @@ function downloadObjectUrl(blob: Blob, filename: string) {
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+/** Mismo límite que la API (POST /mi-nube/upload). */
+const LIMITE_NUBE_BYTES = 100 * 1024 * 1024;
 
 export default function MiNubePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -191,9 +197,7 @@ export default function MiNubePage() {
     }
   };
 
-  const subirArchivos = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
+  const subirArchivos = async (files: File[]) => {
     if (files.length === 0) return;
 
     try {
@@ -338,6 +342,14 @@ export default function MiNubePage() {
   return (
     <div className="nautical-panel min-vh-100 py-4">
       <div className="container-fluid px-3 px-lg-4">
+        <DropZone
+          multiple
+          capa="pantalla"
+          maxSizeBytes={LIMITE_NUBE_BYTES}
+          loading={working}
+          textoSoltar="Suelta los archivos para subirlos a esta carpeta"
+          onFiles={subirArchivos}
+        >
         <Card className="card-asommmn card-asommmn-top-azul">
           <Card.Body>
             <Row className="mb-3">
@@ -373,9 +385,12 @@ export default function MiNubePage() {
                   type="file"
                   multiple
                   hidden
-                  onChange={(event) =>
-                    void subirArchivos(event as ChangeEvent<HTMLInputElement>)
-                  }
+                  onChange={(event) => {
+                    const input = event.target as HTMLInputElement;
+                    const files = Array.from(input.files ?? []);
+                    input.value = "";
+                    void subirArchivos(files);
+                  }}
                 />
               </div>
             </div>
@@ -452,28 +467,28 @@ export default function MiNubePage() {
                   : "Esta carpeta está vacía."}
               </Alert>
             ) : (
-              <Table responsive hover className="align-middle mb-0">
+              <Table responsive hover className="align-middle mb-0 tabla-mi-nube">
                 <thead>
                   <tr>
-                    <th>Nombre</th>
-                    <th>Tipo</th>
+                    <th className="col-nombre">Nombre</th>
+                    <th className="col-tipo">Tipo</th>
                     <th>Tamaño</th>
                     <th>Creación</th>
                     <th>Propietario</th>
-                    <th className="text-end">Acciones</th>
+                    <th className="text-end col-acciones">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleItems.map((item) => (
                     <tr key={item.id}>
-                      <td>
+                      <td className="col-nombre">
                         {item.tipo === "folder" ? (
                           <Button
                             variant="link"
                             className="p-0 fw-semibold text-decoration-none"
                             onClick={() => entrarCarpeta(item)}
                           >
-                            📁 {item.nombre}
+                            📁 <span className="nombre-archivo" title={item.nombre}>{item.nombre}</span>
                           </Button>
                         ) : canPreview(item) ? (
                           <Button
@@ -484,10 +499,12 @@ export default function MiNubePage() {
                             onClick={() => void ver(item)}
                           >
                             <i className="bi bi-eye me-1" />
-                            {item.nombre}
+                            <span className="nombre-archivo" title={item.nombre}>{item.nombre}</span>
                           </Button>
                         ) : (
-                          <span className="fw-semibold">📄 {item.nombre}</span>
+                          <span className="fw-semibold">
+                            📄 <span className="nombre-archivo" title={item.nombre}>{item.nombre}</span>
+                          </span>
                         )}
                         {item.extension && (
                           <Badge bg="light" text="dark" className="ms-2">
@@ -495,55 +512,76 @@ export default function MiNubePage() {
                           </Badge>
                         )}
                       </td>
-                      <td>{item.tipo === "folder" ? "Carpeta" : "Archivo"}</td>
+                      <td className="col-tipo">{item.tipo === "folder" ? "Carpeta" : "Archivo"}</td>
                       <td>
                         {item.tipo === "folder" ? "-" : formatSize(item.size)}
                       </td>
-                      <td>{formatDate(item.createdAt)}</td>
+                      <td className="text-nowrap">
+                        <div>{formatDia(item.createdAt)}</div>
+                        <div className="text-muted small">{formatHora(item.createdAt)}</div>
+                      </td>
                       <td>
                         <div>{item.owner?.nombre ?? "-"}</div>
-                        <div className="text-muted small">
+                        <div
+                          className="text-muted small propietario-email"
+                          title={item.owner?.email ?? undefined}
+                        >
                           {item.owner?.email ?? ""}
                         </div>
                       </td>
-                      <td className="text-end">
+                      <td className="text-end col-acciones">
                         <ButtonGroup size="sm">
                           {item.tipo === "file" && canPreview(item) && (
                             <Button
                               variant="outline-primary"
+                              title="Ver"
+                              aria-label="Ver"
                               onClick={() => void ver(item)}
                             >
-                              Ver
+                              <i className="bi bi-eye" aria-hidden="true" />
+                              <span className="texto-accion ms-1">Ver</span>
                             </Button>
                           )}
                           {item.tipo === "file" && (
                             <Button
                               variant="outline-secondary"
+                              title="Descargar"
+                              aria-label="Descargar"
                               onClick={() => void descargar(item)}
                             >
-                              Descargar
+                              <i className="bi bi-download" aria-hidden="true" />
+                              <span className="texto-accion ms-1">Descargar</span>
                             </Button>
                           )}
                           <Button
                             variant="outline-secondary"
+                            title="Renombrar"
+                            aria-label="Renombrar"
                             onClick={() => {
                               setRenameTarget(item);
                               setRenameValue(item.nombre);
                             }}
                           >
-                            Renombrar
+                            <i className="bi bi-pencil" aria-hidden="true" />
+                            <span className="texto-accion ms-1">Renombrar</span>
                           </Button>
                           <Button
                             variant="outline-secondary"
+                            title="Mover"
+                            aria-label="Mover"
                             onClick={() => abrirMover(item)}
                           >
-                            Mover
+                            <i className="bi bi-folder-symlink" aria-hidden="true" />
+                            <span className="texto-accion ms-1">Mover</span>
                           </Button>
                           <Button
                             variant="outline-danger"
+                            title="Eliminar"
+                            aria-label="Eliminar"
                             onClick={() => void eliminar(item)}
                           >
-                            Eliminar
+                            <i className="bi bi-trash" aria-hidden="true" />
+                            <span className="texto-accion ms-1">Eliminar</span>
                           </Button>
                         </ButtonGroup>
                       </td>
@@ -554,6 +592,7 @@ export default function MiNubePage() {
             )}
           </Card.Body>
         </Card>
+        </DropZone>
       </div>
 
       <Modal

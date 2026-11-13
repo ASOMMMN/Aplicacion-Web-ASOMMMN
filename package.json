@@ -19,6 +19,6 @@
   "devDependencies": {
     "@types/multer": "^2.1.0",
     "blessed": "^0.1.81",
-    "figlet": "^1.11.0"
+    "figlet": "1.12.0"
   }
 }

@@ -34,3 +34,43 @@ export function detectarTipoArchivo(buffer: Buffer): TipoArchivoDetectado {
   }
   return null;
 }
+
+/** Tipo que se guarda cuando el contenido no coincide con ninguna firma conocida. */
+export const TIPO_DESCONOCIDO = 'application/octet-stream';
+
+/**
+ * Firmas extra que solo se usan para ETIQUETAR lo que se guarda en las
+ * nubes (mi-nube, archivos del evaluador), que aceptan cualquier archivo.
+ * No amplían lo que aceptan las subidas de documentos (detectarTipoArchivo).
+ */
+const FIRMAS_PARA_GUARDAR: {
+  tipo: string;
+  coincide: (b: Buffer) => boolean;
+}[] = [
+  {
+    tipo: 'image/gif',
+    coincide: (b) => ['GIF87a', 'GIF89a'].includes(b.toString('latin1', 0, 6)),
+  },
+  {
+    // "RIFF" + tamaño (4 bytes) + "WEBP"
+    tipo: 'image/webp',
+    coincide: (b) =>
+      b.length >= 12 &&
+      b.toString('latin1', 0, 4) === 'RIFF' &&
+      b.toString('latin1', 8, 12) === 'WEBP',
+  },
+];
+
+/**
+ * Tipo a guardar (y con el que después se sirve el archivo) según su
+ * contenido real, nunca según `file.mimetype`: un .html subido como
+ * "image/png" no debe servirse como página. Lo no reconocido se guarda como
+ * application/octet-stream, que el navegador descarga en vez de mostrar.
+ */
+export function tipoParaGuardar(buffer: Buffer): string {
+  return (
+    detectarTipoArchivo(buffer) ??
+    FIRMAS_PARA_GUARDAR.find((f) => f.coincide(buffer))?.tipo ??
+    TIPO_DESCONOCIDO
+  );
+}

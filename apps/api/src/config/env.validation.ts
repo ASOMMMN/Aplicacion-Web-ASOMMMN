@@ -1,4 +1,6 @@
 import { plainToInstance } from 'class-transformer';
+import { parsearOrigenesCors } from '../common/utils/cors.util';
+import { parsearListaCorreos } from '../common/utils/email-allowlist.util';
 import {
   IsEnum,
   IsNumber,
@@ -50,6 +52,11 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   RESEND_FROM: string = '';
+
+  /** Staging: si se define, solo se envía correo a estos correos o dominios. */
+  @IsOptional()
+  @IsString()
+  EMAIL_ALLOWLIST: string = '';
 
   @IsOptional()
   @IsString()
@@ -197,6 +204,20 @@ export function validate(config: Record<string, unknown>) {
   const errors = validateSync(validated, { skipMissingProperties: false });
   if (errors.length > 0) {
     throw new Error(errors.toString());
+  }
+  // EMAIL_ALLOWLIST es opcional, pero si trae entradas inválidas la API no
+  // arranca: una errata no debe dejar pasar (ni bloquear) correos en silencio.
+  parsearListaCorreos(
+    typeof config.EMAIL_ALLOWLIST === 'string'
+      ? config.EMAIL_ALLOWLIST
+      : undefined,
+  );
+  // En producción CORS_ORIGIN es obligatoria y debe ser una lista de orígenes
+  // exactos: se falla aquí, antes de conectar a Mongo o abrir el puerto.
+  if (validated.NODE_ENV === Environment.Production) {
+    parsearOrigenesCors(
+      typeof config.CORS_ORIGIN === 'string' ? config.CORS_ORIGIN : undefined,
+    );
   }
   return validated;
 }
