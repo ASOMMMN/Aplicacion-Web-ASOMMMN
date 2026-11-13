@@ -18,7 +18,7 @@ const ROLE_ALLOWED_PREFIXES: Record<string, string[]> = {
     "/mis-docs-personales",
     "/mi-bitacora-embarque",
   ],
-  evaluador: ["/candidatos", "/candidato", "/archivos", "/mi-nube"],
+  evaluador: ["/candidatos", "/candidato", "/archivos", "/mi-nube", "/notificaciones"],
   administrador: [
     "/usuarios",
     "/evaluaciones",
@@ -29,6 +29,7 @@ const ROLE_ALLOWED_PREFIXES: Record<string, string[]> = {
     "/candidatos",
     "/candidato",
     "/archivos",
+    "/notificaciones",
   ],
 };
 

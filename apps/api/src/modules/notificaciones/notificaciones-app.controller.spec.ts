@@ -8,7 +8,10 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { NotificacionesAppController } from './notificaciones-app.controller';
-import { ListarNotificacionesAppQueryDto } from './dto/notificacion-app.dto';
+import {
+  FiltroNotificacionesAppQueryDto,
+  ListarNotificacionesAppQueryDto,
+} from './dto/notificacion-app.dto';
 
 type Handler = 'listar' | 'marcarTodas' | 'marcarLeida';
 const HANDLERS: Handler[] = ['listar', 'marcarTodas', 'marcarLeida'];
@@ -56,11 +59,28 @@ describe('NotificacionesAppController — permisos', () => {
     const c = new NotificacionesAppController(service as never);
     const yo = { userId: 'u-yo', email: 'e@x.mx', rol: 'evaluador' } as never;
 
-    await c.listar(yo, { pagina: 2, limite: 5 });
-    await c.marcarTodas(yo);
+    await c.listar(yo, {
+      pagina: 2,
+      limite: 5,
+      soloNoLeidas: true,
+      tipo: 'documento_subido',
+      dia: '2026-11-11',
+      agrupar: 'dia',
+    });
+    await c.marcarTodas(yo, { tipo: 'nuevo_candidato' });
     await c.marcarLeida(yo, 'abc');
-    expect(service.listarMias).toHaveBeenCalledWith('u-yo', 2, 5);
-    expect(service.marcarTodasLeidas).toHaveBeenCalledWith('u-yo');
+    expect(service.listarMias).toHaveBeenCalledWith('u-yo', {
+      pagina: 2,
+      limite: 5,
+      soloNoLeidas: true,
+      tipo: 'documento_subido',
+      dia: '2026-11-11',
+      agrupar: 'dia',
+    });
+    expect(service.marcarTodasLeidas).toHaveBeenCalledWith('u-yo', {
+      tipo: 'nuevo_candidato',
+      dia: undefined,
+    });
     expect(service.marcarLeida).toHaveBeenCalledWith('u-yo', 'abc');
   });
 
@@ -86,5 +106,38 @@ describe('NotificacionesAppController — permisos', () => {
       const dto = plainToInstance(ListarNotificacionesAppQueryDto, mal);
       expect(await validate(dto)).not.toHaveLength(0);
     }
+  });
+
+  it('filtros: no leídas, tipo, día y agrupar se validan', async () => {
+    const ok = plainToInstance(ListarNotificacionesAppQueryDto, {
+      soloNoLeidas: 'true',
+      tipo: 'candidato_inactivo',
+      dia: '2026-11-11',
+      agrupar: 'dia',
+    });
+    expect(await validate(ok)).toHaveLength(0);
+    expect(ok.soloNoLeidas).toBe(true);
+    expect(
+      plainToInstance(ListarNotificacionesAppQueryDto, {
+        soloNoLeidas: 'false',
+      }).soloNoLeidas,
+    ).toBe(false);
+
+    for (const mal of [
+      { soloNoLeidas: 'quizá' },
+      { tipo: 'curso_por_vencer' },
+      { tipo: '{"$ne":null}' },
+      { dia: '11/11/2026' },
+      { dia: '2026-13-01' },
+      { agrupar: 'semana' },
+    ]) {
+      const dto = plainToInstance(ListarNotificacionesAppQueryDto, mal);
+      expect(await validate(dto)).not.toHaveLength(0);
+    }
+
+    const marcar = plainToInstance(FiltroNotificacionesAppQueryDto, {
+      dia: 'hoy',
+    });
+    expect(await validate(marcar)).not.toHaveLength(0);
   });
 });

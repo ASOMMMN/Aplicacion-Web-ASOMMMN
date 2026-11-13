@@ -81,6 +81,13 @@ export class Postulante {
   @Prop()
   expedienteCompletoNotificadoEn?: Date;
 
+  // Última actividad por la que ya se avisó "candidato inactivo". Un aviso
+  // por periodo de inactividad: solo se vuelve a avisar si el candidato tuvo
+  // actividad después (ver NotificacionesAppService#revisarCandidatosInactivos).
+  // Se escribe sin tocar `actualizadoEn`.
+  @Prop()
+  inactividadNotificadaDesde?: Date;
+
   // Auditoría
   @Prop()
   creadoEn: Date;

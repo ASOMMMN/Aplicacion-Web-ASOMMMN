@@ -4,8 +4,18 @@ import { Document, Types } from 'mongoose';
 export const TIPOS_NOTIFICACION_APP = [
   'nuevo_candidato',
   'expediente_completo',
+  'documento_subido',
+  'expediente_evaluado',
+  'candidato_inactivo',
 ] as const;
 export type TipoNotificacionApp = (typeof TIPOS_NOTIFICACION_APP)[number];
+
+export const DECISIONES_EXPEDIENTE = [
+  'en_proceso',
+  'completado',
+  'rechazado',
+] as const;
+export type DecisionExpediente = (typeof DECISIONES_EXPEDIENTE)[number];
 
 /** Las notificaciones de la campanita se borran solas a los ~60 días. */
 export const TTL_NOTIFICACION_APP_SEGUNDOS = 60 * 24 * 60 * 60;
@@ -40,6 +50,45 @@ export class NotificacionApp {
 
   @Prop({ type: Date, required: true, default: () => new Date() })
   creadaEn: Date;
+
+  // ── Campos según el tipo (opcionales; los avisos viejos no los tienen) ──
+
+  /**
+   * documento_subido: cuántas subidas junta este aviso (se agrupan por
+   * candidato en una ventana corta). En los demás tipos vale 1.
+   */
+  @Prop({ type: Number, min: 1, default: 1 })
+  cantidad: number;
+
+  /** documento_subido: etiquetas de lo subido ("CURP", "Currículum Vitae"…). */
+  @Prop({ type: [String], default: undefined })
+  documentos?: string[];
+
+  /** documento_subido: última subida que se agregó a este aviso. */
+  @Prop({ type: Date })
+  actualizadaEn?: Date;
+
+  /** expediente_evaluado: quién decidió (no recibe su propio aviso). */
+  @Prop({ type: Types.ObjectId, ref: 'Usuario' })
+  actorId?: Types.ObjectId;
+
+  @Prop({ type: String, trim: true })
+  actorNombre?: string;
+
+  /** expediente_evaluado: decisión registrada. */
+  @Prop({ type: String, enum: DECISIONES_EXPEDIENTE })
+  decision?: DecisionExpediente;
+
+  /** candidato_inactivo: última actividad del candidato antes del aviso. */
+  @Prop({ type: Date })
+  inactivoDesde?: Date;
+
+  /**
+   * Clave de deduplicación (respaldo contra carreras), p. ej. el candidato y
+   * la ventana de 10 min de documento_subido o el periodo de inactividad.
+   */
+  @Prop({ type: String })
+  claveDedup?: string;
 }
 
 export const NotificacionAppSchema =
@@ -62,4 +111,18 @@ NotificacionAppSchema.index(
     unique: true,
     partialFilterExpression: { tipo: 'expediente_completo' },
   },
+);
+// Respaldo contra carreras de los tipos con clave (documento_subido,
+// candidato_inactivo). Los avisos sin clave no entran al índice.
+NotificacionAppSchema.index(
+  { claveDedup: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { claveDedup: { $type: 'string' } },
+  },
+);
+// Ventana de agrupación de documento_subido.
+NotificacionAppSchema.index(
+  { candidatoId: 1, tipo: 1, actualizadaEn: -1 },
+  { partialFilterExpression: { tipo: 'documento_subido' } },
 );
