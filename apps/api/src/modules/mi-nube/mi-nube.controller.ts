@@ -137,7 +137,9 @@ export class MiNubeController {
    */
   private transmitir(stream: Readable, res: Response): void {
     stream.on('error', (err) => {
-      this.logger.error(`Error al transmitir archivo de Mi Nube: ${err.message}`);
+      this.logger.error(
+        `Error al transmitir archivo de Mi Nube: ${err.message}`,
+      );
       if (!res.headersSent) res.sendStatus(HttpStatus.INTERNAL_SERVER_ERROR);
       else res.destroy();
     });

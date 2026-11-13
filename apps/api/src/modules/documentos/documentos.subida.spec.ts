@@ -74,6 +74,9 @@ describe('DocumentosService.subirCV — guarda el tipo real', () => {
       {} as never,
       storage as never,
       { registrar: jest.fn() } as never,
+      {
+        avisarDocumentoSubido: jest.fn().mockResolvedValue(undefined),
+      } as never,
     );
     return { servicio, documentoModel, storage };
   }

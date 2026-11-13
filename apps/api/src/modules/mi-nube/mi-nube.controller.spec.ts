@@ -39,7 +39,10 @@ describe('MiNubeController — streaming de view/download', () => {
 
     await controller.descargar(ACTOR, 'id1', res as never);
 
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Type',
+      'application/pdf',
+    );
     expect(res.setHeader).toHaveBeenCalledWith('Content-Length', 1234);
     expect(res.setHeader).toHaveBeenCalledWith(
       'Content-Disposition',

@@ -72,6 +72,7 @@ describe('PostulantesService.subirDocumentoNube — tipo real del archivo', () =
       {} as never,
       storage as never,
       {} as never,
+      {} as never,
     );
     return { servicio, nubeItemModel, storage };
   }

@@ -329,7 +329,9 @@ export class EvalArchivosService {
     return { url, nombre: doc.nombre };
   }
 
-  private async resolverCarpetaPostulante(postulanteId: string): Promise<string> {
+  private async resolverCarpetaPostulante(
+    postulanteId: string,
+  ): Promise<string> {
     const postulante = await this.postulanteModel
       .findById(postulanteId)
       .select('usuarioId')
@@ -340,7 +342,10 @@ export class EvalArchivosService {
       .findById(postulante.usuarioId)
       .select('nombre apellidos')
       .lean();
-    return construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ?? postulanteId;
+    return (
+      construirCarpetaPorNombre(usuario?.nombre, usuario?.apellidos) ??
+      postulanteId
+    );
   }
 
   private async mapItem(i: {
