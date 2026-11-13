@@ -36,6 +36,7 @@ import type { ResultadoExtraccionFechas } from './ia/extraer-fechas-doc-personal
 
 import { StorageService } from '../storage/storage.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
 import {
   Postulante,
   PostulanteDocument,
@@ -115,6 +116,8 @@ export class DocsPersonalesService {
     private readonly configService: ConfigService,
 
     private readonly extraccionIa: ExtraccionIaService,
+
+    private readonly notificacionesApp: NotificacionesAppService,
   ) {}
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -882,6 +885,12 @@ export class DocsPersonalesService {
         nombreOriginal: file.originalname,
       },
     });
+
+    // Campanita de evaluadores (agrupa subidas cercanas). No lanza.
+    await this.notificacionesApp.avisarDocumentoSubido(
+      actor.userId,
+      LABEL_TIPO_DOC[tipo] ?? tipo,
+    );
 
     return this.toResponseDto(doc);
   }

@@ -1,7 +1,8 @@
 /**
- * Pruebas unitarias de utilidades puras (escáner de documentos). Entorno
- * Node, sin DOM: lo que necesita canvas o Worker se prueba a mano en el
- * celular (ver docs/escaner-pruebas-manuales.md).
+ * Pruebas unitarias en Node, sin DOM: lógica pura (escáner de documentos,
+ * validadores) y vistas sin estado renderizadas con react-dom/server (por eso
+ * también se transforma .tsx). Lo que necesita canvas o Worker se prueba a
+ * mano en el celular (ver docs/escaner-pruebas-manuales.md).
  */
 module.exports = {
   rootDir: 'src',

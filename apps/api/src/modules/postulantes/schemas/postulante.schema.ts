@@ -75,6 +75,19 @@ export class Postulante {
   @Prop()
   enviadoEn?: Date;
 
+  // Se escribe una sola vez, cuando se avisa a evaluadores y admins (campanita)
+  // que el expediente quedó completo. Evita repetir el aviso aunque lo reenvíe
+  // (ver NotificacionesAppService#notificarExpedienteCompleto).
+  @Prop()
+  expedienteCompletoNotificadoEn?: Date;
+
+  // Última actividad por la que ya se avisó "candidato inactivo". Un aviso
+  // por periodo de inactividad: solo se vuelve a avisar si el candidato tuvo
+  // actividad después (ver NotificacionesAppService#revisarCandidatosInactivos).
+  // Se escribe sin tocar `actualizadoEn`.
+  @Prop()
+  inactividadNotificadaDesde?: Date;
+
   // Auditoría
   @Prop()
   creadoEn: Date;

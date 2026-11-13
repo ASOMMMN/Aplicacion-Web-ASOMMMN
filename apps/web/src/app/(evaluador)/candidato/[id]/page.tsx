@@ -737,6 +737,13 @@ export default function CandidatoDetallePage() {
     cv: detalle.cvActual,
   });
 
+  // Misma regla que la API: solo archivos disponibles (con urlDescargar).
+  const archivosZip = resumirArchivosExpediente({
+    docsPersonales: docsPersonales?.tipos,
+    cursos: cursosData?.cursos,
+    cv: detalle.cvActual,
+  });
+
   const evalPorClave = new Map(
     evaluacionesPorDocumento.map((e) => [e.documentoClave, e]),
   );

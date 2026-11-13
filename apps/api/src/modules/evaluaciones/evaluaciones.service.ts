@@ -25,6 +25,7 @@ import {
 import { DocumentosService } from '../documentos/documentos.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
 import { CrearEvaluacionDto } from './dto/crear-evaluacion.dto';
 import { DecidirCandidatoDto } from './dto/decidir-candidato.dto';
 import {
@@ -101,6 +102,7 @@ export class EvaluacionesService {
     private auditoria: AuditoriaService,
     private notificaciones: NotificacionesService,
     private config: ConfigService,
+    private notificacionesApp: NotificacionesAppService,
   ) {}
 
   async listarTodas(): Promise<EvaluacionGlobalItemDto[]> {
@@ -870,6 +872,23 @@ export class EvaluacionesService {
     });
 
     const usuarioPostulante = postulante.usuarioId;
+
+    // Campanita de los DEMÁS evaluadores y admins. No lanza.
+    const nombreCandidato = [
+      usuarioPostulante?.nombre,
+      usuarioPostulante?.apellidos,
+    ]
+      .filter(Boolean)
+      .join(' ');
+    await this.notificacionesApp.avisarExpedienteEvaluado({
+      candidatoId: postulante._id,
+      nombreCandidato,
+      decision: dto.decision,
+      actorId: evaluador._id,
+      actorNombre: [evaluador.nombre, evaluador.apellidos]
+        .filter(Boolean)
+        .join(' '),
+    });
     if (usuarioPostulante?.email) {
       try {
         const frontendUrl = this.config.get(

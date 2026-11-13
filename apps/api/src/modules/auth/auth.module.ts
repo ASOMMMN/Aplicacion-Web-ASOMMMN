@@ -17,6 +17,10 @@ import {
   OneTimeToken,
   OneTimeTokenSchema,
 } from './schemas/one-time-token.schema';
+import {
+  Postulante,
+  PostulanteSchema,
+} from '../postulantes/schemas/postulante.schema';
 import { MFAModule } from '../mfa/mfa.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
 
@@ -35,6 +39,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
       { name: Usuario.name, schema: UsuarioSchema },
       { name: RefreshToken.name, schema: RefreshTokenSchema },
       { name: OneTimeToken.name, schema: OneTimeTokenSchema },
+      { name: Postulante.name, schema: PostulanteSchema },
     ]),
     MFAModule,
     AuditoriaModule,

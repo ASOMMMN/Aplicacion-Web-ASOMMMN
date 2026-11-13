@@ -21,8 +21,18 @@ export class NotificacionesService implements OnModuleInit {
   private from = 'ASOMMMN';
   /** EMAIL_ALLOWLIST (staging): null = sin restricción, como en producción. */
   private allowlist: ListaCorreos | null = null;
+  private correoAvisosEvaluadores = false;
 
   constructor(private readonly config: ConfigService) {}
+
+  /**
+   * NOTIF_EMAIL_EVALUADORES=true reactiva los correos "Nuevo candidato
+   * registrado" y "Expediente listo para revisar" (por defecto llegan solo
+   * a la campanita, ver NotificacionesAppService). No afecta otros correos.
+   */
+  get avisosEvaluadorPorCorreo(): boolean {
+    return this.correoAvisosEvaluadores;
+  }
 
   onModuleInit() {
     this.allowlist = parsearListaCorreos(
@@ -33,6 +43,10 @@ export class NotificacionesService implements OnModuleInit {
         `EMAIL_ALLOWLIST activa (${this.allowlist.correos.size} correo(s), ${this.allowlist.dominios.size} dominio(s)): solo se envía a esos destinatarios.`,
       );
     }
+    this.correoAvisosEvaluadores =
+      String(this.config.get('NOTIF_EMAIL_EVALUADORES', 'false'))
+        .trim()
+        .toLowerCase() === 'true';
 
     const apiKey = this.config.get<string>('RESEND_API_KEY', '').trim();
     const resendFrom = this.config.get<string>('RESEND_FROM', '').trim();
@@ -243,6 +257,7 @@ export class NotificacionesService implements OnModuleInit {
     nombreCandidato: string,
     candidatosUrl: string,
   ) {
+    if (!this.correoAvisosEvaluadores) return;
     this.logger.log(`[NUEVO CANDIDATO] aviso a ${email}`);
     await this.send({
       to: email,
@@ -261,6 +276,7 @@ export class NotificacionesService implements OnModuleInit {
     nombreCandidato: string,
     candidatoUrl: string,
   ) {
+    if (!this.correoAvisosEvaluadores) return;
     this.logger.log(`[EXPEDIENTE 100%] aviso a ${email}`);
     await this.send({
       to: email,

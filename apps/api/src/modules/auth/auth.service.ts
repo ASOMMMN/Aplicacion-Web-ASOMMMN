@@ -28,6 +28,14 @@ import {
   OneTimeTokenDocument,
 } from './schemas/one-time-token.schema';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import {
+  NotificacionesAppService,
+  filtroDestinatariosApp,
+} from '../notificaciones/notificaciones-app.service';
+import {
+  Postulante,
+  PostulanteDocument,
+} from '../postulantes/schemas/postulante.schema';
 import { MFAService } from '../mfa/mfa.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { RegisterDto } from './dto/register.dto';
@@ -101,6 +109,9 @@ export class AuthService implements OnModuleInit {
     private notificaciones: NotificacionesService,
     private mfaService: MFAService,
     private auditoria: AuditoriaService,
+    @InjectModel(Postulante.name)
+    private postulanteModel: Model<PostulanteDocument>,
+    private notificacionesApp: NotificacionesAppService,
   ) {}
 
   async onModuleInit() {
@@ -148,26 +159,89 @@ export class AuthService implements OnModuleInit {
       emailVerificado: true,
       emailVerificadoEn: new Date(),
     });
+    this.logger.log(
+      `[registro] nuevo postulante: usuario ${String(usuario._id)}`,
+    );
 
     await this.notificarNuevoCandidato(usuario);
+  }
+
+  /**
+   * Crea (o recupera) el perfil en `postulantes` del usuario recién
+   * registrado y devuelve su _id, o null si falló (el error se registra).
+   *
+   * Postulante tiene `timestamps` (creadoEn/actualizadoEn): Mongoose ya pone
+   * `$setOnInsert.creadoEn` y `$set.actualizadoEn` en cada upsert. Si aquí
+   * también se mandan en `$setOnInsert`, MongoDB rechaza el update entero
+   * (código 40, ConflictingUpdateOperators: "Updating the path
+   * 'actualizadoEn' would create a conflict") y el aviso nunca se crea.
+   * Por eso solo van los campos propios.
+   */
+  private async asegurarPerfilPostulante(
+    usuario: UsuarioDocument,
+  ): Promise<Types.ObjectId | null> {
+    try {
+      const postulante = await this.postulanteModel
+        .findOneAndUpdate(
+          { usuarioId: usuario._id },
+          { $setOnInsert: { estadoPostulacion: 'en_proceso' } },
+          { upsert: true, returnDocument: 'after', projection: { _id: 1 } },
+        )
+        .lean<{ _id: Types.ObjectId }>()
+        .exec();
+      if (!postulante) {
+        this.logger.error(
+          `[nuevo_candidato] usuario ${String(usuario._id)}: el upsert del perfil de postulante no devolvió documento; no se crea el aviso`,
+        );
+        return null;
+      }
+      return postulante._id;
+    } catch (err) {
+      const e = err as { code?: number; message?: string; stack?: string };
+      this.logger.error(
+        `[nuevo_candidato] usuario ${String(usuario._id)}: no se pudo crear el perfil de postulante (código ${e?.code ?? '-'}): ${e?.message}; no se crea el aviso`,
+        e?.stack,
+      );
+      return null;
+    }
   }
 
   private async notificarNuevoCandidato(
     usuario: UsuarioDocument,
   ): Promise<void> {
+    const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
+
+    // Campanita de evaluadores y admins. El perfil de postulante se crea
+    // aquí (antes nacía en su primera visita al portal, con los mismos
+    // valores iniciales) para que el aviso enlace a /candidato/<id>.
+    const postulanteId = await this.asegurarPerfilPostulante(usuario);
+    if (postulanteId) {
+      try {
+        await this.notificacionesApp.notificarNuevoCandidato(
+          postulanteId,
+          nombreCandidato,
+        );
+      } catch (err) {
+        // El detalle (destinatarios, insert) ya lo registró
+        // NotificacionesAppService; aquí queda el contexto del registro.
+        this.logger.error(
+          `[nuevo_candidato] usuario ${String(usuario._id)}: no se creó el aviso de la campanita: ${(err as Error)?.message}`,
+          (err as Error)?.stack,
+        );
+      }
+    }
+
+    // Correo desactivado por defecto (NOTIF_EMAIL_EVALUADORES=false).
+    if (!this.notificaciones.avisosEvaluadorPorCorreo) return;
     try {
       const evaluadores = await this.usuarioModel
-        .find({
-          rol: { $in: ['evaluador', 'administrador'] },
-          isDeleted: { $ne: true },
-        })
+        .find(filtroDestinatariosApp())
         .select('email nombre')
         .lean();
-      const frontendUrl = this.config.get(
+      const frontendUrl = this.config.get<string>(
         'FRONTEND_URL',
         'http://localhost:3000',
       );
-      const nombreCandidato = `${usuario.nombre} ${usuario.apellidos}`.trim();
 
       await Promise.all(
         evaluadores.map((evaluador) =>
@@ -201,7 +275,7 @@ export class AuthService implements OnModuleInit {
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
 
-    const frontendUrl = this.config.get(
+    const frontendUrl = this.config.get<string>(
       'FRONTEND_URL',
       'http://localhost:3000',
     );

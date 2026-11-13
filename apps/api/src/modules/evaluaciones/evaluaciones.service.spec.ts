@@ -31,6 +31,7 @@ function crear(postulantes: Record<string, unknown>[]) {
   const auditoria = { registrar: jest.fn() };
   const notificaciones = {};
   const config = { get: jest.fn() };
+  const notificacionesApp = {};
 
   return new EvaluacionesService(
     postulanteModel as any,
@@ -42,6 +43,7 @@ function crear(postulantes: Record<string, unknown>[]) {
     auditoria as any,
     notificaciones as any,
     config as any,
+    notificacionesApp as any,
   );
 }
 

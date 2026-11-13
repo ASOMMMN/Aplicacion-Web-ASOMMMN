@@ -71,6 +71,7 @@ describe('Evaluación de documentos — persistencia (MongoDB en memoria)', () =
       { registrar: jest.fn().mockResolvedValue(undefined) } as never,
       {} as never,
       { get: jest.fn() } as never,
+      { avisarExpedienteEvaluado: jest.fn().mockResolvedValue(true) } as never,
     );
   });
 
