@@ -58,6 +58,9 @@ import {
 } from './schemas/nube-item.schema';
 import { construirCarpetaPorNombre } from '../../common/utils/storage-folder.util';
 
+/** Vigencia de la URL firmada de descarga de la nube (15 min). */
+export const TTL_DESCARGA_NUBE_SEGUNDOS = 15 * 60;
+
 @Injectable()
 export class PostulantesService {
   private readonly logger = new Logger(PostulantesService.name);
@@ -476,6 +479,9 @@ export class PostulantesService {
     if (!Types.ObjectId.isValid(postulanteId)) {
       throw new BadRequestException('Postulante inválido.');
     }
+    if (!Types.ObjectId.isValid(itemId)) {
+      throw new BadRequestException('ID de item inválido.');
+    }
     const item = await this.nubeItemModel.findOne({
       _id: new Types.ObjectId(itemId),
       postulanteId: new Types.ObjectId(postulanteId),
@@ -485,12 +491,22 @@ export class PostulantesService {
     return this.resolverDescargaPorItem(item);
   }
 
-  private resolverDescargaPorItem(
+  /**
+   * URL de descarga **firmada** (presigned GET de S3, 15 min, attachment).
+   * Nunca se devuelve `cloudinaryUrl` tal cual: es la URL canónica sin
+   * firma del objeto, que solo funcionaría si el bucket fuera público.
+   */
+  private async resolverDescargaPorItem(
     item: Pick<
       NubeItem,
-      'tipo' | 'storagePath' | 'nombre' | 'cloudinaryUrl' | 'storageType'
+      | 'tipo'
+      | 'storagePath'
+      | 'nombre'
+      | 'cloudinaryUrl'
+      | 'storageType'
+      | 'mimeType'
     >,
-  ): { url: string; nombre: string } {
+  ): Promise<{ url: string; nombre: string }> {
     if (item.tipo !== 'archivo' || !item.storagePath) {
       throw new BadRequestException('Solo los archivos se pueden descargar.');
     }
@@ -500,10 +516,13 @@ export class PostulantesService {
       );
     }
 
-    return {
-      url: item.cloudinaryUrl,
-      nombre: item.nombre,
-    };
+    const url = await this.storage.getSecureDownloadUrl(
+      item.cloudinaryUrl,
+      item.nombre,
+      item.mimeType || 'application/octet-stream',
+      TTL_DESCARGA_NUBE_SEGUNDOS,
+    );
+    return { url, nombre: item.nombre };
   }
 
   private async getOwnedNubeItem(
