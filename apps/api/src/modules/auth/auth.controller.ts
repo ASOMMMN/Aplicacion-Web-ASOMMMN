@@ -9,6 +9,7 @@ import {
   HttpCode,
   UseGuards,
   UnauthorizedException,
+  ConflictException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -33,6 +34,18 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from './strategies/jwt.strategy';
+import {
+  POLITICAS,
+  ProteccionFuerzaBrutaService,
+} from './proteccion-fuerza-bruta.service';
+
+/**
+ * IP para los contadores de fuerza bruta: `req.ip`, que Express ya resuelve
+ * con `trust proxy` (1 salto, el proxy de Render). No se usa el primer valor
+ * de X-Forwarded-For porque lo controla el cliente y permitiría saltarse el
+ * bloqueo por IP cambiando la cabecera.
+ */
+const ipCliente = (req: Request): string => req.ip ?? '';
 
 const COOKIE_NAME = 'refresh_token';
 const isProd = process.env.NODE_ENV === 'production';
@@ -60,7 +73,10 @@ const CLEAR_COOKIE_OPTS = {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly fuerzaBruta: ProteccionFuerzaBrutaService,
+  ) {}
 
   @Post('registro')
   @HttpCode(201)
@@ -71,8 +87,28 @@ export class AuthController {
     description: 'Cuenta creada. Puedes iniciar sesión.',
   })
   @ApiResponse({ status: 409, description: 'El correo ya está registrado.' })
-  async registro(@Body() dto: RegisterDto) {
-    await this.authService.registrar(dto);
+  @ApiResponse({
+    status: 429,
+    description:
+      'Bloqueo temporal: demasiados registros rechazados desde esta IP.',
+  })
+  async registro(@Body() dto: RegisterDto, @Req() req: Request) {
+    const ip = ipCliente(req);
+    // Cada 409 ("ya registrado") confirma que un correo existe: limitarlos
+    // por IP frena la enumeración de cuentas.
+    await this.fuerzaBruta.exigirSinBloqueo(
+      [[POLITICAS.registroIp, ip]],
+      (min) =>
+        `Demasiados intentos de registro. Espera ${min} ${min === 1 ? 'minuto' : 'minutos'} e inténtalo de nuevo.`,
+    );
+    try {
+      await this.authService.registrar(dto);
+    } catch (err) {
+      if (err instanceof ConflictException) {
+        await this.fuerzaBruta.registrar(POLITICAS.registroIp, ip);
+      }
+      throw err;
+    }
     return { message: 'Cuenta creada. Puedes iniciar sesión de inmediato.' };
   }
 
@@ -115,12 +151,15 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  // Decisión explícita del cliente: sin límite de intentos en login.
-  // El resto de endpoints de auth (registro, MFA, reset de contraseña, etc.)
-  // sigue protegido por @Throttle().
-  @SkipThrottle()
+  // S-01 (AUDITORIA.md): antes sin límite. Ahora, 10 peticiones/min por IP
+  // y bloqueo temporal por cuenta (5 fallos) y por IP (20 fallos) en 15 min.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiResponse({ status: 200, description: 'Access token + usuario.' })
+  @ApiResponse({
+    status: 429,
+    description: 'Bloqueo temporal por intentos fallidos.',
+  })
   async login(
     @Body() dto: LoginDto,
     @Req() req: Request,
@@ -129,7 +168,9 @@ export class AuthController {
     const ip =
       (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip ?? '';
     const ua = req.headers['user-agent'] ?? '';
-    const result = await this.authService.login(dto, ip, ua);
+    const result = await this.conBloqueoPorCuenta(dto.email, req, () =>
+      this.authService.login(dto, ip, ua),
+    );
 
     if (result.requiresPasswordChange) {
       res.clearCookie(COOKIE_NAME, CLEAR_COOKIE_OPTS);
@@ -264,7 +305,18 @@ export class AuthController {
     summary: 'Solicitar enlace de recuperación de contraseña por correo',
   })
   async recuperarContrasena(@Body() dto: ForgotPasswordDto) {
-    await this.authService.solicitarRecuperacion(dto.email);
+    // Máximo 3 correos por destinatario y hora, aunque lleguen desde IPs
+    // distintas (el @Throttle de arriba es por IP). Pasado el tope no se
+    // envía nada, pero la respuesta es idéntica: no revela si el correo
+    // existe ni si está en tope.
+    const enTope =
+      (await this.fuerzaBruta.segundosDeBloqueo([
+        [POLITICAS.recuperacionCorreo, dto.email],
+      ])) > 0;
+    if (!enTope) {
+      await this.fuerzaBruta.registrar(POLITICAS.recuperacionCorreo, dto.email);
+      await this.authService.solicitarRecuperacion(dto.email);
+    }
     return {
       message:
         'Si el correo está registrado, recibirás un enlace para restablecer tu contraseña.',
@@ -292,10 +344,51 @@ export class AuthController {
     summary:
       'Cambiar contraseña temporal obligatoria para usuarios marcados por admin',
   })
-  async cambiarContrasenaObligatoria(@Body() dto: ChangeRequiredPasswordDto) {
-    await this.authService.cambiarContrasenaObligatoria(dto);
+  async cambiarContrasenaObligatoria(
+    @Body() dto: ChangeRequiredPasswordDto,
+    @Req() req: Request,
+  ) {
+    // Comprueba correo + contraseña temporal: es otro login y comparte el
+    // contador de la cuenta (no se puede alternar endpoints para adivinar).
+    await this.conBloqueoPorCuenta(dto.email, req, () =>
+      this.authService.cambiarContrasenaObligatoria(dto),
+    );
     return {
       message: 'Contraseña actualizada correctamente. Inicia sesión de nuevo.',
     };
+  }
+
+  /**
+   * Bloqueo temporal por contraseña errónea (S-01):
+   * - antes de verificar nada, 429 si la cuenta o la IP están bloqueadas
+   *   (aunque esta vez la contraseña sea correcta);
+   * - cada 401 suma un fallo a la cuenta y a la IP; cuentan también los
+   *   correos que no existen, para que el bloqueo no revele cuáles existen;
+   * - un acceso correcto limpia el contador de la cuenta (no el de la IP).
+   */
+  private async conBloqueoPorCuenta<T>(
+    email: string,
+    req: Request,
+    accion: () => Promise<T>,
+  ): Promise<T> {
+    const ip = ipCliente(req);
+    await this.fuerzaBruta.exigirSinBloqueo([
+      [POLITICAS.cuenta, email],
+      [POLITICAS.loginIp, ip],
+    ]);
+    let resultado: T;
+    try {
+      resultado = await accion();
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        await Promise.all([
+          this.fuerzaBruta.registrar(POLITICAS.cuenta, email),
+          this.fuerzaBruta.registrar(POLITICAS.loginIp, ip),
+        ]);
+      }
+      throw err;
+    }
+    await this.fuerzaBruta.limpiar(POLITICAS.cuenta, email);
+    return resultado;
   }
 }
