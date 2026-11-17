@@ -711,6 +711,10 @@ async function llamarVision(
  * Respaldo cuando no se pudo renderizar: el PDF completo a la Responses API,
  * con el mismo esquema estricto y un tope de tokens de salida. Esta API no
  * acepta `seed`: la repetibilidad aquí depende del consenso y de la caché.
+ *
+ * `store: false` es obligatorio: en la Responses API el valor por defecto es
+ * guardar la respuesta (y con ella el PDF de INE/CURP/pasaporte) del lado de
+ * OpenAI. No usamos `previous_response_id`, así que no hace falta guardarla.
  */
 async function llamarResponsesConPdf(
   apiKey: string,
@@ -726,6 +730,7 @@ async function llamarResponsesConPdf(
     },
     body: JSON.stringify({
       model: modelo,
+      store: false,
       input: [
         {
           role: 'user',
