@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
@@ -55,6 +56,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Raíz del monorepo (donde viven package-lock.json y el node_modules con
+  // `next`). Desde Next 16.4 la detección automática se detiene en el
+  // repositorio Git más cercano: un .git suelto dentro de apps/web deja la
+  // raíz en apps/web y el build no encuentra los paquetes hoisted. Next usa
+  // el mismo valor para outputFileTracingRoot; en Netlify coincide con la
+  // raíz que ya detectaba (la del package-lock.json), así que ahí no cambia.
+  turbopack: { root: path.join(__dirname, "..", "..") },
   typescript: {
     // Permite continuar aunque existan errores TS durante build.
     ignoreBuildErrors: true,
