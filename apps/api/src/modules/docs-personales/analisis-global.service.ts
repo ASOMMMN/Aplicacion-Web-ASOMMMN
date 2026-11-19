@@ -203,8 +203,15 @@ export class AnalisisGlobalService {
       else p.errores++;
       if (r) p.recientes = [r, ...p.recientes].slice(0, MAX_RECIENTES);
 
-      if (error && ERROR_GLOBAL.test(error)) {
-        return this.terminar(actor, `Detenido: ${error}`);
+      // La bandera viene del texto crudo (el visible ya está saneado); el regex
+      // cubre resultados sin bandera.
+      if (r?.iaNoDisponible || (error && ERROR_GLOBAL.test(error))) {
+        return this.terminar(
+          actor,
+          r?.iaNoDisponible
+            ? 'Detenido: la IA no está disponible (saldo agotado o clave inválida).'
+            : `Detenido: ${error}`,
+        );
       }
 
       if (i < ids.length - 1) {

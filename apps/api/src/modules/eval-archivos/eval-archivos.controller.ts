@@ -32,6 +32,9 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 
+/** Tamaño máximo de un archivo del evaluador. */
+export const LIMITE_EVAL_ARCHIVO_BYTES = 50 * 1024 * 1024;
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('evaluador', 'administrador')
 @Controller('eval-archivos/:postulanteId')
@@ -72,7 +75,7 @@ export class EvalArchivosController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 50 * 1024 * 1024 },
+      limits: { fileSize: LIMITE_EVAL_ARCHIVO_BYTES },
     }),
   )
   subirArchivo(

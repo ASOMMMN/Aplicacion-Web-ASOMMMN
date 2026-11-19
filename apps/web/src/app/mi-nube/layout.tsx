@@ -7,12 +7,14 @@ import { avisarFalloSesion } from '@/lib/auth/avisarFalloSesion';
 import AppNavbar from '@/components/layout/AppNavbar';
 import type { NavItem } from '@/components/layout/AppNavbar';
 import AppFooter from '@/components/layout/AppFooter';
+import { NotificacionesBell } from '@/components/layout/NotificacionesBell';
 
 type RolConNube = 'evaluador' | 'administrador';
 
 const ROLE_CONFIG: Record<
   RolConNube,
-  { rolLabel: string; brandHref: string; navItems: NavItem[] }
+  // campana: igual que el layout de cada rol ((evaluador) la muestra; (admin) no).
+  { rolLabel: string; brandHref: string; navItems: NavItem[]; campana: boolean }
 > = {
   evaluador: {
     rolLabel: 'Evaluador',
@@ -21,6 +23,7 @@ const ROLE_CONFIG: Record<
       { href: '/candidatos', label: 'Candidatos' },
       { href: '/mi-nube', label: 'Mi nube' },
     ],
+    campana: true,
   },
   administrador: {
     rolLabel: 'Administrador',
@@ -33,6 +36,7 @@ const ROLE_CONFIG: Record<
       { href: '/auditoria', label: 'Auditoría' },
       { href: '/analisis-documentos', label: 'Análisis de documentos' },
     ],
+    campana: false,
   },
 };
 
@@ -81,7 +85,7 @@ export default function MiNubeLayout({
 
   if (!rol) return null;
 
-  const { rolLabel, brandHref, navItems } = ROLE_CONFIG[rol];
+  const { rolLabel, brandHref, navItems, campana } = ROLE_CONFIG[rol];
 
   return (
     <div className="d-flex flex-column min-vh-100">
@@ -90,6 +94,7 @@ export default function MiNubeLayout({
         rolLabel={rolLabel}
         navItems={navItems}
         onLogout={cerrarSesion}
+        rightContent={campana ? <NotificacionesBell /> : undefined}
       />
       <main className="flex-grow-1">{children}</main>
       <AppFooter />

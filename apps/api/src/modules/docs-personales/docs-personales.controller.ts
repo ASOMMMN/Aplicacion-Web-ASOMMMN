@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -30,6 +31,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
+import { detectarTipoArchivo } from '../../common/utils/detectar-tipo-archivo.util';
 import { TIPOS_DOC_PERSONAL } from './constants/tipos-doc-personal';
 
 import {
@@ -174,11 +176,19 @@ export class DocsPersonalesController {
       };
     }
 
+    // Tipo real por firma de bytes: `file.mimetype` lo manda el cliente.
+    const tipoReal = detectarTipoArchivo(file.buffer);
+    if (!tipoReal) {
+      throw new BadRequestException(
+        'Tipo de archivo no permitido. Sube un PDF, JPG o PNG.',
+      );
+    }
+
     return this.svc.extraerDatosDocPersonalIa(
       file.buffer,
       user.userId,
       body.tipo,
-      file.mimetype,
+      tipoReal,
       user.email,
     );
   }

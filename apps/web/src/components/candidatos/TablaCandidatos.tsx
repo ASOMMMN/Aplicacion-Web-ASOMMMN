@@ -169,7 +169,8 @@ function DocsEvaluadosInfo({ item, estado }: { item: CandidatoItem; estado: Esta
         ? 'Evaluado'
         : item.estadoEvaluacion === 'en_evaluacion'
           ? 'En evaluación'
-          : 'Evaluados';
+          : // Ningún documento evaluado todavía (antes decía "Evaluados" bajo "0/11").
+            'Sin evaluar';
   return (
     <>
       <div className="small fw-semibold text-nowrap">
@@ -357,11 +358,14 @@ export function TablaCandidatos({
             <Table hover className="align-middle mb-0 tabla-candidatos">
               <colgroup>
                 <col style={{ width: '2%' }} />
-                <col style={{ width: '23%' }} />
+                <col style={{ width: '18%' }} />
                 <col style={{ width: '11%' }} />
-                <col style={{ width: '11%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '10%' }} />
+                {/* Fecha de postulación: palabra + ícono de orden necesitan ~124 px. */}
+                <col style={{ width: '14%' }} />
+                {/* Oculta bajo xxl (como su th/td): sin esto seguía reservando 10 % de ancho. */}
+                <col className="col-ultima-actividad" style={{ width: '10%' }} />
+                {/* Estado del expediente: +2 % (quitados a Candidato) para que el encabezado no se parta. */}
+                <col style={{ width: '12%' }} />
                 <col style={{ width: '14%' }} />
                 <col style={{ width: '11%' }} />
                 <col style={{ width: '8%' }} />
@@ -380,7 +384,8 @@ export function TablaCandidatos({
                     onOrdenar={toggleOrden}
                     className="d-none d-xxl-table-cell"
                   />
-                  <th>Estado postulación</th>
+                  {/* estadoGeneral: avance del expediente (no la decisión del evaluador, que se ve en el detalle). */}
+                  <th>Estado del expediente</th>
                   <ThOrdenable campo="porcentajeExpediente" label="Avance de carga" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                   <ThOrdenable campo="docsEvaluados" label="Docs. evaluados" ordenarPor={ordenarPor} direccion={direccion} onOrdenar={toggleOrden} />
                   <th className="text-end">Acción</th>

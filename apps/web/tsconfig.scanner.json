@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "incremental": false,
+    "types": ["jest", "node"]
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/lib/scanner/**/*.ts",
+    "src/lib/dropzone/**/*.ts",
+    "src/components/ui/DropZone.tsx",
+    "src/components/ui/BloqueoSoltarGlobal.tsx",
+    "src/hooks/scanner/**/*.ts",
+    "src/components/scanner/**/*.tsx",
+    "src/components/scanner/**/*.ts"
+  ]
+}

@@ -178,7 +178,10 @@ describe('extraerFechasDocPersonal con QR (OpenAI simulado)', () => {
     expect(cambios.fechaVencimiento?.toISOString()).toBe(
       '2027-12-19T00:00:00.000Z',
     );
-  }, 30000);
+    // Lectura de QR con jsQR (JS puro) sobre una página de 1700×2200: ~8 s sola,
+    // ~19 s con las 8 suites en paralelo y una vez pasó de 30 s en la corrida
+    // completa. No hay red ni esperas reales; es CPU.
+  }, 90_000);
 });
 
 describe('resumenFuentes', () => {

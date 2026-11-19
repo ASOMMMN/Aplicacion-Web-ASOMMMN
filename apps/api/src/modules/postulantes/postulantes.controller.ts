@@ -46,6 +46,9 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 import { corregirMojibakeLatin1 } from '../../common/utils/fix-mojibake.util';
 
+/** Tamaño máximo de un archivo de la nube (mismo que /mi-nube/upload). */
+export const LIMITE_NUBE_BYTES = 100 * 1024 * 1024;
+
 @ApiTags('postulantes')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -117,7 +120,8 @@ export class PostulantesController {
     @CurrentUser() user: AuthUser,
     @Req() req: Request,
   ): Promise<{ message: string }> {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
+    const ip =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0] ?? req.ip;
     return this.postulantesService.eliminarMiCuenta(user.userId, dto, ip);
   }
 
@@ -177,7 +181,12 @@ export class PostulantesController {
 
   @Post('mi-nube/subir')
   @Roles('evaluador')
-  @UseInterceptors(FileInterceptor('archivo', { storage: memoryStorage() }))
+  @UseInterceptors(
+    FileInterceptor('archivo', {
+      storage: memoryStorage(),
+      limits: { fileSize: LIMITE_NUBE_BYTES },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Subir documento a nube de evaluador' })
   @ApiResponse({ status: 201, type: NubeItemResponseDto })

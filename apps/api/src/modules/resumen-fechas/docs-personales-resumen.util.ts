@@ -18,6 +18,7 @@ import {
   PropuestaFechasIa,
   resumenPropuesta,
 } from '../docs-personales/ia/cambios-analisis';
+import { mensajeIaParaUsuario } from '../../common/utils/mensaje-ia-usuario.util';
 import type { Confianza } from '../docs-personales/ia/extraer-fechas-doc-personal';
 import type { MetaFechas } from '../docs-personales/ia/meta-fechas';
 import {
@@ -249,7 +250,7 @@ export function resumenDocumentosPersonales(
               motivosRevision: doc.motivosRevision ?? [],
               fechasVerificadas: Boolean(doc.fechasVerificadas),
               extraccionEstado: extraccion.estado,
-              extraccionError: extraccion.error,
+              extraccionError: mensajeIaParaUsuario(extraccion.error) ?? null,
               propuesta: resumenPropuesta(doc.propuestaFechasIa),
               tipoDocumento: tipo,
               archivosDelTipo: archivos.length,

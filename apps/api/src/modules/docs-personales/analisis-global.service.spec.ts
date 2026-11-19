@@ -83,6 +83,23 @@ describe('AnalisisGlobalService', () => {
     expect(fin.motivoFin).toMatch(/^Detenido: OpenAI sin saldo/);
   });
 
+  it('se detiene por la bandera iaNoDisponible aunque el mensaje visible sea genérico', async () => {
+    const { svc, docs } = crear([
+      {
+        extraccionEstado: 'error',
+        extraccionError:
+          'No se pudo extraer la información automáticamente, inténtalo más tarde.',
+        iaNoDisponible: true,
+      },
+      { extraccionEstado: 'ok' },
+    ]);
+    await svc.iniciar(ADMIN as AuthUser);
+    const fin = await esperarFin(svc);
+    expect(docs.reanalizar).toHaveBeenCalledTimes(1);
+    expect(fin.motivoFin).toMatch(/^Detenido: la IA no está disponible/);
+    expect(fin.motivoFin).not.toMatch(/openai|billing|https?:/i);
+  });
+
   it('límite por minuto: pausa y reintenta el MISMO documento sin contarlo como error', async () => {
     const { svc, docs } = crear([
       {

@@ -2,6 +2,11 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { LoggerService } from '../../common/logger';
+import {
+  destinatarioPermitido,
+  parsearListaCorreos,
+  type ListaCorreos,
+} from '../../common/utils/email-allowlist.util';
 
 interface EmailOptions {
   to: string;
@@ -14,6 +19,8 @@ export class NotificacionesService implements OnModuleInit {
   private readonly logger = new Logger(NotificacionesService.name);
   private resend: Resend | null = null;
   private from = 'ASOMMMN';
+  /** EMAIL_ALLOWLIST (staging): null = sin restricción, como en producción. */
+  private allowlist: ListaCorreos | null = null;
   private correoAvisosEvaluadores = false;
 
   constructor(private readonly config: ConfigService) {}
@@ -28,6 +35,14 @@ export class NotificacionesService implements OnModuleInit {
   }
 
   onModuleInit() {
+    this.allowlist = parsearListaCorreos(
+      this.config.get<string>('EMAIL_ALLOWLIST', ''),
+    );
+    if (this.allowlist) {
+      this.logger.warn(
+        `EMAIL_ALLOWLIST activa (${this.allowlist.correos.size} correo(s), ${this.allowlist.dominios.size} dominio(s)): solo se envía a esos destinatarios.`,
+      );
+    }
     this.correoAvisosEvaluadores =
       String(this.config.get('NOTIF_EMAIL_EVALUADORES', 'false'))
         .trim()
@@ -53,6 +68,13 @@ export class NotificacionesService implements OnModuleInit {
   }
 
   private async send(options: EmailOptions) {
+    // No se escribe la dirección en el log: puede ser de una persona real.
+    if (!destinatarioPermitido(options.to, this.allowlist)) {
+      this.logger.warn(
+        `[EMAIL_ALLOWLIST] Correo omitido: el destinatario no está en la lista permitida (asunto: ${options.subject})`,
+      );
+      return;
+    }
     if (!this.resend) {
       this.logger.warn(
         `[SIN RESEND] Para: ${options.to} | Asunto: ${options.subject}`,

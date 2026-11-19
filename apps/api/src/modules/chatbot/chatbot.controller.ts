@@ -15,6 +15,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
+import { Throttle } from '@nestjs/throttler';
+import {
+  MensajeTopeIa,
+  UserThrottlerGuard,
+} from '../../common/guards/user-throttler.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -40,6 +45,11 @@ export class ChatbotController {
 
   @Post('mensaje')
   @Roles('postulante')
+  @UseGuards(UserThrottlerGuard)
+  @Throttle({ ia: { limit: 30, ttl: 600_000 } }) // 30 mensajes cada 10 min por usuario
+  @MensajeTopeIa(
+    'Estás enviando mensajes muy rápido. Espera unos minutos para seguir con el asistente.',
+  )
   @ApiOperation({ summary: 'Postulante: envía un mensaje al chatbot de ayuda' })
   @ApiResponse({ status: 201, type: EnviarMensajeResponseDto })
   enviarMensaje(

@@ -32,6 +32,7 @@ import { DescargarTodoZip } from '@/components/documentos/DescargarTodoZip';
 import { nombreZipRespaldo, resumirArchivosExpediente } from '@/lib/descargaZipExpediente';
 import type { EstadoVigencia } from '@/components/resumen-fechas/types';
 import { formatearFechaCalendario } from '@/lib/fechas';
+import { contarTiposEntregados, esDocEvaluable, esTipoDocOpcional } from '@/lib/expediente';
 
 type Estado = 'en_proceso' | 'completado' | 'rechazado';
 
@@ -62,10 +63,6 @@ const TIPOS_DOC_PERSONAL: { tipo: TipoDocPersonal; label: string }[] = [
   { tipo: 'refrendo',                  label: 'Refrendo' },
 ];
 
-const TIPOS_DOC_OPCIONALES: TipoDocPersonal[] = ['visa', 'vacuna_fiebre_amarilla', 'refrendo'];
-const TIPOS_DOC_PERSONAL_REQUERIDOS = TIPOS_DOC_PERSONAL.filter(
-  (t) => !TIPOS_DOC_OPCIONALES.includes(t.tipo),
-);
 
 interface DocPersonalFile {
   _id: string;
@@ -718,7 +715,7 @@ export default function CandidatoDetallePage() {
   if (!detalle) {
     return (
       <Container className="py-4">
-        <Alert variant="danger">No se encontro el candidato solicitado.</Alert>
+        <Alert variant="danger">No se encontró el candidato solicitado.</Alert>
         <Link href="/candidatos" className="btn btn-outline-secondary">
           Volver a candidatos
         </Link>
@@ -726,9 +723,12 @@ export default function CandidatoDetallePage() {
     );
   }
 
-  const docsPersonalesReqConArchivos = (docsPersonales?.tipos ?? []).filter(
-    (t) => t.tipo !== 'visa' && t.cantidad > 0,
-  ).length;
+  // Solo requeridos en el numerador y el denominador (lib/expediente.ts): nunca pasa de 100 %.
+  const tiposEntregados = contarTiposEntregados(
+    TIPOS_DOC_PERSONAL.map((t) => t.tipo),
+    docsPersonales?.tipos ?? [],
+  );
+  const tiposCompletos = tiposEntregados.entregados === tiposEntregados.total;
 
   // Misma regla que la API: solo archivos disponibles (con urlDescargar).
   const archivosZip = resumirArchivosExpediente({
@@ -783,7 +783,7 @@ export default function CandidatoDetallePage() {
               <Card.Body>
                 <h5 className="section-title mb-3">
                   <IconAncla size={17} className="nautical-icon" />
-                  Informacion del candidato
+                  Información del candidato
                   <span className="anchor-glyph">⚓</span>
                 </h5>
                 <div className="d-flex align-items-center gap-3 mb-2">
@@ -797,7 +797,8 @@ export default function CandidatoDetallePage() {
                   {[detalle.ciudad, detalle.pais].filter(Boolean).join(', ') || '-'}
                 </p>
                 <p className="mb-0">
-                  Estado actual:{' '}
+                  {/* estadoPostulacion = decisión del evaluador; el avance de carga es otro campo (estadoExpediente). */}
+                  Decisión del evaluador:{' '}
                   <Badge bg={estadoColor[detalle.estadoPostulacion]} className="badge-pill-asommmn">
                     <i className={`bi ${estadoIconClass[detalle.estadoPostulacion]}`} />
                     {estadoLabel[detalle.estadoPostulacion]}
@@ -895,14 +896,14 @@ export default function CandidatoDetallePage() {
                   </h5>
                   {docsPersonales && (
                     <Badge
-                      bg={docsPersonalesReqConArchivos === TIPOS_DOC_PERSONAL_REQUERIDOS.length ? 'success' : 'warning'}
-                      text={docsPersonalesReqConArchivos === TIPOS_DOC_PERSONAL_REQUERIDOS.length ? undefined : 'dark'}
+                      bg={tiposCompletos ? 'success' : 'warning'}
+                      text={tiposCompletos ? undefined : 'dark'}
                       className="badge-pill-asommmn"
                     >
-                      {docsPersonalesReqConArchivos === TIPOS_DOC_PERSONAL_REQUERIDOS.length && (
+                      {tiposCompletos && (
                         <i className="bi bi-check-lg" />
                       )}
-                      {docsPersonalesReqConArchivos}/{TIPOS_DOC_PERSONAL_REQUERIDOS.length} tipos entregados
+                      {tiposEntregados.entregados}/{tiposEntregados.total} tipos entregados
                     </Badge>
                   )}
                 </div>
@@ -916,7 +917,7 @@ export default function CandidatoDetallePage() {
                     {TIPOS_DOC_PERSONAL.map(({ tipo, label }) => {
                       const resumen = docsPersonales.tipos.find((t) => t.tipo === tipo);
                       const cantidad = resumen?.cantidad ?? 0;
-                      const esOpcional = TIPOS_DOC_OPCIONALES.includes(tipo);
+                      const esOpcional = esTipoDocOpcional(tipo);
                       return (
                         <li key={tipo} className="mb-2">
                           <div className="d-flex justify-content-between align-items-start">
@@ -992,7 +993,8 @@ export default function CandidatoDetallePage() {
                               ))}
                             </div>
                           )}
-                          {tipo !== 'visa' && evalPorClave.get(tipo) && (
+                          {/* Requeridos siempre; opcionales (visa, vacuna, refrendo) solo si se subieron. */}
+                          {esDocEvaluable(tipo, cantidad) && evalPorClave.get(tipo) && (
                             <EvaluacionDocumentoPanel
                               evaluacion={evalPorClave.get(tipo)!}
                               saving={savingDocumento === tipo}
@@ -1136,7 +1138,7 @@ export default function CandidatoDetallePage() {
                   volver a cambiar más adelante.
                 </p>
                 <p className="mb-3">
-                  Estado actual:{' '}
+                  Decisión actual:{' '}
                   <Badge bg={estadoColor[detalle.estadoPostulacion]} className="badge-pill-asommmn">
                     <i className={`bi ${estadoIconClass[detalle.estadoPostulacion]}`} />
                     {estadoLabel[detalle.estadoPostulacion]}
@@ -1168,7 +1170,7 @@ export default function CandidatoDetallePage() {
                 {comentarios.length === 0 ? (
                   <div className="empty-state">
                     <i className="bi bi-chat-left-text" />
-                    <span>Aun no hay comentarios registrados.</span>
+                    <span>Aún no hay comentarios registrados.</span>
                   </div>
                 ) : (
                   <div className="d-flex flex-column gap-2">

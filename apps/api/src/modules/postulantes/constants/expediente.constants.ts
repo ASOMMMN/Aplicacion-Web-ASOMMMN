@@ -30,11 +30,18 @@ export const REQUISITOS_EXPEDIENTE = [
     requerido: true,
   },
   {
+    clave: 'visa',
+    label: 'Visa',
+    urlFrontend: '/mis-docs-personales',
+    // Opcional, igual que la vacuna: evaluable solo si se subió.
+    requerido: false,
+  },
+  {
     clave: 'vacuna_fiebre_amarilla',
     label: 'Vacuna de fiebre amarilla',
     urlFrontend: '/mis-docs-personales',
     // Opcional: no bloquea el % de avance del expediente ni aparece en
-    // "Falta: ...". Sigue siendo evaluable como documento si se sube.
+    // "Falta: ...". Es evaluable si se sube (ver progreso-expediente.util.ts).
     requerido: false,
   },
   {
@@ -60,6 +67,12 @@ export const REQUISITOS_EXPEDIENTE = [
     label: 'Certificado de competencia',
     urlFrontend: '/mis-docs-personales',
     requerido: true,
+  },
+  {
+    clave: 'refrendo',
+    label: 'Refrendo',
+    urlFrontend: '/mis-docs-personales',
+    requerido: false,
   },
   {
     clave: 'vacante',

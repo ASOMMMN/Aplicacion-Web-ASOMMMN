@@ -833,12 +833,24 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   table-layout: fixed;
   width: 100%;
 }
+.tabla-candidatos col.col-ultima-actividad {
+  display: none;
+}
+@media (min-width: 1400px) {
+  .tabla-candidatos col.col-ultima-actividad {
+    display: table-column;
+  }
+}
 .tabla-candidatos thead th {
   font-size: .64rem;
   padding-left: .5rem;
   padding-right: .5rem;
   white-space: normal;
   line-height: 1.25;
+  /* Envolver entre palabras, nunca a media palabra ("ESTADO POSTULA-CIÓN"). */
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
 }
 /* Las cabeceras ordenables envuelven el texto en un <button> (ThOrdenable);
    el reboot de Bootstrap resetea text-transform/font-size de los <button> y
@@ -860,6 +872,64 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   padding-bottom: .5rem;
   font-size: .82rem;
   overflow: hidden;
+}
+
+/* Tabla de Mi nube: a ~1000 px los 5 botones de acciones (que no se envuelven)
+   aplastaban la columna de nombre hasta partirla letra por letra y cortaban
+   "Eliminar". Con un ancho mínimo, .table-responsive hace scroll horizontal
+   controlado; el nombre largo se trunca con "…" y el completo va en el title. */
+.tabla-mi-nube {
+  min-width: 760px;
+}
+.tabla-mi-nube .col-nombre {
+  min-width: 200px;
+}
+/* El botón del nombre es flex: el ícono y el nombre quedan en una línea y el
+   nombre se trunca con "…" dentro del ancho de la celda (antes el ícono caía
+   encima del nombre). */
+.tabla-mi-nube .col-nombre .btn {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.tabla-mi-nube .col-nombre .btn i {
+  flex: none;
+}
+.tabla-mi-nube .nombre-archivo {
+  display: inline-block;
+  min-width: 0;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.tabla-mi-nube .col-acciones {
+  white-space: nowrap;
+}
+/* El correo del propietario se trunca (el completo va en el title). */
+.tabla-mi-nube .propietario-email {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* "Tipo" es redundante (ícono y extensión) y se oculta bajo 1320 px para que
+   las acciones queden dentro del área visible sin desplazar. */
+@media (max-width: 1319.98px) {
+  .tabla-mi-nube .col-tipo {
+    display: none;
+  }
+}
+/* Bajo 1320 px (con texto la tabla necesita ~1220 px) las acciones son solo íconos (con title y aria-label): los 5
+   botones con texto no caben y "Eliminar" quedaba cortado. */
+@media (max-width: 1319.98px) {
+  .tabla-mi-nube .texto-accion {
+    display: none;
+  }
 }
 
 /* ---------- 5. Badges / píldoras ---------- */

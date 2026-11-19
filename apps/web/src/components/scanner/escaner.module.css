@@ -1,0 +1,418 @@
+/*
+ * Estilos del escáner. Van en un CSS Module (no en globals.css) para que
+ * solo se descarguen con el chunk perezoso del escáner.
+ * Las clases de EditorEsquinas/ListaPaginas/SelectorModo se declaran
+ * :global dentro de .cuerpo porque esos componentes usan nombres fijos.
+ */
+
+.cuerpo {
+  background: var(--asommmn-fondo);
+  padding: 1rem;
+}
+
+.captura {
+  max-width: 420px;
+  margin: 1.5rem auto;
+}
+
+.consejos {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  color: var(--asommmn-text-muted);
+}
+
+.consejos li {
+  display: flex;
+  gap: .6rem;
+  align-items: baseline;
+  padding: .35rem 0;
+}
+
+.consejos i {
+  color: var(--asommmn-dorado-dark);
+}
+
+.botonGrande {
+  min-height: 56px;
+  font-weight: 600;
+}
+
+/* ── Computadora: subir/arrastrar imágenes y vista previa amplia ────── */
+
+.capturaAncha {
+  max-width: 640px;
+  margin: 1.5rem auto;
+}
+
+.zonaImagenes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .35rem;
+  width: 100%;
+  padding: 2.5rem 1.5rem;
+  border: 2px dashed var(--asommmn-dorado);
+  border-radius: var(--asommmn-radius-card);
+  background: #fff;
+  color: var(--asommmn-azul);
+  text-align: center;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+.zonaImagenes:hover {
+  background: rgba(201, 162, 75, .08);
+}
+
+.zonaImagenes:focus-visible {
+  outline: 3px solid var(--asommmn-azul);
+  outline-offset: 3px;
+}
+
+.zonaImagenes > i {
+  font-size: 2.5rem;
+  color: var(--asommmn-dorado-dark);
+}
+
+/* Revisión en computadora: vista previa grande a la izquierda, herramientas a la derecha. */
+.revisionAncha {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 1rem;
+  align-items: start;
+}
+
+.revisionAncha .vista {
+  height: 70vh;
+}
+
+.cuerpo .revisionAncha :global(.escaner-modos) {
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 0;
+}
+
+.cuerpo .revisionAncha :global(.escaner-paginas) {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.cuerpo .revisionAncha :global(.escaner-pagina) {
+  width: 96px;
+}
+
+.cuerpo .revisionAncha :global(.escaner-miniatura) {
+  height: 96px;
+}
+
+/* Ventana de escritorio angosta: se apila como en el celular. */
+@media (max-width: 991.98px) {
+  .revisionAncha {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .revisionAncha .vista {
+    height: 50vh;
+  }
+}
+
+/* Vista previa de la página procesada */
+/* Altura fija: al girar la página los botones no cambian de lugar. */
+.vista {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 50vh;
+  min-height: 220px;
+  background: var(--asommmn-azul);
+  border-radius: var(--asommmn-radius-card);
+  padding: .5rem;
+}
+
+.vista img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+}
+
+.velo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 34, 64, .45);
+  border-radius: var(--asommmn-radius-card);
+}
+
+.herramientas {
+  display: flex;
+  gap: .5rem;
+  justify-content: center;
+  margin: .5rem 0;
+}
+
+.herramientas :global(.btn) {
+  min-height: 44px;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.acciones :global(.btn) {
+  flex: 1 1 0;
+  min-height: 52px;
+  min-width: 140px;
+  font-weight: 600;
+}
+
+/* ── Cámara en vivo ─────────────────────────────────────────────────── */
+
+.camara {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+/* object-fit: contain → lo que se ve es exactamente lo que se captura. */
+.visor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  height: 60dvh;
+  min-height: 260px;
+  overflow: hidden;
+  background: var(--asommmn-azul);
+  border-radius: var(--asommmn-radius-card);
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.visorVelo {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  padding: 1.25rem;
+  overflow-y: auto;
+  text-align: center;
+  color: #fff;
+  background: rgba(10, 34, 64, .88);
+}
+
+.controles {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: .75rem;
+}
+
+.controles :global(.btn) {
+  min-height: 48px;
+  font-weight: 600;
+}
+
+.obturador {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: var(--asommmn-dorado);
+  color: var(--asommmn-azul);
+  box-shadow: 0 0 0 3px var(--asommmn-dorado), 0 4px 12px rgba(0, 0, 0, .3);
+  transition: transform .1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.obturador:active:not(:disabled) {
+  transform: scale(.92);
+}
+
+.obturador:disabled {
+  opacity: .5;
+}
+
+.obturador:focus-visible {
+  outline: 3px solid var(--asommmn-azul);
+  outline-offset: 4px;
+}
+
+/* ── Editor de esquinas ─────────────────────────────────────────────── */
+
+.cuerpo :global(.escaner-lienzo) {
+  display: flex;
+  justify-content: center;
+  background: var(--asommmn-azul);
+  border-radius: var(--asommmn-radius-card);
+  padding: .75rem;
+}
+
+.cuerpo :global(.escaner-marco) {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.cuerpo :global(.escaner-foto) {
+  display: block;
+  max-width: 100%;
+  max-height: 62vh;
+}
+
+.cuerpo :global(.escaner-esquinas) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: none;
+}
+
+.cuerpo :global(.escaner-sombra) {
+  fill: rgba(10, 34, 64, .55);
+}
+
+.cuerpo :global(.escaner-contorno) {
+  fill: rgba(201, 162, 75, .12);
+  stroke: var(--asommmn-dorado);
+}
+
+.cuerpo :global(.escaner-punto) {
+  fill: #fff;
+  stroke: var(--asommmn-dorado);
+  pointer-events: none;
+}
+
+.cuerpo :global(.escaner-punto-toque) {
+  fill: transparent;
+  cursor: grab;
+  outline: none;
+}
+
+.cuerpo :global(.escaner-punto-toque:focus-visible) {
+  fill: rgba(201, 162, 75, .35);
+}
+
+.cuerpo :global(.escaner-lupa) {
+  position: absolute;
+  top: 8px;
+  border-radius: 50%;
+  border: 3px solid var(--asommmn-dorado);
+  background-repeat: no-repeat;
+  background-color: #000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+  pointer-events: none;
+}
+
+.cuerpo :global(.escaner-lupa)::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--asommmn-dorado);
+  border-radius: 50%;
+}
+
+/* ── Selector de modo ───────────────────────────────────────────────── */
+
+.cuerpo :global(.escaner-modos) {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: .5rem;
+  margin-top: .75rem;
+}
+
+.cuerpo :global(.escaner-boton-modo) {
+  min-height: 56px;
+  line-height: 1.2;
+}
+
+/* ── Páginas ────────────────────────────────────────────────────────── */
+
+.cuerpo :global(.escaner-paginas) {
+  display: flex;
+  gap: .75rem;
+  overflow-x: auto;
+  list-style: none;
+  padding: .5rem 0 0;
+  margin: .5rem 0 0;
+  border-top: 1px solid rgba(10, 34, 64, .1);
+}
+
+.cuerpo :global(.escaner-pagina) {
+  flex: 0 0 auto;
+  width: 112px;
+}
+
+.cuerpo :global(.escaner-miniatura) {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 112px;
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cuerpo :global(.escaner-pagina.activa .escaner-miniatura) {
+  border-color: var(--asommmn-dorado);
+}
+
+.cuerpo :global(.escaner-miniatura img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cuerpo :global(.escaner-numero) {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  background: var(--asommmn-azul);
+  color: #fff;
+  font-size: .75rem;
+  line-height: 22px;
+}
+
+.cuerpo :global(.escaner-pagina-acciones) {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.cuerpo :global(.escaner-pagina-acciones .btn) {
+  min-width: 34px;
+  min-height: 36px;
+  padding: 0;
+}

@@ -5,23 +5,32 @@ import { detenerVigilante, fase } from './common/arranque/fases-arranque';
 import { NestFactory } from '@nestjs/core';
 import { getConnectionToken } from '@nestjs/mongoose';
 import type { Connection } from 'mongoose';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import {
+  Logger,
+  ValidationPipe,
+  type LoggerService as NestLoggerService,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import helmet from 'helmet';
 import compression from 'compression';
-import cookieParser = require('cookie-parser');
-import express = require('express');
+import cookieParser from 'cookie-parser';
+import express from 'express';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
- 
+
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { LoggerService } from './common/logger';
+import {
+  ORIGENES_CORS_DESARROLLO,
+  opcionesCors,
+  parsearOrigenesCors,
+} from './common/utils/cors.util';
 import { sincronizarIndicesEnSegundoPlano } from './common/arranque/indices-segundo-plano';
- 
+
 async function bootstrap() {
   fase('nest', 'código cargado; creando la aplicación (NestFactory.create)');
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -31,11 +40,13 @@ async function bootstrap() {
   // todas las peticiones como si vinieran de la IP interna del proxy, y el
   // rate limiting de @nestjs/throttler (que usa req.ip) termina compartiendo
   // el mismo cupo entre todos los usuarios en vez de contarlos por IP real.
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  (app.getHttpAdapter().getInstance() as express.Express).set('trust proxy', 1);
 
-  const winstonLogger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  const winstonLogger = app.get<NestLoggerService>(
+    WINSTON_MODULE_NEST_PROVIDER,
+  );
   app.useLogger(winstonLogger);
- 
+
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3001);
   const isProduction = config.get('NODE_ENV') === 'production';
@@ -49,7 +60,7 @@ async function bootstrap() {
         'Defínela en las variables de entorno del servicio (Render → Environment).',
     );
   }
- 
+
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -76,28 +87,22 @@ async function bootstrap() {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());
- 
-  const uploadsDir = config.get<string>('STORAGE_PATH') || join(process.cwd(), 'uploads');
-  mkdirSync(uploadsDir, { recursive: true });
- 
-  // CORS: en producción, origin exacto (sin wildcards ni múltiples dominios)
-  // desde CORS_ORIGIN (Render), con fallback al dominio de Netlify. En
-  // desarrollo se permite localhost para no bloquear el frontend local.
-  const corsOrigin = isProduction
-    ? (config.get<string>('CORS_ORIGIN') ??
-      'https://reclutamiento-asommmn.netlify.app')
-    : ['http://localhost:3000', 'http://localhost:3002'];
 
-  app.enableCors({
-    origin: corsOrigin,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    // El navegador oculta a JS las cabeceras de respuesta entre dominios salvo
-    // las "simples": la web necesita el nombre del archivo de las descargas.
-    exposedHeaders: ['Content-Disposition'],
-    credentials: true,
-  });
- 
+  const uploadsDir =
+    config.get<string>('STORAGE_PATH') || join(process.cwd(), 'uploads');
+  mkdirSync(uploadsDir, { recursive: true });
+
+  // CORS: en producción, CORS_ORIGIN (Render) es una lista de orígenes exactos
+  // separados por comas (sin comodines); si falta o es inválida la API no
+  // arranca (ver parsearOrigenesCors; env.validation ya lo comprueba antes de
+  // conectar a Mongo). No hay valor por defecto. En desarrollo se permite
+  // localhost para no bloquear el frontend local.
+  const origenesCors = isProduction
+    ? parsearOrigenesCors(config.get<string>('CORS_ORIGIN'))
+    : ORIGENES_CORS_DESARROLLO;
+
+  app.enableCors(opcionesCors(origenesCors));
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -105,10 +110,10 @@ async function bootstrap() {
       transform: true,
     }),
   );
- 
+
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
- 
+
   if (!isProduction) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('ASOMMMN API')
@@ -119,7 +124,7 @@ async function bootstrap() {
         'access-token',
       )
       .build();
- 
+
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api-docs', app, document);
   }
