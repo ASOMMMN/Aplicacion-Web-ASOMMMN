@@ -1,4 +1,5 @@
-import { Connection, Types, createConnection } from 'mongoose';
+import { Connection, Types } from 'mongoose';
+import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import {
@@ -34,10 +35,10 @@ describe('sincronizarIndices (MongoDB en memoria, autoIndex apagado)', () => {
       // 10 s por defecto a veces no alcanzan y falla todo el beforeAll.
       instance: { launchTimeout: 60_000 },
     });
-    conexion = await createConnection(mongod.getUri('indices'), {
+    conexion = await conectarMongoPrueba(mongod.getUri('indices'), {
       autoIndex: false,
       autoCreate: false,
-    }).asPromise();
+    });
     conexion.model(NotificacionApp.name, NotificacionAppSchema);
     conexion.model(Postulante.name, PostulanteSchema);
 

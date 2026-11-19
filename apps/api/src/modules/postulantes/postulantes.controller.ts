@@ -263,6 +263,8 @@ export class PostulantesController {
       user.userId,
       itemId,
     );
+    // URL firmada de 15 min: que ni el navegador ni un proxy cacheen la redirección.
+    res.setHeader('Cache-Control', 'no-store');
     res.redirect(302, doc.url);
   }
 
@@ -289,6 +291,7 @@ export class PostulantesController {
       id,
       itemId,
     );
+    res.setHeader('Cache-Control', 'no-store');
     res.redirect(302, doc.url);
   }
 }

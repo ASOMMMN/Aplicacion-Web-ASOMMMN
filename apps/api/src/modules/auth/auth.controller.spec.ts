@@ -92,6 +92,8 @@ describe('AuthController: logout y refresh (cookies de producción)', () => {
       await import('../postulantes/schemas/postulante.schema');
     const { MFAService } = await import('../mfa/mfa.service');
     const { AuditoriaService } = await import('../auditoria/auditoria.service');
+    const { ProteccionFuerzaBrutaService } =
+      await import('./proteccion-fuerza-bruta.service');
 
     almacen = almacenTokens();
     const usuario = {
@@ -107,6 +109,9 @@ describe('AuthController: logout y refresh (cookies de producción)', () => {
       controllers: [AuthController],
       providers: [
         AuthService,
+        // Logout/refresh no lo usan; el bloqueo se prueba en
+        // auth.fuerza-bruta.spec.ts.
+        { provide: ProteccionFuerzaBrutaService, useValue: {} },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: getModelToken(RefreshToken.name), useValue: almacen.model },
         {

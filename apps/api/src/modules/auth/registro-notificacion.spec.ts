@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
-import { Connection, Model, Types, createConnection } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
+import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import { AuthService } from './auth.service';
@@ -54,10 +55,10 @@ describe('Registro → aviso "nuevo candidato" (MongoDB real, modo producción)'
       instance: { launchTimeout: 60_000 },
     });
     // Igual que config/mongoose.config.ts con NODE_ENV=production.
-    conexion = await createConnection(mongod.getUri('prod_sim'), {
+    conexion = await conectarMongoPrueba(mongod.getUri('prod_sim'), {
       autoIndex: false,
       autoCreate: false,
-    }).asPromise();
+    });
     usuarioModel = conexion.model<UsuarioDocument>(Usuario.name, UsuarioSchema);
     postulanteModel = conexion.model<PostulanteDocument>(
       Postulante.name,

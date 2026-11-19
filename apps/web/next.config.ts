@@ -67,9 +67,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   // Raíz del monorepo (donde viven package-lock.json y el node_modules con
-  // `next`). Desde Next 16.4 la raíz se limita al repositorio Git más cercano:
-  // un .git suelto dentro de apps/web ya no deja resolver los paquetes
-  // hoisted. Fijarla evita depender de dónde esté el .git.
+  // `next`). Desde Next 16.4 la detección automática se detiene en el
+  // repositorio Git más cercano: un .git suelto dentro de apps/web deja la
+  // raíz en apps/web y el build no encuentra los paquetes hoisted. Next usa
+  // el mismo valor para outputFileTracingRoot; en Netlify coincide con la
+  // raíz que ya detectaba (la del package-lock.json), así que ahí no cambia.
   turbopack: { root: path.join(__dirname, "..", "..") },
   async headers() {
     return [

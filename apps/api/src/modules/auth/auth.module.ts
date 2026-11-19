@@ -23,6 +23,8 @@ import {
 } from '../postulantes/schemas/postulante.schema';
 import { MFAModule } from '../mfa/mfa.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
+import { IntentoAuth, IntentoAuthSchema } from './schemas/intento-auth.schema';
+import { ProteccionFuerzaBrutaService } from './proteccion-fuerza-bruta.service';
 
 @Module({
   imports: [
@@ -40,12 +42,13 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
       { name: RefreshToken.name, schema: RefreshTokenSchema },
       { name: OneTimeToken.name, schema: OneTimeTokenSchema },
       { name: Postulante.name, schema: PostulanteSchema },
+      { name: IntentoAuth.name, schema: IntentoAuthSchema },
     ]),
     MFAModule,
     AuditoriaModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, ProteccionFuerzaBrutaService],
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}
