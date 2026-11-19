@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
-import { Connection, Model, Types, createConnection } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
+import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import { NotificacionesAppService } from './notificaciones-app.service';
@@ -67,7 +68,7 @@ describe('NotificacionesAppService (MongoDB en memoria)', () => {
       // 10 s por defecto a veces no alcanzan y falla todo el beforeAll.
       instance: { launchTimeout: 60_000 },
     });
-    conexion = await createConnection(mongod.getUri()).asPromise();
+    conexion = await conectarMongoPrueba(mongod.getUri());
     notificacionModel = conexion.model<NotificacionAppDocument>(
       NotificacionApp.name,
       NotificacionAppSchema,

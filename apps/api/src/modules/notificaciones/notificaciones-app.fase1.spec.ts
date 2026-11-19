@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
-import { Connection, Model, Types, createConnection } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
+import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import {
@@ -102,10 +103,10 @@ describe('Campanita fase 1 (MongoDB real, modo producción)', () => {
     mongod = await MongoMemoryServer.create({
       instance: { launchTimeout: 60_000 },
     });
-    conexion = await createConnection(mongod.getUri('fase1'), {
+    conexion = await conectarMongoPrueba(mongod.getUri('fase1'), {
       autoIndex: false,
       autoCreate: false,
-    }).asPromise();
+    });
     notificacionModel = conexion.model<NotificacionAppDocument>(
       NotificacionApp.name,
       NotificacionAppSchema,

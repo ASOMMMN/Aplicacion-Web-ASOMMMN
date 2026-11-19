@@ -1,4 +1,5 @@
-import { Connection, Model, Types, createConnection } from 'mongoose';
+import { Connection, Model, Types } from 'mongoose';
+import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -38,7 +39,7 @@ describe('Evaluación de documentos — persistencia (MongoDB en memoria)', () =
 
   beforeAll(async () => {
     mongod = await MongoMemoryServer.create();
-    conexion = await createConnection(mongod.getUri()).asPromise();
+    conexion = await conectarMongoPrueba(mongod.getUri());
     evaluacionModel = conexion.model<EvaluacionDocument>(
       Evaluacion.name,
       EvaluacionSchema,
