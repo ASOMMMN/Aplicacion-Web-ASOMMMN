@@ -42,6 +42,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { ChangeRequiredPasswordDto } from './dto/change-required-password.dto';
+import { requiereConsentimiento } from '../privacidad/aviso-privacidad.constants';
 
 type MfaTempPurpose = 'verify_login' | 'setup_mfa';
 
@@ -84,6 +85,8 @@ type LoginResult =
       requiresMfa: false;
       accessToken: string;
       refreshToken: string;
+      /** Postulante sin aceptar el aviso de privacidad vigente (P-01). */
+      requiresPrivacyConsent: boolean;
       user: {
         id: string;
         email: string;
@@ -140,7 +143,7 @@ export class AuthService implements OnModuleInit {
 
   // ─── Registro ────────────────────────────────────────────────────────────────
 
-  async registrar(dto: RegisterDto): Promise<void> {
+  async registrar(dto: RegisterDto, ip?: string): Promise<void> {
     const exists = await this.usuarioModel.findOne({
       email: dto.email.toLowerCase(),
       isDeleted: { $ne: true },
@@ -158,6 +161,13 @@ export class AuthService implements OnModuleInit {
       estadoCuenta: 'activa',
       emailVerificado: true,
       emailVerificadoEn: new Date(),
+      // El DTO ya exige la casilla marcada y la versión vigente; la fecha y
+      // la IP las pone el servidor.
+      privacyConsent: {
+        version: dto.privacyConsent.version,
+        acceptedAt: new Date(),
+        ip,
+      },
     });
     this.logger.log(
       `[registro] nuevo postulante: usuario ${String(usuario._id)}`,
@@ -411,6 +421,7 @@ export class AuthService implements OnModuleInit {
       requiresMfa: false,
       accessToken,
       refreshToken,
+      requiresPrivacyConsent: requiereConsentimiento(user),
       user: {
         id: user._id.toString(),
         email: user.email,
@@ -455,7 +466,12 @@ export class AuthService implements OnModuleInit {
     oldRawToken: string,
     ip: string,
     userAgent: string,
-  ): Promise<{ accessToken: string; refreshToken: string; rol: string }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    rol: string;
+    requiresPrivacyConsent: boolean;
+  }> {
     const tokenHash = this.hashToken(oldRawToken);
     // Rotación atómica: buscar y eliminar en una sola operación. Con
     // findOne + deleteOne, dos refresh simultáneos con la misma cookie podían
@@ -482,7 +498,12 @@ export class AuthService implements OnModuleInit {
       userAgent,
     );
 
-    return { accessToken, refreshToken, rol: user.rol };
+    return {
+      accessToken,
+      refreshToken,
+      rol: user.rol,
+      requiresPrivacyConsent: requiereConsentimiento(user),
+    };
   }
 
   // ─── Logout ──────────────────────────────────────────────────────────────────

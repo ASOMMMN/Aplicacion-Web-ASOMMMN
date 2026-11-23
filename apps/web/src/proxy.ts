@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { esRutaPublica } from "@/lib/auth/rutasPublicas";
+import { esRutaAbierta, esRutaPublica } from "@/lib/auth/rutasPublicas";
 
 const ROLE_HOME: Record<string, string> = {
   postulante: "/dashboard",
@@ -39,6 +39,8 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const rawRole = request.cookies.get("user_role")?.value;
   const role = rawRole && VALID_ROLES.has(rawRole) ? rawRole : undefined;
+
+  if (esRutaAbierta(pathname)) return NextResponse.next();
 
   const isPublic = esRutaPublica(pathname);
 

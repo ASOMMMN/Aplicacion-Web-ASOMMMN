@@ -21,6 +21,7 @@
 import axios from 'axios';
 import { session } from './session';
 import { esRutaPublica } from './rutasPublicas';
+import { marcarConsentimientoPendiente } from '@/lib/privacidad/consentimientoPendiente';
 
 const authClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -46,6 +47,8 @@ export class ErrorSesion extends Error {
 export interface SesionRenovada {
   accessToken: string;
   rol: string;
+  /** Falta aceptar el aviso de privacidad vigente (solo postulantes). */
+  requiresPrivacyConsent?: boolean;
 }
 
 type VentanaConToken = Window & { __asommmn_token?: string | null };
@@ -79,6 +82,7 @@ export function refrescarSesion(): Promise<SesionRenovada> {
       ({ data }) => {
         // Rol actual en BD: si cambió desde el login, el proxy deja de usar el viejo.
         session.set(data.accessToken, data.rol);
+        marcarConsentimientoPendiente(data.requiresPrivacyConsent === true);
         return data;
       },
       (err: unknown) => {

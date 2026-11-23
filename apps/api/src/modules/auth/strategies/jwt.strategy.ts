@@ -9,6 +9,7 @@ import {
   UsuarioDocument,
   UserRole,
 } from '../../usuarios/schemas/usuario.schema';
+import { requiereConsentimiento } from '../../privacidad/aviso-privacidad.constants';
 
 export interface JwtPayload {
   sub: string;
@@ -22,6 +23,11 @@ export interface AuthUser {
   userId: string;
   email: string;
   rol: UserRole;
+  /**
+   * Postulante que no ha aceptado el aviso de privacidad vigente (P-01).
+   * RolesGuard lo bloquea salvo en rutas con @PermitirSinConsentimiento.
+   */
+  consentimientoPendiente?: boolean;
 }
 
 @Injectable()
@@ -45,11 +51,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   async validate(payload: JwtPayload): Promise<AuthUser> {
     const user = await this.usuarioModel
       .findById(payload.sub)
-      .select('isDeleted')
+      .select('isDeleted privacyConsent.version')
       .lean();
     if (!user || user.isDeleted) {
       throw new UnauthorizedException('Acceso denegado.');
     }
-    return { userId: payload.sub, email: payload.email, rol: payload.rol };
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      rol: payload.rol,
+      consentimientoPendiente: requiereConsentimiento({
+        rol: payload.rol,
+        privacyConsent: user.privacyConsent,
+      }),
+    };
   }
 }

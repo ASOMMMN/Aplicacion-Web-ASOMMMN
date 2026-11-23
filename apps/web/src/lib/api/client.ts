@@ -1,5 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { MENSAJES_FALLO_SESION, refrescarSesion, tokenActual } from '@/lib/auth/refrescarSesion';
+import { CODIGO_CONSENTIMIENTO_PENDIENTE } from '@/lib/privacidad/avisoPrivacidad';
+import { marcarConsentimientoPendiente } from '@/lib/privacidad/consentimientoPendiente';
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 if (!apiUrl) {
@@ -35,6 +37,12 @@ function conMensajeDeLimite(error: AxiosError<{ message?: unknown }>) {
   return error;
 }
 
+/** 403 de la API mientras el postulante no acepta el aviso de privacidad vigente. */
+function esConsentimientoPendiente(error: AxiosError<{ message?: unknown }>) {
+  const data = error.response?.data as { codigo?: unknown } | undefined;
+  return error.response?.status === 403 && data?.codigo === CODIGO_CONSENTIMIENTO_PENDIENTE;
+}
+
 // Renueva el access token cuando expira. Nunca reintenta ante un 429 ni en
 // /auth/* (login, refresh, logout… no deben disparar otro refresh).
 api.interceptors.response.use(
@@ -43,6 +51,8 @@ api.interceptors.response.use(
     const original = error.config as ConfigConToken | undefined;
     const status = error.response?.status;
     if (status === 429) return Promise.reject(conMensajeDeLimite(error));
+    // El layout del postulante muestra el modal bloqueante (P-01).
+    if (esConsentimientoPendiente(error)) marcarConsentimientoPendiente(true);
     if (status !== 401 || !original || original._retry || (original.url ?? '').includes('/auth/')) {
       return Promise.reject(error);
     }

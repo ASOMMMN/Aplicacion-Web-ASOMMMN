@@ -4,6 +4,7 @@ import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import { AuthService } from './auth.service';
+import { AVISO_PRIVACIDAD_VERSION } from '../privacidad/aviso-privacidad.constants';
 import { NotificacionesAppService } from '../notificaciones/notificaciones-app.service';
 import {
   NotificacionApp,
@@ -48,6 +49,7 @@ describe('Registro → aviso "nuevo candidato" (MongoDB real, modo producción)'
       password: 'Secreta#2026',
       nombre: 'Ana',
       apellidos: 'Pérez',
+      privacyConsent: { accepted: true, version: AVISO_PRIVACIDAD_VERSION },
     });
 
   beforeAll(async () => {
