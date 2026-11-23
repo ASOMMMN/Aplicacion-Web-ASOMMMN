@@ -93,6 +93,11 @@ class EnvironmentVariables {
   @IsString()
   TURNSTILE_SECRET_KEY: string = '';
 
+  // Interruptor de emergencia del captcha: solo "true" lo activa. Temporal.
+  @IsOptional()
+  @IsString()
+  TURNSTILE_BYPASS: string = '';
+
   @IsOptional()
   @IsString()
   OPENAI_API_KEY: string = '';

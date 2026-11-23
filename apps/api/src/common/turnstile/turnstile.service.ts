@@ -7,6 +7,9 @@ export const URL_SITEVERIFY =
 /** Cloudflare responde en < 1 s; más que esto se trata como caída. */
 export const TIMEOUT_SITEVERIFY_MS = 5_000;
 
+/** Con TURNSTILE_BYPASS activo, como mucho un aviso por minuto. */
+export const INTERVALO_AVISO_BYPASS_MS = 60_000;
+
 /** Los tokens de Turnstile miden hasta 2048 caracteres. */
 const LARGO_MAXIMO_TOKEN = 2048;
 
@@ -25,14 +28,22 @@ interface RespuestaSiteverify {
  * - Sin la variable en producción: falla cerrado (todo intento se rechaza)
  *   y se registra un error al arrancar.
  * - Cloudflare caído, lento (> 5 s) o con respuesta inválida: falla cerrado.
+ * - TURNSTILE_BYPASS=true (exactamente "true"): interruptor de emergencia.
+ *   Deja pasar sin validar, registra un error al arrancar y una advertencia
+ *   como mucho una vez por minuto mientras esté activo. Cualquier otro valor
+ *   se ignora. Es temporal: se quita en cuanto se resuelve el problema.
  */
 @Injectable()
 export class TurnstileService implements OnModuleInit {
   private readonly logger = new Logger(TurnstileService.name);
   private secreto = '';
   private produccion = false;
+  private bypass = false;
+  private ultimoAvisoBypass: number | null = null;
+  private omitidasDesdeAviso = 0;
 
   /** Inyectables en pruebas. */
+  ahora: () => number = () => Date.now();
   timeoutMs = TIMEOUT_SITEVERIFY_MS;
   fetchFn: typeof fetch = (...args: Parameters<typeof fetch>) => fetch(...args);
 
@@ -43,7 +54,17 @@ export class TurnstileService implements OnModuleInit {
       this.config.get<string>('TURNSTILE_SECRET_KEY') ?? ''
     ).trim();
     this.produccion = this.config.get<string>('NODE_ENV') === 'production';
+    // Solo el valor exacto "true": "TRUE", "1", " true", etc. no lo activan.
+    this.bypass = this.config.get<string>('TURNSTILE_BYPASS') === 'true';
 
+    if (this.bypass) {
+      this.logger.error(
+        'TURNSTILE_BYPASS=true: el captcha está DESACTIVADO en login, registro y ' +
+          'recuperación de contraseña. Es un interruptor de emergencia: quita la ' +
+          'variable en cuanto se resuelva el problema.',
+      );
+      return;
+    }
     if (this.secreto) return;
     if (this.produccion) {
       this.logger.error(
@@ -60,6 +81,10 @@ export class TurnstileService implements OnModuleInit {
 
   /** true si la petición puede continuar. */
   async verificar(token: unknown, ip?: string): Promise<boolean> {
+    if (this.bypass) {
+      this.avisarBypass();
+      return true;
+    }
     if (!this.secreto) return !this.produccion;
 
     if (
@@ -98,5 +123,27 @@ export class TurnstileService implements OnModuleInit {
       );
       return false;
     }
+  }
+
+  /**
+   * Advertencia con límite de frecuencia: la primera petición sin validar y
+   * después como mucho una por intervalo, con el conteo acumulado. Nunca
+   * incluye el token ni la IP.
+   */
+  private avisarBypass(): void {
+    this.omitidasDesdeAviso++;
+    const ahora = this.ahora();
+    if (
+      this.ultimoAvisoBypass !== null &&
+      ahora - this.ultimoAvisoBypass < INTERVALO_AVISO_BYPASS_MS
+    ) {
+      return;
+    }
+    this.logger.warn(
+      `[turnstile] TURNSTILE_BYPASS activo: ${this.omitidasDesdeAviso} ` +
+        'petición(es) sin validar captcha desde el último aviso.',
+    );
+    this.ultimoAvisoBypass = ahora;
+    this.omitidasDesdeAviso = 0;
   }
 }

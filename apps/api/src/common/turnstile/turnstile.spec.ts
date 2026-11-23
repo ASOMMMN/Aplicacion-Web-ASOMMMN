@@ -18,6 +18,7 @@ import { AuthController } from '../../modules/auth/auth.controller';
 import { LoginDto } from '../../modules/auth/dto/login.dto';
 import { MENSAJE_TURNSTILE, TurnstileGuard } from './turnstile.guard';
 import {
+  INTERVALO_AVISO_BYPASS_MS,
   TIMEOUT_SITEVERIFY_MS,
   TurnstileService,
   URL_SITEVERIFY,
@@ -40,8 +41,13 @@ describe('TurnstileGuard / TurnstileService', () => {
   let servicio: TurnstileService;
   let fetchFn: jest.Mock<Promise<Response>, [string, RequestInit]>;
   let logError: jest.SpyInstance;
+  let logWarn: jest.SpyInstance;
 
-  async function crear(secreto: string, nodeEnv = 'development') {
+  async function crear(
+    secreto: string,
+    nodeEnv = 'development',
+    bypass?: string,
+  ) {
     const ref = await Test.createTestingModule({
       controllers: [RutaProtegida],
       providers: [
@@ -51,7 +57,11 @@ describe('TurnstileGuard / TurnstileService', () => {
           provide: ConfigService,
           useValue: {
             get: (k: string) =>
-              ({ TURNSTILE_SECRET_KEY: secreto, NODE_ENV: nodeEnv })[k],
+              ({
+                TURNSTILE_SECRET_KEY: secreto,
+                NODE_ENV: nodeEnv,
+                TURNSTILE_BYPASS: bypass,
+              })[k],
           },
         },
       ],
@@ -83,7 +93,7 @@ describe('TurnstileGuard / TurnstileService', () => {
 
   beforeEach(() => {
     logError = jest.spyOn(Logger.prototype, 'error').mockImplementation();
-    jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    logWarn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
   });
 
   afterEach(async () => {
@@ -183,6 +193,90 @@ describe('TurnstileGuard / TurnstileService', () => {
         expect.stringContaining('TURNSTILE_SECRET_KEY no está definida'),
       );
       await enviar({ ...CUERPO, turnstileToken: 'token' }).expect(400);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('interruptor de emergencia TURNSTILE_BYPASS', () => {
+    const TOKEN = 'token-que-no-debe-aparecer-en-logs';
+    const IP = '203.0.113.9';
+
+    /** Primer argumento de cada llamada al logger, como texto. */
+    const mensajes = (spy: jest.SpyInstance): string[] =>
+      (spy.mock.calls as unknown[][]).map((c) => String(c[0]));
+    const mensajesLog = () =>
+      [...mensajes(logError), ...mensajes(logWarn)].join(' | ');
+
+    it('"true" en producción deja pasar sin validar, aunque no haya secreto', async () => {
+      await crear('', 'production', 'true');
+      await enviar(CUERPO).expect(201);
+      await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(201);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('"true" con secreto: tampoco llama a Cloudflare', async () => {
+      await crear('secreto-prueba', 'production', 'true');
+      await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(201);
+      expect(fetchFn).not.toHaveBeenCalled();
+    });
+
+    it('registra un error visible al arrancar', async () => {
+      await crear('secreto-prueba', 'production', 'true');
+      expect(logError).toHaveBeenCalledWith(
+        expect.stringContaining('TURNSTILE_BYPASS=true'),
+      );
+    });
+
+    it('advierte como mucho una vez por intervalo y nunca registra token ni IP', async () => {
+      await crear('secreto-prueba', 'production', 'true');
+      let reloj = 1_000_000;
+      servicio.ahora = () => reloj;
+      const avisosBypass = () =>
+        mensajes(logWarn).filter((m) => m.includes('TURNSTILE_BYPASS activo'));
+
+      for (let i = 0; i < 5; i++) {
+        await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(201);
+      }
+      expect(avisosBypass()).toHaveLength(1);
+      expect(avisosBypass()[0]).toContain('1 petición(es)');
+
+      reloj += INTERVALO_AVISO_BYPASS_MS - 1;
+      await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(201);
+      expect(avisosBypass()).toHaveLength(1);
+
+      reloj += 1;
+      await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(201);
+      expect(avisosBypass()).toHaveLength(2);
+      // Las 6 peticiones posteriores al primer aviso (4 + 1 + la de ahora).
+      expect(avisosBypass()[1]).toContain('6 petición(es)');
+
+      const logs = mensajesLog();
+      expect(logs).not.toContain(TOKEN);
+      expect(logs).not.toContain(IP);
+      expect(logs).not.toContain('203.0.113');
+    });
+
+    it.each(['TRUE', 'True', '1', 'yes', ' true', 'true ', 'false', ''])(
+      'con TURNSTILE_BYPASS=%p no se activa: producción sin secreto sigue rechazando',
+      async (valor) => {
+        await crear('', 'production', valor);
+        await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(400);
+        expect(logError).not.toHaveBeenCalledWith(
+          expect.stringContaining('TURNSTILE_BYPASS=true'),
+        );
+      },
+    );
+
+    it('con TURNSTILE_BYPASS distinto de "true" y secreto, el token se sigue validando', async () => {
+      await crear('secreto-prueba', 'production', 'yes');
+      responder({ success: false, 'error-codes': ['invalid-input-response'] });
+      await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(400);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it('producción sin secreto y sin TURNSTILE_BYPASS: rechaza', async () => {
+      await crear('', 'production');
+      await enviar({ ...CUERPO, turnstileToken: TOKEN }).expect(400);
       expect(fetchFn).not.toHaveBeenCalled();
     });
   });
