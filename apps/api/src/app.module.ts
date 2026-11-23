@@ -34,6 +34,7 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { MiNubeModule } from './modules/mi-nube/mi-nube.module';
 import { AlertasVencimientoModule } from './modules/alertas-vencimiento/alertas-vencimiento.module';
 import { PrivacidadModule } from './modules/privacidad/privacidad.module';
+import { TurnstileModule } from './common/turnstile/turnstile.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -112,6 +113,7 @@ import { HealthController } from './health.controller';
 
     // ── Módulos de dominio ───────────────────────────────────────────────────
     TerminusModule,
+    TurnstileModule,
     CloudinaryModule,
     S3Module,
     StorageModule,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, Button, Alert, Spinner } from 'react-bootstrap';
@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api/client';
 import { loginSchema, LoginForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
+import Turnstile, { type TurnstileHandle } from '@/components/auth/Turnstile';
+import { conTurnstile, faltaTokenTurnstile } from '@/lib/auth/turnstile';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
 import PasswordInput from '@/components/ui/PasswordInput';
 import { ROLE_HOME } from '@/lib/auth/roleHome';
@@ -30,6 +32,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tokenTurnstile, setTokenTurnstile] = useState('');
+  const turnstile = useRef<TurnstileHandle>(null);
 
   const {
     register,
@@ -50,7 +54,7 @@ export default function LoginPage() {
         requiresPrivacyConsent?: boolean;
         user: { id: string; email: string; rol: string; nombre: string };
         message?: string;
-      }>('/auth/login', data);
+      }>('/auth/login', conTurnstile(data, tokenTurnstile));
 
       if (res.data.requiresPasswordChange) {
         sessionStorage.setItem('force_change_email', res.data.user.email);
@@ -113,6 +117,9 @@ export default function LoginPage() {
         setServerError('Error de conexión. Verifica tu internet e inténtalo de nuevo.');
       }
     } finally {
+      // El token de Turnstile es de un solo uso: uno nuevo para el siguiente
+      // intento (p. ej. tras credenciales inválidas).
+      turnstile.current?.reset();
       setLoading(false);
     }
   };
@@ -186,10 +193,11 @@ export default function LoginPage() {
               </Form.Control.Feedback>
             </Form.Group>
 
+            <Turnstile ref={turnstile} action="login" onToken={setTokenTurnstile} />
             <Button
               type="submit"
               className="w-100 btn-primary"
-              disabled={loading}
+              disabled={loading || faltaTokenTurnstile(tokenTurnstile)}
               style={{ padding: '0.65rem', fontSize: '0.95rem', fontWeight: 600 }}
             >
               {loading ? (

@@ -18,4 +18,8 @@
     # wildcard): las vistas previas embeben la URL firmada de S3 en
     # <iframe>/<img>, y sin este host explícito el navegador las bloquea
     # (se ve como "archivo roto" aunque la firma sea válida).
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://asommmn-reclutamiento.s3.us-east-2.amazonaws.com; frame-src 'self' https://asommmn-reclutamiento.s3.us-east-2.amazonaws.com; font-src 'self' data:; connect-src 'self' https://reclutamiento-asommmn.onrender.com; frame-ancestors 'none';"
+    # https://challenges.cloudflare.com: captcha Turnstile (script, iframe y
+    # peticiones). La CSP que llega hoy al navegador es la de next.config.ts
+    # (esta no aparece en las respuestas de producción); se mantiene igual
+    # aquí para que, si llegara a aplicarse, no bloquee el captcha.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://asommmn-reclutamiento.s3.us-east-2.amazonaws.com; frame-src 'self' https://asommmn-reclutamiento.s3.us-east-2.amazonaws.com https://challenges.cloudflare.com; font-src 'self' data:; connect-src 'self' https://reclutamiento-asommmn.onrender.com https://challenges.cloudflare.com; frame-ancestors 'none';"

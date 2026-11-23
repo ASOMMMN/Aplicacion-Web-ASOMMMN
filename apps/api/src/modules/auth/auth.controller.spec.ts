@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 import { Types } from 'mongoose';
 import request from 'supertest';
 import type { App } from 'supertest/types';
+import { TurnstileService } from '../../common/turnstile/turnstile.service';
 
 /**
  * Logout y refresh por HTTP, con las opciones de cookie de producción
@@ -112,6 +113,8 @@ describe('AuthController: logout y refresh (cookies de producción)', () => {
         // Logout/refresh no lo usan; el bloqueo se prueba en
         // auth.fuerza-bruta.spec.ts.
         { provide: ProteccionFuerzaBrutaService, useValue: {} },
+        // Turnstile se prueba en common/turnstile/turnstile.spec.ts.
+        { provide: TurnstileService, useValue: { verificar: () => true } },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: getModelToken(RefreshToken.name), useValue: almacen.model },
         {

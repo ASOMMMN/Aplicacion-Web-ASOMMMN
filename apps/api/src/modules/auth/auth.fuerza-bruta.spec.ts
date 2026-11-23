@@ -16,6 +16,7 @@ import type { App } from 'supertest/types';
 
 import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
 import { AVISO_PRIVACIDAD_VERSION } from '../privacidad/aviso-privacidad.constants';
+import { TurnstileService } from '../../common/turnstile/turnstile.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import {
@@ -108,6 +109,8 @@ describe('Auth — bloqueo temporal por intentos fallidos (S-01)', () => {
       providers: [
         ProteccionFuerzaBrutaService,
         { provide: AuthService, useValue: authService },
+        // Turnstile se prueba en common/turnstile/turnstile.spec.ts.
+        { provide: TurnstileService, useValue: { verificar: () => true } },
         { provide: getModelToken(IntentoAuth.name), useValue: intentos },
         ...(conThrottler
           ? [{ provide: APP_GUARD, useClass: ThrottlerGuard }]

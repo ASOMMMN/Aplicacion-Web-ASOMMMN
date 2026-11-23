@@ -86,6 +86,13 @@ class EnvironmentVariables {
   @IsString()
   ENABLE_TEST_ENDPOINTS: string = 'false';
 
+  // Cloudflare Turnstile (login, registro y recuperar contraseña). Vacía:
+  // sin captcha fuera de producción; en producción esas rutas se rechazan
+  // (falla cerrado). Ver common/turnstile/turnstile.service.ts.
+  @IsOptional()
+  @IsString()
+  TURNSTILE_SECRET_KEY: string = '';
+
   @IsOptional()
   @IsString()
   OPENAI_API_KEY: string = '';
