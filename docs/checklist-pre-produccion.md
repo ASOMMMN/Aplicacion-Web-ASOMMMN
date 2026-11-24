@@ -106,7 +106,7 @@ Efectos al cambiar a `production`:
 
 ## 9. Seguridad adicional antes de producción
 
-- [ ] Eliminar el endpoint `GET /auth/test-verificar-email` (en `apps/api/src/modules/auth/auth.controller.ts`) — ya tiene guarda por `NODE_ENV`, pero es preferible removerlo.
+- [x] Eliminar el endpoint `GET /auth/test-verificar-email` — eliminado junto con `ENABLE_TEST_ENDPOINTS`.
 - [ ] Confirmar que `.env` y `.env.local` estén en `.gitignore` (ya están).
 - [ ] Rotar los refresh tokens existentes en BD si se cambiaron los secretos JWT.
 - [ ] Configurar HTTPS en el servidor (certificado TLS).
@@ -126,4 +126,4 @@ Efectos al cambiar a `production`:
 | 6 | Dominio en CORS (`main.ts`) | 🟡 Hardcodeado — cambiar o mover a env var |
 | 7 | `NODE_ENV=production` | 🔴 Cambiar |
 | 8 | `NEXT_PUBLIC_API_URL` | 🔴 Configurar |
-| 9 | Endpoint test-verificar-email | 🟡 Opcional — eliminar |
+| 9 | Endpoint test-verificar-email | ✅ Eliminado |

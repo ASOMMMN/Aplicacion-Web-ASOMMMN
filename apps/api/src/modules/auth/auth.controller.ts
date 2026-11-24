@@ -120,24 +120,6 @@ export class AuthController {
     return { message: 'Correo verificado. Ya puedes iniciar sesión.' };
   }
 
-  @Get('test-verificar-email')
-  @ApiOperation({
-    summary: '(TEST ONLY) Verificar email por correo - Eliminar en producción',
-  })
-  async testVerificarEmail(@Query('email') email: string) {
-    // Endpoint solo para testing - ELIMINAR EN PRODUCCIÓN
-    // Requiere NODE_ENV=development Y ENABLE_TEST_ENDPOINTS=true explícito,
-    // para que un NODE_ENV mal configurado en producción no lo deje expuesto.
-    if (
-      process.env.NODE_ENV !== 'development' ||
-      process.env.ENABLE_TEST_ENDPOINTS !== 'true'
-    ) {
-      throw new Error('No disponible');
-    }
-    await this.authService.verificarEmailPorEmail(email);
-    return { message: 'Correo verificado para testing.' };
-  }
-
   @Post('reenviar-verificacion')
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 600_000 } })

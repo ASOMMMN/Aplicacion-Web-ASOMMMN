@@ -225,4 +225,10 @@ describe('AuthController: logout y refresh (cookies de producción)', () => {
     // Queda solo el token emitido por el que ganó.
     expect(almacen.tokens).toHaveLength(1);
   });
+
+  it('el endpoint de pruebas GET /auth/test-verificar-email ya no existe', async () => {
+    await request(app.getHttpServer())
+      .get('/auth/test-verificar-email?email=ana@prueba.mx')
+      .expect(404);
+  });
 });
