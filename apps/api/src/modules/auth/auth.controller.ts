@@ -9,7 +9,6 @@ import {
   HttpCode,
   UseGuards,
   UnauthorizedException,
-  ConflictException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -46,6 +45,10 @@ import {
  * bloqueo por IP cambiando la cabecera.
  */
 const ipCliente = (req: Request): string => req.ip ?? '';
+
+/** Misma respuesta para correo nuevo y existente (sin enumeración). */
+export const MENSAJE_REGISTRO =
+  'Listo. Te enviamos un correo con los siguientes pasos. Si tu cuenta es nueva, ya puedes iniciar sesión.';
 
 const COOKIE_NAME = 'refresh_token';
 const isProd = process.env.NODE_ENV === 'production';
@@ -84,32 +87,36 @@ export class AuthController {
   @ApiOperation({ summary: 'Registrar postulante (auto-registro)' })
   @ApiResponse({
     status: 201,
-    description: 'Cuenta creada. Puedes iniciar sesión.',
+    description:
+      'Respuesta idéntica exista o no el correo (sin enumeración de cuentas).',
   })
-  @ApiResponse({ status: 409, description: 'El correo ya está registrado.' })
   @ApiResponse({
     status: 429,
-    description:
-      'Bloqueo temporal: demasiados registros rechazados desde esta IP.',
+    description: 'Bloqueo temporal por demasiados intentos de registro.',
   })
   async registro(@Body() dto: RegisterDto, @Req() req: Request) {
     const ip = ipCliente(req);
-    // Cada 409 ("ya registrado") confirma que un correo existe: limitarlos
-    // por IP frena la enumeración de cuentas.
     await this.fuerzaBruta.exigirSinBloqueo(
       [[POLITICAS.registroIp, ip]],
       (min) =>
         `Demasiados intentos de registro. Espera ${min} ${min === 1 ? 'minuto' : 'minutos'} e inténtalo de nuevo.`,
     );
-    try {
-      await this.authService.registrar(dto);
-    } catch (err) {
-      if (err instanceof ConflictException) {
+    // Tope por correo: pasado el límite no se hace nada (ni se mandan más
+    // correos a ese buzón), pero la respuesta es la misma.
+    const correoEnTope =
+      (await this.fuerzaBruta.segundosDeBloqueo([
+        [POLITICAS.registroCorreo, dto.email],
+      ])) > 0;
+    if (!correoEnTope) {
+      await this.fuerzaBruta.registrar(POLITICAS.registroCorreo, dto.email);
+      const { resultado } = await this.authService.registrar(dto);
+      // Registrar correos existentes desde una IP es la señal de
+      // enumeración: se sigue contando aunque ya no se revele.
+      if (resultado === 'existente') {
         await this.fuerzaBruta.registrar(POLITICAS.registroIp, ip);
       }
-      throw err;
     }
-    return { message: 'Cuenta creada. Puedes iniciar sesión de inmediato.' };
+    return { message: MENSAJE_REGISTRO };
   }
 
   @Get('verificar-email')

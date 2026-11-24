@@ -9,6 +9,16 @@ interface EmailOptions {
   html: string;
 }
 
+/** Escapa texto del usuario (p. ej. su nombre) antes de ponerlo en el HTML. */
+function esc(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Injectable()
 export class NotificacionesService implements OnModuleInit {
   private readonly logger = new Logger(NotificacionesService.name);
@@ -98,6 +108,51 @@ export class NotificacionesService implements OnModuleInit {
         <p><a href="${verifyUrl}" style="background:#0d6efd;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;">Verificar correo</a></p>
         <p>El enlace expira en <strong>24 horas</strong>.</p>
         <p>Si no creaste esta cuenta, ignora este mensaje.</p>
+      `,
+    });
+  }
+
+  /** Registro con correo nuevo: la cuenta ya está activa. */
+  async enviarBienvenidaPostulante(
+    email: string,
+    nombre: string,
+    loginUrl: string,
+  ) {
+    this.logger.log('[REGISTRO] enviando bienvenida a postulante nuevo');
+    await this.send({
+      to: email,
+      subject: 'Tu cuenta está lista — ASOMMMN',
+      html: `
+        <h2>Hola, ${esc(nombre)}</h2>
+        <p>Tu cuenta de postulante quedó creada. Ya puedes iniciar sesión con tu correo y la contraseña que elegiste.</p>
+        <p><a href="${loginUrl}" style="background:#0d6efd;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;">Iniciar sesión</a></p>
+        <p>Si no creaste esta cuenta, responde a este correo.</p>
+      `,
+    });
+  }
+
+  /**
+   * Registro con un correo que ya tiene cuenta: se avisa al titular en vez
+   * de decirle a quien se registra que el correo existe.
+   */
+  async enviarAvisoRegistroDuplicado(
+    email: string,
+    nombre: string,
+    loginUrl: string,
+    recuperarUrl: string,
+  ) {
+    this.logger.log(
+      '[REGISTRO] enviando aviso de registro con correo existente',
+    );
+    await this.send({
+      to: email,
+      subject: 'Ya tienes una cuenta — ASOMMMN',
+      html: `
+        <h2>Hola, ${esc(nombre)}</h2>
+        <p>Alguien intentó crear una cuenta nueva con este correo, pero ya tienes una registrada.</p>
+        <p><a href="${loginUrl}" style="background:#0d6efd;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;">Iniciar sesión</a></p>
+        <p>¿Olvidaste tu contraseña? <a href="${recuperarUrl}">Restablécela aquí</a>.</p>
+        <p>Si no fuiste tú, ignora este mensaje: tu cuenta no cambió.</p>
       `,
     });
   }
