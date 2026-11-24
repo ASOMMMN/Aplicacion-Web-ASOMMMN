@@ -71,5 +71,8 @@ describe('Aviso de privacidad (P-01)', () => {
     expect(html).toContain('No se transfieren datos personales a terceros');
     expect(html).toContain('durante 1 año');
     expect(html).toContain('por el tiempo necesario para cumplir');
+    // El captcha (#17) aún no está activo: el aviso no lo menciona. Al
+    // desplegarlo hay que agregarlo y subir AVISO_PRIVACIDAD_VERSION.
+    expect(html).not.toMatch(/Cloudflare|bots/i);
   });
 });

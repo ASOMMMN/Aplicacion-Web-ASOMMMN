@@ -225,8 +225,7 @@ export default function AvisoPrivacidadContenido() {
             vencer.
           </li>
           <li>
-            Proteger la plataforma: bitácora de accesos, verificación contra accesos automatizados
-            (bots) y prevención de abusos.
+            Proteger la plataforma: bitácora de accesos y prevención de abusos.
           </li>
         </ul>
         <p>
@@ -275,10 +274,6 @@ export default function AvisoPrivacidadContenido() {
           <li>
             <strong>Envío de correos electrónicos:</strong> Resend (empresa con sede en Estados
             Unidos).
-          </li>
-          <li>
-            <strong>Verificación contra accesos automatizados (bots):</strong> Cloudflare
-            (Cloudflare, Inc., empresa con sede en Estados Unidos).
           </li>
           <li>
             <strong>Inteligencia artificial:</strong> OpenAI (ver la sección anterior).
@@ -352,10 +347,8 @@ export default function AvisoPrivacidadContenido() {
           </li>
         </ul>
         <p>
-          No usamos cookies de publicidad ni de analítica. La verificación contra bots del inicio
-          de sesión, el registro y la recuperación de contraseña puede procesar datos técnicos de
-          tu navegador para distinguir a personas de programas automatizados. Puedes borrar las
-          cookies desde tu navegador; si lo haces, tendrás que volver a iniciar sesión.
+          No usamos cookies de publicidad ni de analítica. Puedes borrar las cookies desde tu
+          navegador; si lo haces, tendrás que volver a iniciar sesión.
         </p>
       </Seccion>
 
