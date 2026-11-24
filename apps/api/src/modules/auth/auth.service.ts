@@ -317,23 +317,6 @@ export class AuthService implements OnModuleInit {
     await this.oneTimeTokenModel.findByIdAndUpdate(doc._id, { usado: true });
   }
 
-  /**
-   * (TESTING ONLY) Verificar email por email sin token
-   */
-  async verificarEmailPorEmail(email: string): Promise<void> {
-    const user = await this.usuarioModel.findOne({
-      email: email.toLowerCase(),
-    });
-
-    if (!user) throw new BadRequestException('Usuario no encontrado');
-
-    await this.usuarioModel.findByIdAndUpdate(user._id, {
-      emailVerificado: true,
-      emailVerificadoEn: new Date(),
-      estadoCuenta: 'activa',
-    });
-  }
-
   // ─── Login ───────────────────────────────────────────────────────────────────
 
   async login(

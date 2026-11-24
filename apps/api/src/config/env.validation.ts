@@ -84,10 +84,6 @@ class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  ENABLE_TEST_ENDPOINTS: string = 'false';
-
-  @IsOptional()
-  @IsString()
   OPENAI_API_KEY: string = '';
 
   @IsOptional()
