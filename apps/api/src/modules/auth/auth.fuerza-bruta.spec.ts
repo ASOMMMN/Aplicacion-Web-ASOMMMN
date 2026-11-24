@@ -292,7 +292,7 @@ describe('Auth — bloqueo temporal por intentos fallidos (S-01)', () => {
           email,
           nombre: 'Ana',
           apellidos: 'López',
-          password: 'Contrasena123',
+          password: 'Gaviota-Norte-42',
         });
 
     it('5 registros rechazados (correo ya registrado) bloquean la IP 1 hora', async () => {

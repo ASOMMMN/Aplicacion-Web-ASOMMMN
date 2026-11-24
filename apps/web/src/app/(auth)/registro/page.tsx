@@ -12,6 +12,7 @@ import { registerSchema, RegisterForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
 import PasswordInput from '@/components/ui/PasswordInput';
+import { MENSAJES_CONTRASENA } from '@/lib/validators/politica-contrasena';
 
 export default function RegistroPage() {
   const router = useRouter();
@@ -134,7 +135,7 @@ export default function RegistroPage() {
                 {errors.password?.message}
               </Form.Control.Feedback>
               <Form.Text className="text-muted">
-                Mínimo 8 caracteres, al menos una letra y un número.
+                {MENSAJES_CONTRASENA.ayuda}
               </Form.Text>
             </Form.Group>
 

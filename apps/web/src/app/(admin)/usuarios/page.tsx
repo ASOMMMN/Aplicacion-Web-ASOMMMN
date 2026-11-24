@@ -14,6 +14,7 @@ import {
 } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
+import { evaluarContrasena } from '@/lib/validators/politica-contrasena';
 
 type UserRole = 'postulante' | 'evaluador' | 'administrador';
 type AccountStatus = 'pendiente_verificacion' | 'activa' | 'bloqueada';
@@ -160,6 +161,12 @@ export default function UsuariosPage() {
 
   const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Misma política que la API: aviso inmediato y en español.
+    const problema = evaluarContrasena(createForm.password);
+    if (problema) {
+      setError(`Contraseña: ${problema}`);
+      return;
+    }
     try {
       setSaving(true);
       setError('');

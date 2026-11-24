@@ -1,11 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsEmail,
-  IsString,
-  MinLength,
-  MaxLength,
-  Matches,
-} from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
+import { ContrasenaSegura } from '../../../common/validators/contrasena-segura';
 
 export class RegisterDto {
   @ApiProperty({ example: 'ana@example.com' })
@@ -24,12 +19,7 @@ export class RegisterDto {
   @MaxLength(100)
   apellidos: string;
 
-  @ApiProperty({ example: 'Contrasena1!' })
-  @IsString()
-  @MinLength(10, { message: 'Mínimo 10 caracteres' })
-  @MaxLength(128)
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
-    message: 'Debe incluir mayúsculas, minúsculas y números',
-  })
+  @ApiProperty({ example: 'Gaviota-Norte-42' })
+  @ContrasenaSegura()
   password: string;
 }

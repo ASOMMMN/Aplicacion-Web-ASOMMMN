@@ -10,6 +10,7 @@ import api from '@/lib/api/client';
 import { resetPasswordSchema, ResetPasswordForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 import PasswordInput from '@/components/ui/PasswordInput';
+import { MENSAJES_CONTRASENA } from '@/lib/validators/politica-contrasena';
 
 function RestablecerContrasenaContent() {
   const params = useSearchParams();
@@ -104,7 +105,7 @@ function RestablecerContrasenaContent() {
                     {errors.password?.message}
                   </Form.Control.Feedback>
                   <Form.Text className="text-muted">
-                    Mínimo 10 caracteres, con mayúsculas, minúsculas y números.
+                    {MENSAJES_CONTRASENA.ayuda}
                   </Form.Text>
                 </Form.Group>
 
