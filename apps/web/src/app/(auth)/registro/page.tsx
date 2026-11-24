@@ -36,9 +36,10 @@ export default function RegistroPage() {
       });
 
       await Swal.fire({
+        // Mismo mensaje exista o no el correo (la API no revela cuál fue).
         icon: 'success',
-        title: '¡Cuenta creada!',
-        text: 'Puedes iniciar sesión de inmediato con tu correo y contraseña.',
+        title: 'Revisa tu correo',
+        text: 'Te enviamos un correo con los siguientes pasos. Si tu cuenta es nueva, ya puedes iniciar sesión con tu correo y contraseña.',
         confirmButtonText: 'Ir al login',
         confirmButtonColor: '#0A2240',
       });

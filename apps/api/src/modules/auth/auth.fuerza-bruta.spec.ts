@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   INestApplication,
   UnauthorizedException,
   ValidationPipe,
@@ -91,9 +90,13 @@ describe('Auth — bloqueo temporal por intentos fallidos (S-01)', () => {
             ),
     ),
     registrar: jest.fn((dto: { email: string }) =>
-      registrados.has(dto.email)
-        ? Promise.reject(new ConflictException('El correo ya está registrado'))
-        : Promise.resolve(),
+      Promise.resolve({
+        resultado:
+          registrados.has(dto.email) || dto.email.startsWith('existe')
+            ? 'existente'
+            : 'creado',
+        pendientes: Promise.resolve(),
+      }),
     ),
     solicitarRecuperacion: jest.fn(() => Promise.resolve()),
   };
@@ -295,19 +298,32 @@ describe('Auth — bloqueo temporal por intentos fallidos (S-01)', () => {
           password: 'Contrasena123',
         });
 
-    it('5 registros rechazados (correo ya registrado) bloquean la IP 1 hora', async () => {
+    it('registros con correo ya registrado: misma respuesta, pero 5 desde una IP la bloquean 1 hora', async () => {
       const ip = nuevaIp();
+      const nueva = await registrar('nueva0@ejemplo.mx', nuevaIp()).expect(201);
       for (let i = 0; i < 5; i++) {
-        await registrar('existe@ejemplo.mx', ip).expect(409);
+        const res = await registrar(`existe${i}@ejemplo.mx`, ip).expect(201);
+        // Idéntica a la de un correo nuevo: no revela que existe.
+        expect(res.body).toEqual(nueva.body);
       }
       const res = await registrar('nueva@ejemplo.mx', ip).expect(429);
       expect(cuerpo(res).message).toMatch(
         /Demasiados intentos de registro\. Espera 60 minutos/,
       );
-      expect(authService.registrar).toHaveBeenCalledTimes(5);
+      expect(authService.registrar).toHaveBeenCalledTimes(6);
 
       // Otra IP no está afectada.
-      await registrar('nueva@ejemplo.mx', nuevaIp()).expect(201);
+      await registrar('nueva2@ejemplo.mx', nuevaIp()).expect(201);
+    });
+
+    it('máximo 3 intentos por correo y hora, aunque cambie la IP; la respuesta no cambia', async () => {
+      const respuestas: unknown[] = [];
+      for (let i = 0; i < 5; i++) {
+        const res = await registrar('tope@ejemplo.mx', nuevaIp()).expect(201);
+        respuestas.push(res.body);
+      }
+      expect(authService.registrar).toHaveBeenCalledTimes(3);
+      expect(new Set(respuestas.map((r) => JSON.stringify(r))).size).toBe(1);
     });
 
     it('los registros exitosos no cuentan como fallo', async () => {

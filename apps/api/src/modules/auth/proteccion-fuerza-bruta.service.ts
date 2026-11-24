@@ -41,7 +41,14 @@ export const POLITICAS = {
     ventanaMs: 15 * MIN,
     bloqueoMs: 15 * MIN,
   },
-  /** Registros rechazados (correo ya registrado) por IP: enumeración. */
+  /** Intentos de registro por correo: evita bombardear un buzón con avisos. */
+  registroCorreo: {
+    prefijo: 'registro-correo',
+    maxIntentos: 3,
+    ventanaMs: HORA,
+    bloqueoMs: HORA,
+  },
+  /** Registros con correo ya registrado por IP: enumeración. */
   registroIp: {
     prefijo: 'registro-ip',
     maxIntentos: 5,

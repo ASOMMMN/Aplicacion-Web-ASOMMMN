@@ -1,6 +1,5 @@
 import {
   Injectable,
-  ConflictException,
   UnauthorizedException,
   BadRequestException,
   ForbiddenException,
@@ -16,6 +15,7 @@ import {
   hashPassword,
   esHashBcrypt,
   verificarPasswordCompatible,
+  compararContraHashFicticio,
 } from '../../common/utils/password.util';
 
 import { Usuario, UsuarioDocument } from '../usuarios/schemas/usuario.schema';
@@ -42,6 +42,17 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { ChangeRequiredPasswordDto } from './dto/change-required-password.dto';
+
+/**
+ * Resultado interno del registro. La respuesta HTTP es la misma en los dos
+ * casos (sin enumeración de cuentas). `pendientes` son los correos y avisos
+ * que siguen en segundo plano: la respuesta no los espera, para que el
+ * tiempo tampoco delate cuál de los dos casos ocurrió.
+ */
+export interface ResultadoRegistro {
+  resultado: 'creado' | 'existente';
+  pendientes: Promise<void>;
+}
 
 type MfaTempPurpose = 'verify_login' | 'setup_mfa';
 
@@ -140,30 +151,104 @@ export class AuthService implements OnModuleInit {
 
   // ─── Registro ────────────────────────────────────────────────────────────────
 
-  async registrar(dto: RegisterDto): Promise<void> {
+  /**
+   * El registro responde igual exista o no el correo:
+   * - Correo nuevo: crea la cuenta (activa, como hasta ahora) y le envía un
+   *   correo de bienvenida.
+   * - Correo ya registrado: no cambia nada y avisa al titular por correo.
+   * En ambos casos se calcula el hash bcrypt y los correos y avisos van en
+   * segundo plano, para que el tiempo de respuesta sea parecido.
+   */
+  async registrar(dto: RegisterDto): Promise<ResultadoRegistro> {
+    const email = dto.email.toLowerCase();
+    const passwordHash = await hashPassword(dto.password);
     const exists = await this.usuarioModel.findOne({
-      email: dto.email.toLowerCase(),
+      email,
       isDeleted: { $ne: true },
     });
-    if (exists) throw new ConflictException('El correo ya está registrado');
+    if (exists) {
+      return {
+        resultado: 'existente',
+        pendientes: this.enSegundoPlano('aviso de registro duplicado', () =>
+          this.notificaciones.enviarAvisoRegistroDuplicado(
+            exists.email,
+            exists.nombre,
+            this.urlFrontend('/login'),
+            this.urlFrontend('/recuperar-contrasena'),
+          ),
+        ),
+      };
+    }
 
-    // Email verification is disabled: users can login immediately after registration
-    // All new users are created with active status
-    const usuario = await this.usuarioModel.create({
-      email: dto.email.toLowerCase(),
-      passwordHash: await hashPassword(dto.password),
-      nombre: dto.nombre,
-      apellidos: dto.apellidos,
-      rol: 'postulante',
-      estadoCuenta: 'activa',
-      emailVerificado: true,
-      emailVerificadoEn: new Date(),
-    });
+    let usuario: UsuarioDocument;
+    try {
+      // Sin verificación de correo (como hasta ahora): entra de inmediato.
+      usuario = await this.usuarioModel.create({
+        email,
+        passwordHash,
+        nombre: dto.nombre,
+        apellidos: dto.apellidos,
+        rol: 'postulante',
+        estadoCuenta: 'activa',
+        emailVerificado: true,
+        emailVerificadoEn: new Date(),
+      });
+    } catch (err) {
+      // Dos registros simultáneos con el mismo correo: el índice único
+      // rechaza el segundo. Se responde igual que un correo ya registrado.
+      if ((err as { code?: number })?.code === 11000) {
+        return { resultado: 'existente', pendientes: Promise.resolve() };
+      }
+      throw err;
+    }
     this.logger.log(
       `[registro] nuevo postulante: usuario ${String(usuario._id)}`,
     );
 
-    await this.notificarNuevoCandidato(usuario);
+    return {
+      resultado: 'creado',
+      pendientes: this.enSegundoPlano(
+        'bienvenida y aviso de nuevo candidato',
+        () =>
+          Promise.all([
+            this.notificaciones.enviarBienvenidaPostulante(
+              usuario.email,
+              usuario.nombre,
+              this.urlFrontend('/login'),
+            ),
+            this.notificarNuevoCandidato(usuario),
+          ]),
+      ),
+    };
+  }
+
+  private urlFrontend(ruta: string): string {
+    const base = this.config.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3000',
+    );
+    return `${base}${ruta}`;
+  }
+
+  /**
+   * Corre `tarea` sin que la respuesta HTTP la espere. Nunca rechaza: los
+   * errores se registran, porque la respuesta ya se envió.
+   */
+  private enSegundoPlano(
+    etiqueta: string,
+    tarea: () => Promise<unknown>,
+  ): Promise<void> {
+    return Promise.resolve()
+      .then(tarea)
+      .then(
+        () => undefined,
+        (err: unknown) => {
+          this.logger.error(
+            `[segundo plano] ${etiqueta}: ${(err as Error)?.message}`,
+            (err as Error)?.stack,
+          );
+        },
+      );
   }
 
   /**
@@ -343,18 +428,15 @@ export class AuthService implements OnModuleInit {
   ): Promise<LoginResult> {
     const user = await this.usuarioModel.findOne({
       email: dto.email.toLowerCase(),
+      isDeleted: { $ne: true },
     });
 
-    if (!user || user.isDeleted)
+    // Sin cuenta se compara igual contra un hash ficticio: misma respuesta y
+    // tiempo parecido exista o no el correo.
+    if (!user) {
+      await compararContraHashFicticio(dto.password);
       throw new UnauthorizedException('Credenciales incorrectas');
-
-    if (user.estadoCuenta === 'bloqueada')
-      throw new ForbiddenException(
-        'Cuenta bloqueada. Contacta al administrador.',
-      );
-
-    // Email verification is disabled by default (EMAIL_VERIFICATION_REQUIRED=false)
-    // Users can login immediately after registration
+    }
 
     const passwordOk = await verificarPasswordCompatible(
       dto.password,
@@ -362,6 +444,13 @@ export class AuthService implements OnModuleInit {
     );
     if (!passwordOk)
       throw new UnauthorizedException('Credenciales incorrectas');
+
+    // Solo con la contraseña correcta: antes este 403 revelaba a cualquiera
+    // que la cuenta existía y estaba bloqueada.
+    if (user.estadoCuenta === 'bloqueada')
+      throw new ForbiddenException(
+        'Cuenta bloqueada. Contacta al administrador.',
+      );
 
     if (!esHashBcrypt(user.passwordHash)) {
       user.passwordHash = await hashPassword(dto.password);
@@ -500,13 +589,30 @@ export class AuthService implements OnModuleInit {
 
   // ─── Recuperación de contraseña ──────────────────────────────────────────────
 
-  async solicitarRecuperacion(email: string): Promise<void> {
+  /**
+   * Misma respuesta y tiempo parecido exista o no el correo: después de la
+   * búsqueda, la creación del token y el correo van en segundo plano.
+   * Devuelve esa tarea (para pruebas); el controlador no la espera.
+   */
+  async solicitarRecuperacion(
+    email: string,
+  ): Promise<{ pendientes: Promise<void> }> {
     const user = await this.usuarioModel.findOne({
       email: email.toLowerCase(),
+      isDeleted: { $ne: true },
     });
     // No revelar si el correo existe
-    if (!user || user.estadoCuenta === 'bloqueada') return;
+    if (!user || user.estadoCuenta === 'bloqueada') {
+      return { pendientes: Promise.resolve() };
+    }
+    return {
+      pendientes: this.enSegundoPlano('correo de recuperación', () =>
+        this.enviarEnlaceRecuperacion(user),
+      ),
+    };
+  }
 
+  private async enviarEnlaceRecuperacion(user: UsuarioDocument) {
     // Eliminar tokens previos para este usuario
     await this.oneTimeTokenModel.deleteMany({
       userId: user._id,
@@ -564,13 +670,13 @@ export class AuthService implements OnModuleInit {
   ): Promise<void> {
     const user = await this.usuarioModel.findOne({
       email: dto.email.toLowerCase(),
+      isDeleted: { $ne: true },
     });
 
-    if (!user) throw new UnauthorizedException('Credenciales incorrectas');
-    if (!user.debeCambiarContrasena) {
-      throw new BadRequestException(
-        'La cuenta no requiere cambio obligatorio de contraseña.',
-      );
+    // Es otro login: misma respuesta exista o no el correo.
+    if (!user) {
+      await compararContraHashFicticio(dto.passwordTemporal);
+      throw new UnauthorizedException('Credenciales incorrectas');
     }
 
     const temporalOk = await verificarPasswordCompatible(
@@ -578,7 +684,15 @@ export class AuthService implements OnModuleInit {
       user.passwordHash,
     );
     if (!temporalOk)
-      throw new UnauthorizedException('Contraseña temporal incorrecta');
+      throw new UnauthorizedException('Credenciales incorrectas');
+
+    // Después de validar la contraseña: antes este 400 revelaba qué cuentas
+    // existen sin conocer ninguna contraseña.
+    if (!user.debeCambiarContrasena) {
+      throw new BadRequestException(
+        'La cuenta no requiere cambio obligatorio de contraseña.',
+      );
+    }
 
     user.passwordHash = await hashPassword(dto.nuevaPassword);
     user.debeCambiarContrasena = false;

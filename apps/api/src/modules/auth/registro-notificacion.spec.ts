@@ -42,13 +42,16 @@ describe('Registro → aviso "nuevo candidato" (MongoDB real, modo producción)'
 
   const ids: Record<string, string> = {};
 
-  const registrar = (email: string) =>
-    auth.registrar({
+  /** Espera también lo que el registro deja en segundo plano (aviso). */
+  const registrar = async (email: string) => {
+    const { pendientes } = await auth.registrar({
       email,
       password: 'Secreta#2026',
       nombre: 'Ana',
       apellidos: 'Pérez',
     });
+    return pendientes;
+  };
 
   beforeAll(async () => {
     mongod = await MongoMemoryServer.create({
@@ -79,7 +82,10 @@ describe('Registro → aviso "nuevo candidato" (MongoDB real, modo producción)'
       {} as never, // oneTimeTokenModel
       {} as never, // jwtService
       { get: (_k: string, def?: unknown) => def } as never,
-      { avisosEvaluadorPorCorreo: false } as never,
+      {
+        avisosEvaluadorPorCorreo: false,
+        enviarBienvenidaPostulante: () => Promise.resolve(),
+      } as never,
       {} as never, // mfaService
       {} as never, // auditoria
       postulanteModel,
