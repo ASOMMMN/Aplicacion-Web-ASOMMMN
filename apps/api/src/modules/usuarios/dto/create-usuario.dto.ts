@@ -5,8 +5,8 @@ import {
   IsString,
   MinLength,
   MaxLength,
-  Matches,
 } from 'class-validator';
+import { ContrasenaSegura } from '../../../common/validators/contrasena-segura';
 
 export class CreateUsuarioDto {
   @ApiProperty({ example: 'evaluador@asommmn.com' })
@@ -25,13 +25,8 @@ export class CreateUsuarioDto {
   @MaxLength(100)
   apellidos: string;
 
-  @ApiProperty({ example: 'TempPass1!' })
-  @IsString()
-  @MinLength(10)
-  @MaxLength(128)
-  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
-    message: 'Debe incluir mayúsculas, minúsculas y números',
-  })
+  @ApiProperty({ example: 'Gaviota-Norte-42' })
+  @ContrasenaSegura()
   password: string;
 
   @ApiProperty({ enum: ['evaluador', 'administrador'] })

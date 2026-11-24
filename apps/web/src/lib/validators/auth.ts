@@ -1,12 +1,15 @@
 import { z } from 'zod';
+import { evaluarContrasena } from './politica-contrasena';
 
-const passwordSchema = z
-  .string()
-  .min(10, 'Mínimo 10 caracteres')
-  .max(72, 'Máximo 72 caracteres')
-  .regex(/[a-z]/, 'Debe contener al menos una minúscula')
-  .regex(/[A-Z]/, 'Debe contener al menos una mayúscula')
-  .regex(/\d/, 'Debe contener al menos un número');
+/**
+ * Contraseña nueva (registro, restablecer, cambio obligatorio): la misma
+ * política que la API (politica-contrasena.ts, copia idéntica). El login no
+ * la aplica.
+ */
+export const passwordSchema = z.string().superRefine((valor, ctx) => {
+  const problema = evaluarContrasena(valor);
+  if (problema) ctx.addIssue({ code: 'custom', message: problema });
+});
 
 export const loginSchema = z.object({
   email: z.string().email('Correo inválido'),

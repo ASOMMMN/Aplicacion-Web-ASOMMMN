@@ -8,19 +8,14 @@ import { z } from 'zod';
 import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
+import { passwordSchema } from '@/lib/validators/auth';
 import PasswordInput from '@/components/ui/PasswordInput';
 
 const schema = z
   .object({
     email: z.string().email('Correo inválido'),
     passwordTemporal: z.string().min(1, 'La contraseña temporal es obligatoria'),
-    nuevaPassword: z
-      .string()
-      .min(10, 'Mínimo 10 caracteres')
-      .max(72, 'Máximo 72 caracteres')
-      .regex(/[a-z]/, 'Debe contener una minúscula')
-      .regex(/[A-Z]/, 'Debe contener una mayúscula')
-      .regex(/\d/, 'Debe contener un número'),
+    nuevaPassword: passwordSchema,
     confirmar: z.string(),
   })
   .refine((d) => d.nuevaPassword === d.confirmar, {
