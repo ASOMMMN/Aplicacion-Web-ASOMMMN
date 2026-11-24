@@ -11,9 +11,13 @@ import { Throttle } from '@nestjs/throttler';
 import { MFAService } from './mfa.service';
 import { GenerateMFARecoveryCodesDto, DisableMFADto } from './dto/mfa.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from '../auth/strategies/jwt.strategy';
 
+// Cualquier usuario autenticado (igual que antes), ahora declarado.
+@Roles('postulante', 'evaluador', 'administrador')
 @Controller('mfa')
 export class MFAController {
   constructor(private readonly mfaService: MFAService) {}
@@ -23,7 +27,7 @@ export class MFAController {
    * POST /mfa/regenerate-recovery-codes
    */
   @Post('regenerate-recovery-codes')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @HttpCode(200)
   async regenerateRecoveryCodes(
@@ -61,7 +65,7 @@ export class MFAController {
    * POST /mfa/disable
    */
   @Post('disable')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @HttpCode(200)
   async disableMFA(
@@ -95,7 +99,7 @@ export class MFAController {
    * POST /mfa/status
    */
   @Post('status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @HttpCode(200)
   async getMFAStatus(@CurrentUser() user: AuthUser): Promise<{
     email: string;
@@ -103,7 +107,9 @@ export class MFAController {
     codigosRecuperacionDisponibles: number;
   }> {
     const mfaActivo = await this.mfaService.isMFAActive(user.userId);
-    const codigosCount = await this.mfaService.getRecoveryCodeCount(user.userId);
+    const codigosCount = await this.mfaService.getRecoveryCodeCount(
+      user.userId,
+    );
 
     return {
       email: user.email,

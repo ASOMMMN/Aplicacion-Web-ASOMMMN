@@ -1,3 +1,4 @@
+import * as os from 'node:os';
 import type { ConfigService } from '@nestjs/config';
 import type { MongooseModuleFactoryOptions } from '@nestjs/mongoose';
 import type { Connection } from 'mongoose';
@@ -27,6 +28,11 @@ export function opcionesMongoose(
     uri,
     autoIndex: !enProduccion,
     autoCreate: !enProduccion,
+    // Solo en Jest (pruebas e2e con MongoDB en memoria): mismo ajuste que
+    // test/utils/conexion-mongo-prueba.ts. No aplica en dev ni producción.
+    ...(config.get<string>('NODE_ENV') === 'test'
+      ? { runtimeAdapters: { os } }
+      : {}),
     onConnectionCreate: (conexion: Connection) => {
       fase('mongo', `conectando a MongoDB (${hostMongo(uri)})`);
       escucharEventosMongo(conexion);
