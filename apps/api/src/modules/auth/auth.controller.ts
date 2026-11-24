@@ -34,6 +34,9 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from './strategies/jwt.strategy';
+import { Public } from '../../common/decorators/public.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import {
   POLITICAS,
   ProteccionFuerzaBrutaService,
@@ -78,6 +81,7 @@ export class AuthController {
     private readonly fuerzaBruta: ProteccionFuerzaBrutaService,
   ) {}
 
+  @Public()
   @Post('registro')
   @HttpCode(201)
   @Throttle({ default: { limit: 5, ttl: 600_000 } })
@@ -112,6 +116,7 @@ export class AuthController {
     return { message: 'Cuenta creada. Puedes iniciar sesión de inmediato.' };
   }
 
+  @Public()
   @Get('verificar-email')
   @Throttle({ default: { limit: 10, ttl: 600_000 } })
   @ApiOperation({ summary: 'Verificar correo con token' })
@@ -120,6 +125,10 @@ export class AuthController {
     return { message: 'Correo verificado. Ya puedes iniciar sesión.' };
   }
 
+  // PENDIENTE: abierta sin necesidad en producción (solo responde con
+  // NODE_ENV=development y ENABLE_TEST_ENDPOINTS=true). Se deja pública
+  // para no cambiar su comportamiento en este PR; candidata a eliminarse.
+  @Public()
   @Get('test-verificar-email')
   @ApiOperation({
     summary: '(TEST ONLY) Verificar email por correo - Eliminar en producción',
@@ -138,6 +147,7 @@ export class AuthController {
     return { message: 'Correo verificado para testing.' };
   }
 
+  @Public()
   @Post('reenviar-verificacion')
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 600_000 } })
@@ -149,6 +159,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('login')
   @HttpCode(200)
   // S-01 (AUDITORIA.md): antes sin límite. Ahora, 10 peticiones/min por IP
@@ -186,6 +197,7 @@ export class AuthController {
     return result;
   }
 
+  @Public()
   @Post('mfa/verificar-login')
   @HttpCode(200)
   @Throttle({ default: { limit: 8, ttl: 300_000 } })
@@ -213,6 +225,7 @@ export class AuthController {
     return result;
   }
 
+  @Public()
   @Post('mfa/setup/iniciar')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 300_000 } })
@@ -223,6 +236,7 @@ export class AuthController {
     return this.authService.iniciarSetupMfa(dto.tempSessionToken);
   }
 
+  @Public()
   @Post('mfa/setup/activar')
   @HttpCode(200)
   @Throttle({ default: { limit: 8, ttl: 300_000 } })
@@ -249,6 +263,7 @@ export class AuthController {
     return result;
   }
 
+  @Public()
   @Post('refresh')
   @HttpCode(200)
   @Throttle({ default: { limit: 20, ttl: 300_000 } })
@@ -273,6 +288,7 @@ export class AuthController {
   // recargar) el logout fallaba con 401 y la sesión quedaba abierta. El
   // refresh token se identifica por la cookie httpOnly: solo quien la tiene
   // puede revocarlo. Sin límite, para que cerrar sesión nunca dé 429.
+  @Public()
   @Post('logout')
   @HttpCode(200)
   @SkipThrottle()
@@ -286,7 +302,9 @@ export class AuthController {
 
   @Post('logout-todos')
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  // Cualquier usuario autenticado (igual que antes), ahora declarado.
+  @Roles('postulante', 'evaluador', 'administrador')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Cerrar todas las sesiones del usuario' })
   async logoutAll(
@@ -298,6 +316,7 @@ export class AuthController {
     return { message: 'Todas las sesiones cerradas.' };
   }
 
+  @Public()
   @Post('recuperar-contrasena')
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 600_000 } })
@@ -323,6 +342,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('restablecer-contrasena')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 600_000 } })
@@ -337,6 +357,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('cambiar-contrasena-obligatoria')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 600_000 } })

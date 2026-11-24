@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Public } from './common/decorators/public.decorator';
 import {
   HealthCheck,
   HealthCheckService,
@@ -14,6 +15,7 @@ export class HealthController {
     private mongoose: MongooseHealthIndicator,
   ) {}
 
+  @Public()
   @Get()
   @HealthCheck()
   @ApiOperation({ summary: 'Estado del sistema' })

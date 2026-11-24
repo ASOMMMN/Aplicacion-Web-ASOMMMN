@@ -34,6 +34,7 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { MiNubeModule } from './modules/mi-nube/mi-nube.module';
 import { AlertasVencimientoModule } from './modules/alertas-vencimiento/alertas-vencimiento.module';
 import { HealthController } from './health.controller';
+import { RutasCerradasGuard } from './common/guards/rutas-cerradas.guard';
 
 @Module({
   imports: [
@@ -138,6 +139,9 @@ import { HealthController } from './health.controller';
   providers: [
     // ThrottlerGuard global; se puede sobreescribir por endpoint con @Throttle()
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Rutas cerradas por defecto: sin @Public() ni JwtAuthGuard + RolesGuard
+    // + @Roles declarados, la ruta responde 403 (ver RutasCerradasGuard).
+    { provide: APP_GUARD, useClass: RutasCerradasGuard },
   ],
 })
 export class AppModule {}
