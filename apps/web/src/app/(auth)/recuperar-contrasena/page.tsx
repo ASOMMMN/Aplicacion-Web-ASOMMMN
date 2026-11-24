@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, Button, Alert, Spinner } from 'react-bootstrap';
@@ -8,11 +8,15 @@ import Link from 'next/link';
 import api from '@/lib/api/client';
 import { forgotPasswordSchema, ForgotPasswordForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
+import Turnstile, { type TurnstileHandle } from '@/components/auth/Turnstile';
+import { conTurnstile, faltaTokenTurnstile } from '@/lib/auth/turnstile';
 
 export default function RecuperarContrasenaPage() {
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [tokenTurnstile, setTokenTurnstile] = useState('');
+  const turnstile = useRef<TurnstileHandle>(null);
 
   const {
     register,
@@ -24,13 +28,16 @@ export default function RecuperarContrasenaPage() {
     setLoading(true);
     setServerError('');
     try {
-      await api.post('/auth/recuperar-contrasena', data);
+      await api.post('/auth/recuperar-contrasena', conTurnstile(data, tokenTurnstile));
       setSent(true);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: unknown } } };
       const msg = axiosErr.response?.data?.message ?? 'Error. Inténtalo de nuevo.';
       setServerError(Array.isArray(msg) ? msg.join(', ') : String(msg));
     } finally {
+      // El token de Turnstile es de un solo uso: uno nuevo para el siguiente
+      // intento (p. ej. tras credenciales inválidas).
+      turnstile.current?.reset();
       setLoading(false);
     }
   };
@@ -84,10 +91,11 @@ export default function RecuperarContrasenaPage() {
                   </Form.Control.Feedback>
                 </Form.Group>
 
+                <Turnstile ref={turnstile} action="recuperar" onToken={setTokenTurnstile} />
                 <Button
                   type="submit"
                   className="w-100 btn-primary"
-                  disabled={loading}
+                  disabled={loading || faltaTokenTurnstile(tokenTurnstile)}
                   style={{ padding: '0.65rem', fontWeight: 600 }}
                 >
                   {loading ? (

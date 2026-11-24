@@ -68,6 +68,7 @@ import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
 import { RolesGuard } from '../src/common/guards/roles.guard';
 import { Roles } from '../src/common/decorators/roles.decorator';
 import { hashPassword } from '../src/common/utils/password.util';
+import { TurnstileService } from '../src/common/turnstile/turnstile.service';
 
 jest.setTimeout(240_000);
 
@@ -140,6 +141,8 @@ describe('Registro con aviso de privacidad (e2e)', () => {
         JwtStrategy,
         ProteccionFuerzaBrutaService,
         PrivacidadService,
+        // Real, sin TURNSTILE_SECRET_KEY y con NODE_ENV=test: deja pasar.
+        TurnstileService,
         {
           provide: ConfigService,
           useValue: { get: (k: string, def?: unknown) => config[k] ?? def },

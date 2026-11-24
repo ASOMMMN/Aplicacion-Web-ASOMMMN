@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { AVISO_PRIVACIDAD_VERSION } from '../../privacidad/aviso-privacidad.constants';
 import { PrivacyConsentInputDto } from '../../privacidad/dto/privacy-consent.dto';
+import { TurnstileTokenOpcional } from '../../../common/turnstile/turnstile-token.decorator';
 
 export class RegisterDto {
   @ApiProperty({ example: 'ana@example.com' })
@@ -47,4 +48,8 @@ export class RegisterDto {
   @ValidateNested()
   @Type(() => PrivacyConsentInputDto)
   privacyConsent: PrivacyConsentInputDto;
+
+  /** Token de Cloudflare Turnstile; lo exige TurnstileGuard. */
+  @TurnstileTokenOpcional()
+  turnstileToken?: string;
 }

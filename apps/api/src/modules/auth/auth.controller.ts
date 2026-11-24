@@ -32,6 +32,7 @@ import {
   VerificarMfaLoginDto,
 } from './dto/mfa-auth.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { TurnstileGuard } from '../../common/turnstile/turnstile.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthUser } from './strategies/jwt.strategy';
 import {
@@ -81,6 +82,7 @@ export class AuthController {
   @Post('registro')
   @HttpCode(201)
   @Throttle({ default: { limit: 5, ttl: 600_000 } })
+  @UseGuards(TurnstileGuard)
   @ApiOperation({ summary: 'Registrar postulante (auto-registro)' })
   @ApiResponse({
     status: 201,
@@ -154,6 +156,7 @@ export class AuthController {
   // S-01 (AUDITORIA.md): antes sin límite. Ahora, 10 peticiones/min por IP
   // y bloqueo temporal por cuenta (5 fallos) y por IP (20 fallos) en 15 min.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseGuards(TurnstileGuard)
   @ApiOperation({ summary: 'Iniciar sesión' })
   @ApiResponse({ status: 200, description: 'Access token + usuario.' })
   @ApiResponse({
@@ -305,6 +308,7 @@ export class AuthController {
   @Post('recuperar-contrasena')
   @HttpCode(200)
   @Throttle({ default: { limit: 3, ttl: 600_000 } })
+  @UseGuards(TurnstileGuard)
   @ApiOperation({
     summary: 'Solicitar enlace de recuperación de contraseña por correo',
   })

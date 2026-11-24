@@ -26,6 +26,11 @@ const s3Host =
 // lo que rompería la generación estática que hoy usan la mayoría de las rutas
 // de esta app. 'unsafe-inline' en script-src es necesario porque el App Router
 // inyecta scripts inline para hidratar el payload de RSC en cada página.
+// Cloudflare Turnstile (captcha de login, registro y recuperar contraseña):
+// el script, el iframe del widget y sus peticiones salen de este origen
+// exacto. Solo se agrega a script-src, frame-src y connect-src.
+const turnstileOrigin = "https://challenges.cloudflare.com";
+
 const securityHeaders = [
   {
     key: "Strict-Transport-Security",
@@ -41,13 +46,13 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+      `script-src 'self' 'unsafe-inline' ${turnstileOrigin}${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: https://${s3Host}`,
-      `connect-src 'self' ${apiOrigin}`,
+      `connect-src 'self' ${apiOrigin} ${turnstileOrigin}`,
       "font-src 'self'",
       "object-src 'none'",
-      `frame-src 'self' https://${s3Host}`,
+      `frame-src 'self' https://${s3Host} ${turnstileOrigin}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

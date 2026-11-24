@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, Button, Alert, Spinner, Row, Col } from 'react-bootstrap';
@@ -10,6 +10,8 @@ import Swal from 'sweetalert2';
 import api from '@/lib/api/client';
 import { registerSchema, RegisterForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
+import Turnstile, { type TurnstileHandle } from '@/components/auth/Turnstile';
+import { conTurnstile, faltaTokenTurnstile } from '@/lib/auth/turnstile';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
 import PasswordInput from '@/components/ui/PasswordInput';
 import {
@@ -21,6 +23,8 @@ export default function RegistroPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [tokenTurnstile, setTokenTurnstile] = useState('');
+  const turnstile = useRef<TurnstileHandle>(null);
 
   const {
     register,
@@ -37,14 +41,20 @@ export default function RegistroPage() {
     setLoading(true);
     setServerError('');
     try {
-      await api.post('/auth/registro', {
-        nombre: data.nombre,
-        apellidos: data.apellidos,
-        email: data.email,
-        password: data.password,
-        // Versión vigente del aviso; la API guarda fecha e IP.
-        privacyConsent: consentimientoRegistro(),
-      });
+      await api.post(
+        '/auth/registro',
+        conTurnstile(
+          {
+            nombre: data.nombre,
+            apellidos: data.apellidos,
+            email: data.email,
+            password: data.password,
+            // Versión vigente del aviso; la API guarda fecha e IP.
+            privacyConsent: consentimientoRegistro(),
+          },
+          tokenTurnstile,
+        ),
+      );
 
       await Swal.fire({
         icon: 'success',
@@ -60,6 +70,9 @@ export default function RegistroPage() {
         axiosErr.response?.data?.message ?? 'Error al registrarse. Inténtalo de nuevo.';
       setServerError(toErrorMessage(msg));
     } finally {
+      // El token de Turnstile es de un solo uso: uno nuevo para el siguiente
+      // intento (p. ej. tras credenciales inválidas).
+      turnstile.current?.reset();
       setLoading(false);
     }
   };
@@ -187,10 +200,11 @@ export default function RegistroPage() {
               />
             </Form.Group>
 
+            <Turnstile ref={turnstile} action="registro" onToken={setTokenTurnstile} />
             <Button
               type="submit"
               className="w-100 btn-primary"
-              disabled={loading || !aceptaAviso}
+              disabled={loading || !aceptaAviso || faltaTokenTurnstile(tokenTurnstile)}
               style={{ padding: '0.65rem', fontWeight: 600 }}
             >
               {loading ? (
