@@ -11,30 +11,23 @@
  *   redacción original. No se agregaron datos del responsable.
  * - Parte II es nueva y describe lo que hace esta plataforma con los datos
  *   de los postulantes, según el código actual.
- * - Todo dato que no está en el aviso oficial ni se desprende del código va
- *   como <Pendiente /> ("[POR COMPLETAR POR ASOMMMN]"); la lista está en el
- *   PR. Antes de publicar en firme, ASOMMMN y su asesor legal deben revisar
- *   el texto completo y, si cambia, subir AVISO_PRIVACIDAD_VERSION (web y
- *   API) para que los postulantes acepten la versión nueva.
+ * - Los datos de la Parte II (vigencia, finalidades, IA, encargados,
+ *   transferencias y conservación) los definió ASOMMMN el 24-nov-2026.
+ *   Siguen sujetos a confirmación: finalidades secundarias, transferencias,
+ *   plazos de conservación y los plazos de respuesta ARCO.
+ * - Si el texto cambia, subir AVISO_PRIVACIDAD_VERSION (web y API) para que
+ *   los postulantes acepten la versión nueva.
  */
 import type { ReactNode } from 'react';
 import {
   AVISO_PRIVACIDAD_ACTUALIZADO,
   AVISO_PRIVACIDAD_VERSION,
+  AVISO_PRIVACIDAD_VIGENCIA,
   URL_AVISO_GENERAL_ASOMMMN,
 } from '@/lib/privacidad/avisoPrivacidad';
 
 const CORREO = 'asommmn@asommmn.org.mx';
 const TELEFONOS = '(229) 932 2807 / (229) 932 8737';
-
-/** Dato que ASOMMMN debe completar antes de publicar el aviso en firme. */
-function Pendiente({ children }: { children?: ReactNode }) {
-  return (
-    <mark className="aviso-pendiente">
-      [POR COMPLETAR POR ASOMMMN{children ? <>: {children}</> : null}]
-    </mark>
-  );
-}
 
 function Seccion({ id, titulo, children }: { id: string; titulo: string; children: ReactNode }) {
   return (
@@ -64,9 +57,7 @@ export default function AvisoPrivacidadContenido() {
           </div>
           <div>
             <dt>Vigente a partir de</dt>
-            <dd>
-              <Pendiente>fecha de entrada en vigor</Pendiente>
-            </dd>
+            <dd>{AVISO_PRIVACIDAD_VIGENCIA}</dd>
           </div>
           <div>
             <dt>Última actualización</dt>
@@ -239,28 +230,23 @@ export default function AvisoPrivacidadContenido() {
           </li>
         </ul>
         <p>
-          <strong>Secundarias:</strong> <Pendiente>finalidades secundarias, si las hay</Pendiente>.
-          Si existieran, puedes negarte a ellas en cualquier momento escribiendo a <Correo />, sin
-          que eso afecte tu evaluación.
+          <strong>Secundarias:</strong> ASOMMMN no utiliza sus datos personales para finalidades
+          secundarias.
         </p>
       </Seccion>
 
       <Seccion id="plataforma-ia" titulo="Uso de inteligencia artificial">
         <p>
-          Para agilizar la revisión, la plataforma usa herramientas de inteligencia artificial de
-          un proveedor externo para leer las fechas de tus documentos, certificados y cursos (por
-          ejemplo, emisión y vencimiento) y los datos de tu currículum. Para ello, el archivo o su
-          contenido se envía a ese proveedor, que lo procesa por cuenta de ASOMMMN.
+          La plataforma usa la inteligencia artificial de <strong>OpenAI</strong> (empresa con sede
+          en Estados Unidos) solo para extraer fechas y datos de tus documentos, certificados,
+          cursos y currículum (por ejemplo, fechas de emisión y vencimiento). Para ello, el archivo
+          o su contenido se envía a OpenAI, que lo procesa por cuenta de ASOMMMN.
         </p>
         <p>
-          Las fechas que obtiene la herramienta son revisadas por un evaluador de ASOMMMN; la
-          decisión sobre tu postulación la toman personas, no la herramienta. El asistente de chat
-          de la plataforma también se apoya en ese proveedor: evita escribir en él datos personales
+          Las decisiones de evaluación las toman personas evaluadoras de ASOMMMN, no la
+          herramienta; además, revisan los datos que esta obtiene. El asistente de chat de la
+          plataforma también usa OpenAI para responder dudas: evita escribir en él datos personales
           que no sean necesarios.
-        </p>
-        <p>
-          Proveedor y país donde procesa la información:{' '}
-          <Pendiente>nombre del proveedor de IA y ubicación</Pendiente>.
         </p>
       </Seccion>
 
@@ -270,48 +256,63 @@ export default function AvisoPrivacidadContenido() {
           únicamente por su cuenta y bajo sus instrucciones (encargados):
         </p>
         <ul>
-          <li>Almacenamiento en la nube de documentos y archivos.</li>
-          <li>Base de datos en la nube.</li>
-          <li>Servidores de la aplicación y del sitio web.</li>
-          <li>Envío de correos electrónicos.</li>
-          <li>Verificación contra accesos automatizados (bots).</li>
-          <li>Inteligencia artificial para leer fechas (ver sección anterior).</li>
+          <li>
+            <strong>Almacenamiento de documentos y archivos:</strong> Amazon Web Services (Amazon
+            S3). Los archivos se almacenan en Estados Unidos.
+          </li>
+          <li>
+            <strong>Base de datos:</strong> MongoDB Atlas (MongoDB, Inc., empresa con sede en
+            Estados Unidos).
+          </li>
+          <li>
+            <strong>Alojamiento de la aplicación:</strong> Render (Render Services, Inc., empresa con
+            sede en Estados Unidos).
+          </li>
+          <li>
+            <strong>Alojamiento del sitio web:</strong> Netlify (Netlify, Inc., empresa con sede en
+            Estados Unidos).
+          </li>
+          <li>
+            <strong>Envío de correos electrónicos:</strong> Resend (empresa con sede en Estados
+            Unidos).
+          </li>
+          <li>
+            <strong>Verificación contra accesos automatizados (bots):</strong> Cloudflare
+            (Cloudflare, Inc., empresa con sede en Estados Unidos).
+          </li>
+          <li>
+            <strong>Inteligencia artificial:</strong> OpenAI (ver la sección anterior).
+          </li>
         </ul>
         <p>
-          Estos servicios pueden ubicarse fuera de México, por ejemplo en Estados Unidos. Nombre de
-          cada proveedor y país: <Pendiente>lista de encargados y su ubicación</Pendiente>.
+          Por ello, tus datos pueden almacenarse o procesarse fuera de México.
         </p>
       </Seccion>
 
       <Seccion id="plataforma-transferencias" titulo="Transferencias">
         <p>
-          No se divulgan datos salvo autorización expresa del titular o mandato legal aplicable.
-          Los encargados de la sección anterior no son transferencias: tratan los datos por cuenta
-          de ASOMMMN.
+          No se transfieren datos personales a terceros, salvo cuando lo exija una obligación legal
+          o una autoridad competente.
         </p>
         <p>
-          Terceros a quienes se transfieren datos de postulantes, finalidad y si requieren tu
-          consentimiento:{' '}
-          <Pendiente>
-            indicar si el expediente se comparte con empresas navieras, empleadores u otros
-            terceros, o declarar que no se realizan transferencias
-          </Pendiente>
-          .
+          Los encargados de la sección anterior no son transferencias: tratan los datos por cuenta
+          de ASOMMMN y bajo sus instrucciones.
         </p>
       </Seccion>
 
       <Seccion id="plataforma-conservacion" titulo="Conservación y eliminación">
         <p>
-          Los datos y documentos de candidatos no seleccionados se conservarán durante{' '}
-          <Pendiente>plazo de conservación</Pendiente> a partir de{' '}
-          <Pendiente>momento desde el que se cuenta, p. ej. el cierre del proceso</Pendiente>. Al
+          Los datos y documentos de candidatos no seleccionados se conservarán durante 1 año; al
           término de ese plazo se eliminarán o se anonimizarán.
         </p>
         <p>
-          Las cuentas sin actividad se conservarán durante{' '}
-          <Pendiente>plazo para cuentas inactivas</Pendiente>. Puedes pedir la eliminación de tus
-          datos antes de esos plazos mediante una solicitud de cancelación (derechos ARCO), salvo
-          los que ASOMMMN deba conservar por una obligación legal.
+          Los datos de las cuentas sin actividad se conservarán por el tiempo necesario para cumplir
+          las finalidades del aviso y las obligaciones legales aplicables, y se eliminarán o
+          bloquearán cuando dejen de ser necesarios.
+        </p>
+        <p>
+          Puedes pedir la eliminación de tus datos antes mediante una solicitud de cancelación
+          (derechos ARCO), salvo los que ASOMMMN deba conservar por una obligación legal.
         </p>
       </Seccion>
 
@@ -327,6 +328,7 @@ export default function AvisoPrivacidadContenido() {
           <li>Qué derecho quieres ejercer y sobre qué datos.</li>
           <li>El medio por el que quieres recibir la respuesta.</li>
         </ul>
+        {/* Plazos tomados de la LFPDPPP; sujetos a confirmación de ASOMMMN y su asesor legal. */}
         <p>
           ASOMMMN te responderá en un plazo máximo de 20 días contados desde que reciba tu
           solicitud y, si resulta procedente, la hará efectiva dentro de los 15 días siguientes.

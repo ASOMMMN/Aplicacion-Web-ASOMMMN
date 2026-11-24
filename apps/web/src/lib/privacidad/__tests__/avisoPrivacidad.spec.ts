@@ -8,6 +8,7 @@ import { esRutaAbierta, esRutaPublica } from '@/lib/auth/rutasPublicas';
 import { registerSchema } from '@/lib/validators/auth';
 import {
   AVISO_PRIVACIDAD_VERSION,
+  AVISO_PRIVACIDAD_VIGENCIA,
   CODIGO_CONSENTIMIENTO_PENDIENTE,
   URL_AVISO_GENERAL_ASOMMMN,
   consentimientoRegistro,
@@ -60,6 +61,15 @@ describe('Aviso de privacidad (P-01)', () => {
     }
     expect(html).toContain(AVISO_PRIVACIDAD_VERSION);
     expect(html).toContain(`href="${URL_AVISO_GENERAL_ASOMMMN}"`);
-    expect(html).toContain('[POR COMPLETAR POR ASOMMMN');
+    // Sin marcadores pendientes y con los datos que definió ASOMMMN.
+    expect(html).not.toContain('POR COMPLETAR');
+    expect(html).toContain(AVISO_PRIVACIDAD_VIGENCIA);
+    expect(html).toContain('no utiliza sus datos personales para finalidades');
+    expect(html).toContain('OpenAI');
+    expect(html).toContain('Amazon Web Services');
+    expect(html).toContain('MongoDB Atlas');
+    expect(html).toContain('No se transfieren datos personales a terceros');
+    expect(html).toContain('durante 1 año');
+    expect(html).toContain('por el tiempo necesario para cumplir');
   });
 });

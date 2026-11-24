@@ -1254,13 +1254,6 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
 .aviso-privacidad li { margin-bottom: .3rem; line-height: 1.6; }
 .aviso-privacidad .aviso-contacto { list-style: none; padding-left: 0; }
 .aviso-privacidad a { color: var(--asommmn-azul); text-decoration-color: var(--asommmn-dorado); }
-.aviso-privacidad .aviso-pendiente {
-  background: rgba(201,162,75,.18);
-  color: var(--asommmn-azul);
-  border-radius: 3px;
-  padding: 0 .2rem;
-  font-size: .92em;
-}
 .aviso-privacidad .aviso-pie {
   margin-top: 2rem;
   padding-top: 1rem;

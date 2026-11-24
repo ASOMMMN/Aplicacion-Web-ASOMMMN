@@ -8,8 +8,11 @@
  */
 export const AVISO_PRIVACIDAD_VERSION = '2026-11-v1';
 
-/** Fecha de la última edición del texto (no es la fecha de vigencia). */
-export const AVISO_PRIVACIDAD_ACTUALIZADO = '23 de noviembre de 2026';
+/** Fecha desde la que rige esta versión del aviso. */
+export const AVISO_PRIVACIDAD_VIGENCIA = '24 de noviembre de 2026';
+
+/** Fecha de la última edición del texto. */
+export const AVISO_PRIVACIDAD_ACTUALIZADO = '24 de noviembre de 2026';
 
 export const RUTA_AVISO_PRIVACIDAD = '/aviso-de-privacidad';
 

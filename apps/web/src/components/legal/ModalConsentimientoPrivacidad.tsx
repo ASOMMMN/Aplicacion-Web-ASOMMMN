@@ -71,8 +71,8 @@ export default function ModalConsentimientoPrivacidad() {
             reclutamiento.
           </li>
           <li>
-            Usamos herramientas de inteligencia artificial de un proveedor externo para leer las
-            fechas de tus documentos; un evaluador las revisa.
+            Usamos la inteligencia artificial de OpenAI solo para extraer fechas y datos de tus
+            documentos; las decisiones de evaluación las toman personas evaluadoras.
           </li>
           <li>
             Tus datos se alojan con proveedores de servicios en la nube que pueden estar fuera de
