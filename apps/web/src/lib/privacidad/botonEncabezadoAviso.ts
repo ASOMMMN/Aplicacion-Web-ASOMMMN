@@ -1,21 +1,23 @@
 import { ROLE_HOME } from '@/lib/auth/roleHome';
 
 /**
- * Qué botón muestra el encabezado de /aviso-de-privacidad.
+ * Qué botón muestra el encabezado de /aviso-de-privacidad (siempre hay uno):
  *
- * - Sin sesión: ninguno (el aviso se lee y listo).
- * - Con sesión y llegando desde otra página de la plataforma: "Volver".
- * - Con sesión y llegando directo (p. ej. pestaña nueva): "Ir a mi panel",
- *   al inicio de su rol.
+ * - Llegando desde otra página de la plataforma, con o sin sesión: "Volver".
+ * - Llegando directo (p. ej. pestaña nueva) con sesión: "Ir a mi panel", al
+ *   inicio de su rol.
+ * - Llegando directo sin sesión: "Ir al inicio de sesión" (/login).
  *
  * "Con sesión" se decide con la cookie user_role, que ya usa el proxy. Solo
  * elige qué texto mostrar: no autoriza nada. El panel al que lleva vuelve a
  * comprobar la sesión (proxy y API) como cualquier otra página.
  */
+export const RUTA_INICIO_SESION = '/login';
+
 export type BotonAviso =
-  | { tipo: 'ninguno' }
   | { tipo: 'volver' }
-  | { tipo: 'panel'; href: string };
+  | { tipo: 'panel'; href: string }
+  | { tipo: 'login'; href: string };
 
 export interface ContextoNavegacion {
   /** Valor de la cookie user_role, o null si no hay. */
@@ -52,10 +54,11 @@ function llegoDesdeLaPlataforma(c: ContextoNavegacion): boolean {
 }
 
 export function decidirBotonAviso(c: ContextoNavegacion): BotonAviso {
-  const inicio = c.rol ? ROLE_HOME[c.rol] : undefined;
-  if (!inicio) return { tipo: 'ninguno' };
   if (llegoDesdeLaPlataforma(c)) return { tipo: 'volver' };
-  return { tipo: 'panel', href: inicio };
+  // Cookie ausente o con un rol que la app no conoce: se trata como sin sesión.
+  const inicio = c.rol ? ROLE_HOME[c.rol] : undefined;
+  if (inicio) return { tipo: 'panel', href: inicio };
+  return { tipo: 'login', href: RUTA_INICIO_SESION };
 }
 
 function leerCookie(nombre: string): string | null {

@@ -27,40 +27,25 @@ const directo = (extra: Partial<ContextoNavegacion> = {}): ContextoNavegacion =>
 const vista = (decision: Parameters<typeof BotonEncabezadoAvisoVista>[0]['decision']) =>
   renderToStaticMarkup(createElement(BotonEncabezadoAvisoVista, { decision, onVolver: () => {} }));
 
-describe('Botón del encabezado de /aviso-de-privacidad', () => {
-  describe('sin sesión: sin botón', () => {
-    it.each([
-      ['llegando directo', directo()],
-      ['viniendo del login', directo({ historial: 3, referrer: `${ORIGEN}/login` })],
-      ['con una cookie de rol desconocido', directo({ rol: 'intruso', historial: 3 })],
-    ])('%s', (_caso, contexto) => {
-      const decision = decidirBotonAviso(contexto);
-      expect(decision).toEqual({ tipo: 'ninguno' });
-      expect(vista(decision)).toBe('');
-    });
-  });
+/** Mismo estilo visual en todos los casos. */
+const ESTILO = 'class="btn btn-sm btn-outline-light"';
 
-  describe('con sesión viniendo de otra página de la plataforma: "Volver"', () => {
+describe('Botón del encabezado de /aviso-de-privacidad (siempre hay uno)', () => {
+  describe('1. con sesión, viniendo de otra página de la plataforma: "Volver"', () => {
     it.each([
-      [
-        'navegación interna sin recargar (p. ej. el enlace del pie de página)',
-        directo({ rol: 'postulante', historial: 4, rutaInicial: '/dashboard' }),
-      ],
-      [
-        'carga completa con referrer del mismo origen',
-        directo({ rol: 'evaluador', historial: 2, referrer: `${ORIGEN}/candidatos` }),
-      ],
+      ['navegación interna (enlace del pie de página)', directo({ rol: 'postulante', historial: 4, rutaInicial: '/dashboard' })],
+      ['carga completa con referrer del mismo origen', directo({ rol: 'evaluador', historial: 2, referrer: `${ORIGEN}/candidatos` })],
     ])('%s', (_caso, contexto) => {
       const decision = decidirBotonAviso(contexto);
       expect(decision).toEqual({ tipo: 'volver' });
       const html = vista(decision);
       expect(html).toContain('<button');
       expect(html).toContain('Volver');
-      expect(html).not.toContain('Ir a mi panel');
+      expect(html).toContain(ESTILO);
     });
   });
 
-  describe('con sesión llegando directo: "Ir a mi panel" al inicio de su rol', () => {
+  describe('2. con sesión, llegando directo: "Ir a mi panel" al inicio de su rol', () => {
     it.each([
       ['postulante', '/dashboard'],
       ['evaluador', '/candidatos'],
@@ -71,19 +56,49 @@ describe('Botón del encabezado de /aviso-de-privacidad', () => {
       const html = vista(decision);
       expect(html).toContain(`href="${inicio}"`);
       expect(html).toContain('Ir a mi panel');
-      expect(html).not.toContain('Volver');
-    });
-
-    it.each([
-      ['referrer de otro sitio', directo({ rol: 'postulante', historial: 3, referrer: 'https://otro.ejemplo/' })],
-      ['referrer del mismo origen pero sin historial', directo({ rol: 'postulante', referrer: `${ORIGEN}/dashboard` })],
-      ['referrer inválido', directo({ rol: 'postulante', historial: 3, referrer: 'no es una url' })],
-    ])('%s', (_caso, contexto) => {
-      expect(decidirBotonAviso(contexto)).toEqual({ tipo: 'panel', href: '/dashboard' });
+      expect(html).toContain(ESTILO);
     });
   });
 
-  it('en el servidor no pinta nada (no aparece y desaparece al cargar)', () => {
+  describe('3. sin sesión, viniendo de otra página de la plataforma: "Volver"', () => {
+    it.each([
+      ['desde /login (enlace en la misma pestaña, navegación interna)', directo({ historial: 3, rutaInicial: '/login' })],
+      ['desde /registro con carga completa y referrer del mismo origen', directo({ historial: 2, referrer: `${ORIGEN}/registro` })],
+    ])('%s', (_caso, contexto) => {
+      const decision = decidirBotonAviso(contexto);
+      expect(decision).toEqual({ tipo: 'volver' });
+      expect(vista(decision)).toContain('Volver');
+    });
+  });
+
+  describe('4. sin sesión, llegando directo: "Ir al inicio de sesión" → /login', () => {
+    it.each([
+      ['pestaña nueva sin referrer', directo()],
+      // El enlace del registro abre el aviso en una pestaña nueva, sin
+      // referrer ni historial: no hay a dónde volver.
+      ['enlace del registro en pestaña nueva', directo({ referrer: '' })],
+      ['referrer del mismo origen pero sin historial', directo({ referrer: `${ORIGEN}/registro` })],
+      ['referrer de otro sitio', directo({ historial: 3, referrer: 'https://otro.ejemplo/' })],
+      ['cookie con un rol que la app no conoce', directo({ rol: 'intruso' })],
+    ])('%s', (_caso, contexto) => {
+      const decision = decidirBotonAviso(contexto);
+      expect(decision).toEqual({ tipo: 'login', href: '/login' });
+      const html = vista(decision);
+      expect(html).toContain('href="/login"');
+      expect(html).toContain('Ir al inicio de sesión');
+      expect(html).toContain(ESTILO);
+    });
+  });
+
+  it('con sesión y abierto en pestaña nueva (sin historial) no ofrece "Volver"', () => {
+    expect(decidirBotonAviso(directo({ rol: 'postulante', referrer: `${ORIGEN}/dashboard` }))).toEqual({
+      tipo: 'panel',
+      href: '/dashboard',
+    });
+  });
+
+  it('mientras no se sabe qué mostrar no pinta nada (ni en el servidor)', () => {
+    expect(vista(null)).toBe('');
     expect(renderToStaticMarkup(createElement(BotonEncabezadoAviso))).toBe('');
   });
 });
