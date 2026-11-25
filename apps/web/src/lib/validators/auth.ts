@@ -20,6 +20,10 @@ export const registerSchema = z
     email: z.string().email('Correo inválido'),
     password: passwordSchema,
     confirmar: z.string(),
+    /** Casilla obligatoria del aviso de privacidad (P-01). */
+    aceptaAviso: z.boolean().refine((v) => v === true, {
+      message: 'Debes aceptar el Aviso de Privacidad para registrarte.',
+    }),
   })
   .refine((d) => d.password === d.confirmar, {
     message: 'Las contraseñas no coinciden',

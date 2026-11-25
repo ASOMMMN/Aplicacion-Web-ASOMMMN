@@ -33,6 +33,7 @@ import { ResumenFechasModule } from './modules/resumen-fechas/resumen-fechas.mod
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { MiNubeModule } from './modules/mi-nube/mi-nube.module';
 import { AlertasVencimientoModule } from './modules/alertas-vencimiento/alertas-vencimiento.module';
+import { PrivacidadModule } from './modules/privacidad/privacidad.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -133,6 +134,7 @@ import { HealthController } from './health.controller';
     ChatbotModule,
     MiNubeModule,
     AlertasVencimientoModule,
+    PrivacidadModule,
   ],
   controllers: [HealthController],
   providers: [

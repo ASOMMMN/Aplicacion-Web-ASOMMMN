@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import type { PrivacyConsent } from '../../privacidad/aviso-privacidad.constants';
 
 export type UserRole = 'postulante' | 'evaluador' | 'administrador';
 export type AccountStatus = 'pendiente_verificacion' | 'activa' | 'bloqueada';
@@ -64,6 +65,17 @@ export class Usuario {
 
   @Prop()
   ultimoAcceso?: Date;
+
+  /**
+   * Última aceptación del aviso de privacidad (P-01): versión, fecha y IP.
+   * Opcional: las cuentas anteriores no lo tienen y se les pide aceptarlo
+   * al iniciar sesión (sin migración).
+   */
+  @Prop({
+    type: { version: String, acceptedAt: Date, ip: String },
+    _id: false,
+  })
+  privacyConsent?: PrivacyConsent;
 
   @Prop()
   creadoEn: Date;

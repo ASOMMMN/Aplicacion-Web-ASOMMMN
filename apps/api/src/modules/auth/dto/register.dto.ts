@@ -1,11 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsEmail,
   IsString,
   MinLength,
   MaxLength,
   Matches,
+  ValidateNested,
 } from 'class-validator';
+import { AVISO_PRIVACIDAD_VERSION } from '../../privacidad/aviso-privacidad.constants';
+import { PrivacyConsentInputDto } from '../../privacidad/dto/privacy-consent.dto';
 
 export class RegisterDto {
   @ApiProperty({ example: 'ana@example.com' })
@@ -32,4 +37,14 @@ export class RegisterDto {
     message: 'Debe incluir mayúsculas, minúsculas y números',
   })
   password: string;
+
+  /** Casilla obligatoria del aviso de privacidad (P-01). */
+  @ApiProperty({
+    type: PrivacyConsentInputDto,
+    example: { accepted: true, version: AVISO_PRIVACIDAD_VERSION },
+  })
+  @IsDefined({ message: 'Debes aceptar el aviso de privacidad.' })
+  @ValidateNested()
+  @Type(() => PrivacyConsentInputDto)
+  privacyConsent: PrivacyConsentInputDto;
 }

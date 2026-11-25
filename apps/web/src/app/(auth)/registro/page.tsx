@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, Button, Alert, Spinner, Row, Col } from 'react-bootstrap';
 import Link from 'next/link';
@@ -12,6 +12,10 @@ import { registerSchema, RegisterForm } from '@/lib/validators/auth';
 import AuthVideoBackground from '@/components/auth/AuthVideoBackground';
 import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
 import PasswordInput from '@/components/ui/PasswordInput';
+import {
+  RUTA_AVISO_PRIVACIDAD,
+  consentimientoRegistro,
+} from '@/lib/privacidad/avisoPrivacidad';
 
 export default function RegistroPage() {
   const router = useRouter();
@@ -21,8 +25,13 @@ export default function RegistroPage() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
-  } = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { aceptaAviso: false },
+  });
+  const aceptaAviso = useWatch({ control, name: 'aceptaAviso' });
 
   const onSubmit = async (data: RegisterForm) => {
     setLoading(true);
@@ -33,6 +42,8 @@ export default function RegistroPage() {
         apellidos: data.apellidos,
         email: data.email,
         password: data.password,
+        // Versión vigente del aviso; la API guarda fecha e IP.
+        privacyConsent: consentimientoRegistro(),
       });
 
       await Swal.fire({
@@ -150,10 +161,36 @@ export default function RegistroPage() {
               </Form.Control.Feedback>
             </Form.Group>
 
+            <Form.Group className="mb-4" controlId="aceptaAviso">
+              <Form.Check
+                type="checkbox"
+                {...register('aceptaAviso')}
+                isInvalid={!!errors.aceptaAviso}
+                label={
+                  <>
+                    He leído y acepto el{' '}
+                    <a
+                      href={RUTA_AVISO_PRIVACIDAD}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="fw-semibold"
+                      style={{ color: 'var(--asommmn-azul)' }}
+                    >
+                      Aviso de Privacidad
+                      <i className="bi bi-box-arrow-up-right ms-1" aria-hidden="true" />
+                      <span className="visually-hidden"> (se abre en una pestaña nueva)</span>
+                    </a>
+                  </>
+                }
+                feedback={errors.aceptaAviso?.message}
+                feedbackType="invalid"
+              />
+            </Form.Group>
+
             <Button
               type="submit"
               className="w-100 btn-primary"
-              disabled={loading}
+              disabled={loading || !aceptaAviso}
               style={{ padding: '0.65rem', fontWeight: 600 }}
             >
               {loading ? (

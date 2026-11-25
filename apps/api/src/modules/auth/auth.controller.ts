@@ -102,7 +102,7 @@ export class AuthController {
         `Demasiados intentos de registro. Espera ${min} ${min === 1 ? 'minuto' : 'minutos'} e inténtalo de nuevo.`,
     );
     try {
-      await this.authService.registrar(dto);
+      await this.authService.registrar(dto, ip);
     } catch (err) {
       if (err instanceof ConflictException) {
         await this.fuerzaBruta.registrar(POLITICAS.registroIp, ip);
@@ -266,7 +266,11 @@ export class AuthController {
     const result = await this.authService.rotarRefreshToken(oldToken, ip, ua);
 
     res.cookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTS);
-    return { accessToken: result.accessToken, rol: result.rol };
+    return {
+      accessToken: result.accessToken,
+      rol: result.rol,
+      requiresPrivacyConsent: result.requiresPrivacyConsent,
+    };
   }
 
   // Sin JwtAuthGuard: con el access token vencido o perdido (p. ej. tras

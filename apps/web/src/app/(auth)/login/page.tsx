@@ -14,6 +14,8 @@ import EscudoAsociacionAuth from '@/components/auth/EscudoAsociacionAuth';
 import PasswordInput from '@/components/ui/PasswordInput';
 import { ROLE_HOME } from '@/lib/auth/roleHome';
 import { rutaRedirectSegura } from '@/lib/auth/safeRedirect';
+import { RUTA_AVISO_PRIVACIDAD } from '@/lib/privacidad/avisoPrivacidad';
+import { marcarConsentimientoPendiente } from '@/lib/privacidad/consentimientoPendiente';
 
 function toErrorMessage(msg: unknown): string {
   if (Array.isArray(msg)) return msg.map(String).join(', ');
@@ -45,6 +47,7 @@ export default function LoginPage() {
         requiresMfaSetup?: boolean;
         tempSessionToken?: string;
         accessToken?: string;
+        requiresPrivacyConsent?: boolean;
         user: { id: string; email: string; rol: string; nombre: string };
         message?: string;
       }>('/auth/login', data);
@@ -88,6 +91,9 @@ export default function LoginPage() {
       sessionStorage.removeItem('mfa_user_role');
       // eslint-disable-next-line react-hooks/immutability
       document.cookie = `user_role=${res.data.user.rol}; path=/; SameSite=Strict`;
+      // Cuentas que aún no aceptan el aviso vigente: el layout muestra el
+      // modal bloqueante (P-01).
+      marcarConsentimientoPendiente(res.data.requiresPrivacyConsent === true);
 
       const redirectParam = new URLSearchParams(window.location.search).get('redirect');
       const destino = rutaRedirectSegura(redirectParam) ?? ROLE_HOME[res.data.user.rol] ?? '/';
@@ -209,6 +215,15 @@ export default function LoginPage() {
               style={{ color: 'var(--asommmn-azul)' }}
             >
               Regístrate
+            </Link>
+          </p>
+          <p className="text-center mb-0 mt-2" style={{ fontSize: '0.75rem' }}>
+            <Link
+              href={RUTA_AVISO_PRIVACIDAD}
+              className="text-decoration-none"
+              style={{ color: 'var(--asommmn-text-muted)' }}
+            >
+              Aviso de privacidad
             </Link>
           </p>
         </div>

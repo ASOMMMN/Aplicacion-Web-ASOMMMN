@@ -15,6 +15,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 
 import { conectarMongoPrueba } from '../../../test/utils/conexion-mongo-prueba';
+import { AVISO_PRIVACIDAD_VERSION } from '../privacidad/aviso-privacidad.constants';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import {
@@ -293,6 +294,7 @@ describe('Auth — bloqueo temporal por intentos fallidos (S-01)', () => {
           nombre: 'Ana',
           apellidos: 'López',
           password: 'Contrasena123',
+          privacyConsent: { accepted: true, version: AVISO_PRIVACIDAD_VERSION },
         });
 
     it('5 registros rechazados (correo ya registrado) bloquean la IP 1 hora', async () => {

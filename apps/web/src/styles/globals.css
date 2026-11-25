@@ -1161,3 +1161,107 @@ a:not(.btn):not(.nav-link):not(.navbar-brand) {
   font-size: .78rem;
   font-weight: 600;
 }
+
+/* ---------- Aviso de privacidad (/aviso-de-privacidad y modal) ---------- */
+.aviso-privacidad {
+  background: var(--asommmn-blanco);
+  border-radius: var(--asommmn-radius-card);
+  box-shadow: var(--asommmn-shadow-card);
+  border-top: 4px solid var(--asommmn-dorado);
+  padding: 2rem 1.25rem;
+  color: #212529;
+}
+@media (min-width: 768px) {
+  .aviso-privacidad { padding: 2.5rem 3rem; }
+}
+.aviso-privacidad .aviso-encabezado {
+  border-bottom: 1px solid rgba(10,34,64,.12);
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.aviso-privacidad .aviso-etiqueta {
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--asommmn-dorado-dark);
+  margin-bottom: .25rem;
+}
+.aviso-privacidad h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-bottom: .5rem;
+}
+.aviso-privacidad h1::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 3px;
+  background: var(--asommmn-dorado);
+  margin-top: .45rem;
+}
+.aviso-privacidad .aviso-subtitulo {
+  color: var(--asommmn-text-muted);
+  font-size: 1rem;
+}
+.aviso-privacidad .aviso-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 2rem;
+  margin: 1rem 0;
+  font-size: .85rem;
+}
+.aviso-privacidad .aviso-meta dt {
+  font-weight: 600;
+  color: var(--asommmn-azul);
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.aviso-privacidad .aviso-meta dd { margin: 0; }
+.aviso-privacidad .aviso-nota { font-size: .9rem; margin-bottom: 0; }
+.aviso-privacidad .aviso-indice {
+  background: var(--asommmn-fondo);
+  border-radius: 8px;
+  padding: .9rem 1.25rem;
+  margin-bottom: 2rem;
+  font-size: .9rem;
+}
+.aviso-privacidad .aviso-indice ol { margin: 0; padding-left: 1.1rem; }
+.aviso-privacidad .aviso-indice li { margin: .15rem 0; }
+.aviso-privacidad .aviso-parte {
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin: 2.25rem 0 1rem;
+  padding-bottom: .4rem;
+  border-bottom: 2px solid var(--asommmn-dorado);
+  scroll-margin-top: 1rem;
+}
+.aviso-privacidad .aviso-seccion { margin-bottom: 1.5rem; scroll-margin-top: 1rem; }
+.aviso-privacidad .aviso-seccion h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: .5rem;
+}
+.aviso-privacidad .aviso-bajada {
+  font-weight: 600;
+  color: var(--asommmn-azul);
+  margin-bottom: .35rem;
+}
+.aviso-privacidad ul { padding-left: 1.2rem; }
+.aviso-privacidad li { margin-bottom: .3rem; line-height: 1.6; }
+.aviso-privacidad .aviso-contacto { list-style: none; padding-left: 0; }
+.aviso-privacidad a { color: var(--asommmn-azul); text-decoration-color: var(--asommmn-dorado); }
+.aviso-privacidad .aviso-pie {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(10,34,64,.12);
+  font-size: .8rem;
+  color: var(--asommmn-text-muted);
+}
+.footer-asommmn .enlace-aviso-footer {
+  color: var(--asommmn-dorado);
+  font-size: .8rem;
+}

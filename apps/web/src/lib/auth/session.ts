@@ -21,6 +21,11 @@ export const session = {
   clear() {
     _accessToken = null;
     _userRole = null;
+    try {
+      sessionStorage.removeItem('privacidad_pendiente');
+    } catch {
+      // sin sessionStorage: nada que limpiar
+    }
     (window as Window & { __asommmn_token?: string | null }).__asommmn_token = null;
     document.cookie = 'user_role=; path=/; Max-Age=0';
   },
