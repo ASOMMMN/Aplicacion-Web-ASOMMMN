@@ -38,7 +38,7 @@ export default function AvisoDePrivacidadPage() {
               </span>
             </div>
           </div>
-          {/* Sin sesión: nada. Con sesión: "Volver" o "Ir a mi panel". */}
+          {/* "Volver", "Ir a mi panel" o "Ir al inicio de sesión". */}
           <BotonEncabezadoAviso />
         </div>
       </header>

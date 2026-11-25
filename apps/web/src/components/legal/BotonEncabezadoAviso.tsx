@@ -9,7 +9,7 @@ import {
   leerContextoNavegacion,
 } from '@/lib/privacidad/botonEncabezadoAviso';
 
-/** Vista sin estado: null o ninguno → no se pinta nada. */
+/** Vista sin estado: null (aún no se sabe qué mostrar) → no se pinta nada. */
 export function BotonEncabezadoAvisoVista({
   decision,
   onVolver,
@@ -17,7 +17,7 @@ export function BotonEncabezadoAvisoVista({
   decision: BotonAviso | null;
   onVolver: () => void;
 }) {
-  if (!decision || decision.tipo === 'ninguno') return null;
+  if (!decision) return null;
   if (decision.tipo === 'volver') {
     return (
       <button type="button" className="btn btn-sm btn-outline-light" onClick={onVolver}>
@@ -26,10 +26,18 @@ export function BotonEncabezadoAvisoVista({
       </button>
     );
   }
+  if (decision.tipo === 'panel') {
+    return (
+      <Link href={decision.href} className="btn btn-sm btn-outline-light">
+        <i className="bi bi-grid me-1" aria-hidden="true" />
+        Ir a mi panel
+      </Link>
+    );
+  }
   return (
     <Link href={decision.href} className="btn btn-sm btn-outline-light">
-      <i className="bi bi-grid me-1" aria-hidden="true" />
-      Ir a mi panel
+      <i className="bi bi-box-arrow-in-right me-1" aria-hidden="true" />
+      Ir al inicio de sesión
     </Link>
   );
 }
