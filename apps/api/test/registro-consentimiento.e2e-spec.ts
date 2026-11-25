@@ -337,6 +337,67 @@ describe('Registro con aviso de privacidad (e2e)', () => {
     });
   });
 
+  describe('postulante que aceptó una versión anterior (v1)', () => {
+    const email = 'acepto-v1@prueba.mx';
+
+    beforeAll(async () => {
+      await usuarios.create({
+        email,
+        passwordHash: await hashPassword(CLAVE),
+        nombre: 'Acepto',
+        apellidos: 'Version Uno',
+        rol: 'postulante',
+        estadoCuenta: 'activa',
+        privacyConsent: {
+          version: '2026-11-v1',
+          acceptedAt: new Date('2026-11-24T18:00:00Z'),
+          ip: '10.0.0.1',
+        },
+      });
+    });
+
+    it('debe aceptar la versión vigente al iniciar sesión; aceptar la v1 otra vez no sirve', async () => {
+      const login = await http()
+        .post('/auth/login')
+        .set('X-Forwarded-For', ip())
+        .send({ email, password: CLAVE })
+        .expect(200);
+      const body = login.body as {
+        accessToken: string;
+        requiresPrivacyConsent: boolean;
+      };
+      expect(body.requiresPrivacyConsent).toBe(true);
+      const auth = { Authorization: `Bearer ${body.accessToken}` };
+
+      await http().get('/ruta-postulante').set(auth).expect(403);
+      await http()
+        .post('/privacidad/consentimiento')
+        .set(auth)
+        .send({ version: '2026-11-v1' })
+        .expect(400);
+      await http()
+        .post('/privacidad/consentimiento')
+        .set(auth)
+        .send({ version: AVISO_PRIVACIDAD_VERSION })
+        .expect(200);
+
+      const user = await usuarios.findOne({ email }).lean();
+      expect(user?.privacyConsent?.version).toBe(AVISO_PRIVACIDAD_VERSION);
+      await http().get('/ruta-postulante').set(auth).expect(200);
+    });
+
+    it('un registro con la versión anterior se rechaza (400)', async () => {
+      await http()
+        .post('/auth/registro')
+        .set('X-Forwarded-For', ip())
+        .send({
+          ...datosRegistro('registro-v1@prueba.mx'),
+          privacyConsent: { accepted: true, version: '2026-11-v1' },
+        })
+        .expect(400);
+    });
+  });
+
   it('evaluadores y administradores no quedan bloqueados', async () => {
     await usuarios.create({
       email: 'evaluador@prueba.mx',

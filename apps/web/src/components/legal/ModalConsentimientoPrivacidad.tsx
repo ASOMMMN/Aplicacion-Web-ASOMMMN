@@ -64,7 +64,9 @@ export default function ModalConsentimientoPrivacidad() {
           </li>
           <li>
             <strong>Datos:</strong> identificación, contacto, trayectoria académica y laboral,
-            certificaciones y cursos, y documentos de identidad (INE, CURP, pasaporte y visa).
+            certificaciones y cursos, documentos de identidad y de competencia marítima, y
+            documentos de salud. Algunos son datos sensibles (salud, y fotografía y firma de los
+            documentos de identidad) y se tratan con medidas reforzadas.
           </li>
           <li>
             <strong>Finalidad:</strong> integrar y evaluar tu expediente dentro del proceso de
