@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import Link from 'next/link';
 import AppFooter from '@/components/layout/AppFooter';
 import AvisoPrivacidadContenido from '@/components/legal/AvisoPrivacidadContenido';
+import BotonEncabezadoAviso from '@/components/legal/BotonEncabezadoAviso';
 import { ALT_ESCUDO, NOMBRE_CORTO, NOMBRE_LARGO } from '@/lib/branding';
 
 // BORRADOR pendiente de revisión legal: ver el encabezado de
@@ -38,10 +38,8 @@ export default function AvisoDePrivacidadPage() {
               </span>
             </div>
           </div>
-          <Link href="/login" className="btn btn-sm btn-outline-light">
-            <i className="bi bi-box-arrow-in-right me-1" aria-hidden="true" />
-            Ir a la plataforma
-          </Link>
+          {/* Sin sesión: nada. Con sesión: "Volver" o "Ir a mi panel". */}
+          <BotonEncabezadoAviso />
         </div>
       </header>
 

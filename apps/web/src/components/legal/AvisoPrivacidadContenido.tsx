@@ -8,13 +8,16 @@
  *
  * - Parte I reproduce el aviso oficial publicado por ASOMMMN en
  *   https://asommmn.org.mx/privacidad (consultado el 23-nov-2026), con su
- *   redacción original. No se agregaron datos del responsable.
+ *   redacción original (en la v2 solo se quitó un rótulo "Datos sensibles."
+ *   duplicado, sin cambiar el sentido). No se agregaron datos del responsable.
  * - Parte II es nueva y describe lo que hace esta plataforma con los datos
- *   de los postulantes, según el código actual.
+ *   de los postulantes, según el código actual. Los documentos que se piden
+ *   son los de TIPOS_DOC_PERSONAL (apps/api/.../tipos-doc-personal.ts).
  * - Los datos de la Parte II (vigencia, finalidades, IA, encargados,
  *   transferencias y conservación) los definió ASOMMMN el 24-nov-2026.
  *   Siguen sujetos a confirmación: finalidades secundarias, transferencias,
- *   plazos de conservación y los plazos de respuesta ARCO.
+ *   plazos de conservación y su punto de partida, los plazos de respuesta
+ *   ARCO, el nombre vigente de la ley y la autoridad ante la que acudir.
  * - Si el texto cambia, subir AVISO_PRIVACIDAD_VERSION (web y API) para que
  *   los postulantes acepten la versión nueva.
  */
@@ -130,8 +133,8 @@ export default function AvisoPrivacidadContenido() {
           </li>
         </ul>
         <p>
-          <strong>Datos sensibles.</strong> Estado de salud, información sindical y otros datos
-          personales sensibles se tratan bajo medidas estrictas de seguridad y confidencialidad.
+          Estado de salud, información sindical y otros datos personales sensibles se tratan bajo
+          medidas estrictas de seguridad y confidencialidad.
         </p>
       </Seccion>
 
@@ -197,15 +200,30 @@ export default function AvisoPrivacidadContenido() {
             sus fechas de emisión y vencimiento.
           </li>
           <li>
-            <strong>Documentos de identidad:</strong> credencial para votar (INE), CURP, pasaporte y
-            visa. Estos documentos contienen, entre otros, fotografía, firma y números de
-            identificación, por lo que se tratan con las mismas medidas que los datos sensibles.
+            <strong>Documentos de identificación:</strong> CURP y acta de nacimiento; además, como{' '}
+            <strong>datos sensibles</strong>, credencial para votar (INE), pasaporte, visa y
+            libreta de identidad marítima, porque contienen fotografía, firma y, en algunos casos,
+            datos biométricos.
+          </li>
+          <li>
+            <strong>Documentos de salud (datos sensibles):</strong> certificado médico marítimo y
+            certificado internacional de vacunación contra la fiebre amarilla.
+          </li>
+          <li>
+            <strong>Documentos de competencia marítima:</strong> certificado de competencia,
+            refrendo y constancia de participación.
           </li>
           <li>
             <strong>Datos técnicos de uso:</strong> dirección IP, navegador y fecha y hora de
             acceso, que se registran por seguridad.
           </li>
         </ul>
+        <p>
+          Los documentos marcados como datos sensibles se tratan con medidas reforzadas: además de
+          ti, solo los consulta el personal autorizado de ASOMMMN con su propia cuenta, se muestran
+          mediante enlaces de acceso temporal y se usan únicamente para la evaluación curricular.
+          Al aceptar este aviso otorgas tu consentimiento expreso para su tratamiento.
+        </p>
       </Seccion>
 
       <Seccion id="plataforma-finalidades" titulo="Finalidades">
@@ -297,8 +315,9 @@ export default function AvisoPrivacidadContenido() {
 
       <Seccion id="plataforma-conservacion" titulo="Conservación y eliminación">
         <p>
-          Los datos y documentos de candidatos no seleccionados se conservarán durante 1 año; al
-          término de ese plazo se eliminarán o se anonimizarán.
+          Los datos y documentos de candidatos no seleccionados se conservarán durante 1 año,
+          contado desde que concluye el proceso de evaluación; al término de ese plazo se
+          eliminarán o se anonimizarán.
         </p>
         <p>
           Los datos de las cuentas sin actividad se conservarán por el tiempo necesario para cumplir
@@ -327,6 +346,11 @@ export default function AvisoPrivacidadContenido() {
         <p>
           ASOMMMN te responderá en un plazo máximo de 20 días contados desde que reciba tu
           solicitud y, si resulta procedente, la hará efectiva dentro de los 15 días siguientes.
+        </p>
+        {/* Sin nombrar la dependencia a propósito: el asesor legal debe confirmarla. */}
+        <p>
+          Si no estás conforme con la respuesta a tu solicitud, puedes acudir a la autoridad
+          competente en materia de protección de datos personales.
         </p>
         <p>
           Si revocas tu consentimiento para las finalidades primarias, no podremos continuar con tu

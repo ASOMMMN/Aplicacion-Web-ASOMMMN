@@ -7,7 +7,7 @@
  * postulantes que aceptaron una anterior deben aceptar la nueva en su
  * siguiente inicio de sesión.
  */
-export const AVISO_PRIVACIDAD_VERSION = '2026-11-v1';
+export const AVISO_PRIVACIDAD_VERSION = '2026-11-v2';
 
 /** Código del 403 que la web usa para mostrar el modal de aceptación. */
 export const CODIGO_CONSENTIMIENTO_PENDIENTE = 'PRIVACY_CONSENT_REQUIRED';

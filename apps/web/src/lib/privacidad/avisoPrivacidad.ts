@@ -6,13 +6,20 @@
  * acepta la versión vigente y, al cambiarla, los postulantes deben aceptar
  * el aviso nuevo en su siguiente inicio de sesión.
  */
-export const AVISO_PRIVACIDAD_VERSION = '2026-11-v1';
+export const AVISO_PRIVACIDAD_VERSION = '2026-11-v2';
+
+/**
+ * FECHA DE DESPLIEGUE de esta versión: es a la vez la fecha de vigencia y la
+ * de última actualización del aviso. Cambiarla aquí (un solo lugar) por el
+ * día en que se publique en producción.
+ */
+export const AVISO_PRIVACIDAD_FECHA = '25 de noviembre de 2026';
 
 /** Fecha desde la que rige esta versión del aviso. */
-export const AVISO_PRIVACIDAD_VIGENCIA = '24 de noviembre de 2026';
+export const AVISO_PRIVACIDAD_VIGENCIA = AVISO_PRIVACIDAD_FECHA;
 
 /** Fecha de la última edición del texto. */
-export const AVISO_PRIVACIDAD_ACTUALIZADO = '24 de noviembre de 2026';
+export const AVISO_PRIVACIDAD_ACTUALIZADO = AVISO_PRIVACIDAD_FECHA;
 
 export const RUTA_AVISO_PRIVACIDAD = '/aviso-de-privacidad';
 

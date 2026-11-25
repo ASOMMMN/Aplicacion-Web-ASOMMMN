@@ -8,6 +8,8 @@ import { esRutaAbierta, esRutaPublica } from '@/lib/auth/rutasPublicas';
 import { registerSchema } from '@/lib/validators/auth';
 import {
   AVISO_PRIVACIDAD_VERSION,
+  AVISO_PRIVACIDAD_ACTUALIZADO,
+  AVISO_PRIVACIDAD_FECHA,
   AVISO_PRIVACIDAD_VIGENCIA,
   CODIGO_CONSENTIMIENTO_PENDIENTE,
   URL_AVISO_GENERAL_ASOMMMN,
@@ -22,7 +24,7 @@ describe('Aviso de privacidad (P-01)', () => {
     );
     expect(api).toContain(`AVISO_PRIVACIDAD_VERSION = '${AVISO_PRIVACIDAD_VERSION}'`);
     expect(api).toContain(`CODIGO_CONSENTIMIENTO_PENDIENTE = '${CODIGO_CONSENTIMIENTO_PENDIENTE}'`);
-    expect(AVISO_PRIVACIDAD_VERSION).toBe('2026-11-v1');
+    expect(AVISO_PRIVACIDAD_VERSION).toBe('2026-11-v2');
   });
 
   it('el registro manda la casilla marcada y la versión vigente', () => {
@@ -74,5 +76,57 @@ describe('Aviso de privacidad (P-01)', () => {
     // El captcha (#17) aún no está activo: el aviso no lo menciona. Al
     // desplegarlo hay que agregarlo y subir AVISO_PRIVACIDAD_VERSION.
     expect(html).not.toMatch(/Cloudflare|bots/i);
+  });
+
+  describe('versión 2026-11-v2', () => {
+    const html = renderToStaticMarkup(createElement(AvisoPrivacidadContenido));
+    const texto = html.replace(/<[^>]+>/g, '');
+
+    it('lista los 11 documentos que pide la plataforma, por categoría', () => {
+      for (const doc of [
+        'CURP',
+        'acta de nacimiento',
+        'credencial para votar (INE)',
+        'pasaporte',
+        'visa',
+        'libreta de identidad marítima',
+        'certificado médico marítimo',
+        'vacunación contra la fiebre amarilla',
+        'certificado de competencia',
+        'refrendo',
+        'constancia de participación',
+      ]) {
+        expect(texto).toContain(doc);
+      }
+    });
+
+    it('marca como sensibles los de salud y los de identificación con fotografía y firma', () => {
+      expect(texto).toContain('Documentos de salud (datos sensibles)');
+      expect(texto).toMatch(
+        /datos sensibles, credencial para votar \(INE\), pasaporte, visa y\s+libreta de identidad marítima/,
+      );
+      expect(texto).toContain('se tratan con medidas reforzadas');
+    });
+
+    it('precisa desde cuándo cuenta el plazo de 1 año', () => {
+      expect(texto).toMatch(/durante 1 año,\s+contado desde que concluye el proceso de evaluación/);
+    });
+
+    it('menciona la autoridad competente sin nombrar una dependencia', () => {
+      expect(texto).toMatch(
+        /puedes acudir a la autoridad\s+competente en materia de protección de datos personales\./,
+      );
+    });
+
+    it('quita el rótulo "Datos sensibles." duplicado de la Parte I sin cambiar el sentido', () => {
+      expect(texto).not.toContain('Datos sensibles.');
+      expect(texto).toMatch(/Estado de salud, información sindical y otros datos personales sensibles/);
+    });
+
+    it('vigencia y última actualización salen de una sola constante', () => {
+      expect(AVISO_PRIVACIDAD_VIGENCIA).toBe(AVISO_PRIVACIDAD_FECHA);
+      expect(AVISO_PRIVACIDAD_ACTUALIZADO).toBe(AVISO_PRIVACIDAD_FECHA);
+      expect(texto).toContain(AVISO_PRIVACIDAD_FECHA);
+    });
   });
 });
